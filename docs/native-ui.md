@@ -1,5 +1,25 @@
 # Native desktop
 
+## Brand
+
+The desktop follows the PatentForge visual identity guide:
+
+| Element | Use |
+| --- | --- |
+| Ink `#102B40` | Application background, panels, and document text. |
+| Paper `#F5F1E8` | Primary text on dark surfaces, and the **report document** itself: the guide requires ink on paper for documents, so saved reports render as a paper sheet. |
+| Copper `#B65A32` | Primary actions, active navigation, links, and the symbol's fold. |
+| Hot copper `#F08F56` | Highlights, hover states, and the LITE wordmark accent. |
+| Barlow | All type. Bold for headings, Regular for body and captions, loaded from `assets/fonts` at start-up. |
+| Framed app icon | Anchors the left rail; the wordmark pairs PatentForge with a hot-copper LITE. |
+
+`assets/brand/` holds the guide's own masters (symbol reverse and primary, framed
+icon, Windows `.ico`); `assets/fonts/` holds Barlow with its OFL licence. Both are
+embedded at compile time, so there is no runtime asset directory.
+
+The window title keeps the descriptive product name "Patent Forge Lite" while the
+in-app wordmark is set in the brand style.
+
 ## Visual design
 
 The interface is a layered dark theme built entirely from GPUI primitives — no

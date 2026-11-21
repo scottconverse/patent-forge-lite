@@ -1,4 +1,5 @@
 //! GPUI desktop. Provider execution is exclusively owned by WorkflowService.
+mod assets;
 mod input;
 mod theme;
 
@@ -100,7 +101,10 @@ pub fn run() -> Result<()> {
     let session = Rc::new(ApplicationSession::open(
         directory.join("projects.sqlite3"),
     )?);
-    gpui_platform::application().run(move |cx: &mut App| {
+    gpui_platform::application()
+        .with_assets(assets::BrandAssets)
+        .run(move |cx: &mut App| {
+        let _ = cx.text_system().add_fonts(assets::font_blobs());
         cx.set_app_identity(APPLICATION_ID, APPLICATION_NAME);
         input::bind_keys(cx);
         cx.bind_keys([
@@ -299,14 +303,10 @@ impl Desktop {
         }
     }
 
-    /// Restores keyboard focus to the page body after navigation. The focus call
-    /// is deferred a frame because the previously focused element is destroyed by
-    /// the re-render, which would otherwise clear focus again.
-    fn focus_body(&self, window: &mut Window) {
-        let focus = self.content_focus.clone();
-        window.on_next_frame(move |window, cx| {
-            window.focus(&focus, cx);
-        });
+    /// Restores keyboard focus to the page body after navigation, so global
+    /// shortcuts keep working once the previously focused control is gone.
+    fn focus_body(&self, window: &mut Window, cx: &mut Context<Self>) {
+        window.focus(&self.content_focus, cx);
     }
 
     fn send(&mut self, request: Request, cx: &mut Context<Self>) {
@@ -827,7 +827,7 @@ impl Desktop {
             )
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.state.navigate(page);
-                this.focus_body(window);
+                this.focus_body(window, cx);
                 cx.notify();
             }))
             .on_key_down(cx.listener(move |this, event: &gpui::KeyDownEvent, _, cx| {
@@ -848,9 +848,9 @@ impl Desktop {
 
     fn mode_pill(&self) -> Div {
         match &self.mode {
-            None => theme::pill("No mode · no inference", theme::MUTED, 0x1a2431),
+            None => theme::pill("No mode · no inference", theme::MUTED, 0x1b3247),
             Some(Mode::Replay) => {
-                theme::pill("Recorded replay · synthetic only", theme::ACCENT, 0x152844)
+                theme::pill("Recorded replay · synthetic only", theme::ACCENT, 0x3a2418)
             }
             Some(Mode::Local { .. }) => {
                 theme::pill("Local inference · explicit", theme::WARN, 0x33280f)
@@ -1340,7 +1340,7 @@ impl Render for Desktop {
                                                 view.snapshot.input.kind.slug()
                                             ),
                                             theme::MUTED,
-                                            0x1a2431,
+                                            0x1b3247,
                                         )),
                                 ),
                         )
@@ -1581,16 +1581,16 @@ impl Render for Desktop {
                             .child(theme::pill(
                                 format!("version {version}"),
                                 theme::ACCENT,
-                                0x152844,
+                                0x3a2418,
                             ))
                             .child(theme::pill(
                                 format!("{id}").chars().take(18).collect::<String>(),
                                 theme::MUTED,
-                                0x1a2431,
+                                0x1b3247,
                             ))
                             .child(match chars {
                                 Some(chars) => {
-                                    theme::pill(format!("{chars} chars"), theme::MUTED, 0x1a2431)
+                                    theme::pill(format!("{chars} chars"), theme::MUTED, 0x1b3247)
                                 }
                                 None => theme::pill("no saved report", theme::WARN, 0x33280f),
                             }),
@@ -1609,6 +1609,9 @@ impl Render for Desktop {
                                 .accessibility_id("report-document")
                                 .role(Role::Document)
                                 .aria_label("Rendered saved report")
+                                .bg(rgb(theme::DOC_BG))
+                                .border_color(rgb(theme::DOC_RULE))
+                                .text_color(rgb(theme::DOC_TEXT))
                                 .p_8()
                                 .flex()
                                 .flex_col()
@@ -1904,19 +1907,15 @@ impl Render for Desktop {
             .border_color(rgb(theme::BORDER))
             .child(
                 div()
-                    .w(px(34.))
-                    .h(px(34.))
-                    .rounded_md()
-                    .bg(rgb(theme::ACCENT))
+                    .w(px(38.))
+                    .h(px(38.))
                     .flex()
                     .items_center()
                     .justify_center()
                     .child(
-                        div()
-                            .text_sm()
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(rgb(0x08111d))
-                            .child("PF"),
+                        // The guide's framed application icon: the symbol on its
+                        // ink tile, which reads correctly against the dark rail.
+                        gpui::img(assets::APP_ICON).w(px(30.)).h(px(30.)),
                     ),
             )
             .child(div().h(px(10.)).w(px(1.)).bg(rgb(theme::BORDER)))
@@ -2001,7 +2000,7 @@ impl Render for Desktop {
             .gap_2()
             .child(self.mode_pill());
         if let Some(provider) = provider {
-            top_right = top_right.child(theme::pill(provider, theme::MUTED, 0x1a2431));
+            top_right = top_right.child(theme::pill(provider, theme::MUTED, 0x1b3247));
         }
         let top_bar = div()
             .h(px(64.))
@@ -2020,10 +2019,24 @@ impl Render for Desktop {
                     .gap_1()
                     .child(
                         div()
-                            .text_lg()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(rgb(theme::TEXT))
-                            .child(APPLICATION_NAME),
+                            .flex()
+                            .flex_row()
+                            .items_baseline()
+                            .gap_2()
+                            .child(
+                                div()
+                                    .text_lg()
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(rgb(theme::TEXT))
+                                    .child("PatentForge"),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(rgb(theme::HOT_COPPER))
+                                    .child("LITE"),
+                            ),
                     )
                     .child(
                         div()
@@ -2093,35 +2106,36 @@ impl Render for Desktop {
             .flex_col()
             .bg(rgb(theme::BG))
             .text_color(rgb(theme::TEXT))
+            .font_family(assets::FONT_FAMILY)
             .on_action(cx.listener(|this, _: &SaveIntake, _, cx| this.save(cx)))
             .on_action(cx.listener(|this, _: &NavProjects, window, cx| {
                 this.state.navigate(Page::Projects);
-                this.focus_body(window);
+                this.focus_body(window, cx);
                 cx.notify();
             }))
             .on_action(cx.listener(|this, _: &NavIntake, window, cx| {
                 this.state.navigate(Page::Intake);
-                this.focus_body(window);
+                this.focus_body(window, cx);
                 cx.notify();
             }))
             .on_action(cx.listener(|this, _: &NavAnalysis, window, cx| {
                 this.state.navigate(Page::Workflow);
-                this.focus_body(window);
+                this.focus_body(window, cx);
                 cx.notify();
             }))
             .on_action(cx.listener(|this, _: &NavHistory, window, cx| {
                 this.state.navigate(Page::History);
-                this.focus_body(window);
+                this.focus_body(window, cx);
                 cx.notify();
             }))
             .on_action(cx.listener(|this, _: &NavReport, window, cx| {
                 this.state.navigate(Page::Report);
-                this.focus_body(window);
+                this.focus_body(window, cx);
                 cx.notify();
             }))
             .on_action(cx.listener(|this, _: &NavSettings, window, cx| {
                 this.state.navigate(Page::Settings);
-                this.focus_body(window);
+                this.focus_body(window, cx);
                 cx.notify();
             }))
             .on_action(cx.listener(|_, _: &FocusNext, window, cx| window.focus_next(cx)))
@@ -2177,7 +2191,7 @@ fn report_runs(text: &str) -> Div {
         .w_full()
         .text_sm()
         .line_height(px(24.))
-        .text_color(rgb(theme::TEXT))
+        .text_color(rgb(theme::DOC_TEXT))
         .child(plain)
 }
 
@@ -2188,7 +2202,7 @@ fn report_table(header: Vec<String>, rows: Vec<Vec<String>>) -> Div {
         .w_full()
         .rounded_md()
         .border_1()
-        .border_color(rgb(theme::BORDER))
+        .border_color(rgb(theme::DOC_RULE))
         .overflow_hidden();
     if !header.is_empty() {
         table = table.child(
@@ -2198,14 +2212,14 @@ fn report_table(header: Vec<String>, rows: Vec<Vec<String>>) -> Div {
                 .gap_3()
                 .px_3()
                 .py_2()
-                .bg(rgb(theme::SURFACE_2))
+                .bg(rgb(0xefe9dd))
                 .children(header.into_iter().map(|cell| {
                     div()
                         .flex_1()
                         .min_w_0()
                         .text_xs()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(rgb(theme::MUTED))
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(rgb(theme::DOC_MUTED))
                         .child(cell)
                 })),
         );
@@ -2219,13 +2233,13 @@ fn report_table(header: Vec<String>, rows: Vec<Vec<String>>) -> Div {
                 .px_3()
                 .py_2()
                 .border_t_1()
-                .border_color(rgb(theme::BORDER_SOFT))
+                .border_color(rgb(theme::DOC_RULE))
                 .children(row.into_iter().map(|cell| {
                     div()
                         .flex_1()
                         .min_w_0()
                         .text_sm()
-                        .text_color(rgb(theme::TEXT))
+                        .text_color(rgb(theme::DOC_TEXT))
                         .child(cell)
                 })),
         );
@@ -2244,17 +2258,17 @@ fn report_document(markdown_text: &str) -> Div {
                     1 => div()
                         .text_2xl()
                         .font_weight(FontWeight::BOLD)
-                        .text_color(rgb(theme::TEXT)),
+                        .text_color(rgb(theme::DOC_TEXT)),
                     2 => div()
                         .mt_2()
                         .text_xl()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(rgb(theme::TEXT)),
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(rgb(theme::DOC_TEXT)),
                     _ => div()
                         .mt_2()
                         .text_lg()
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(rgb(theme::MUTED)),
+                        .text_color(rgb(theme::DOC_MUTED)),
                 };
                 element.child(text)
             }
@@ -2269,24 +2283,24 @@ fn report_document(markdown_text: &str) -> Div {
                         .w(px(5.))
                         .h(px(5.))
                         .rounded_full()
-                        .bg(rgb(theme::ACCENT)),
+                        .bg(rgb(theme::DOC_COPPER)),
                 )
                 .child(report_runs(&text)),
             crate::markdown::Block::Numbered(text) => report_runs(&text),
-            crate::markdown::Block::Rule => theme::divider(),
+            crate::markdown::Block::Rule => div().h(px(1.)).w_full().bg(rgb(theme::DOC_RULE)),
             crate::markdown::Block::Table { header, rows } => report_table(header, rows),
             crate::markdown::Block::Code(code) => div()
                 .p_4()
                 .rounded_md()
-                .bg(rgb(theme::RAIL))
+                .bg(rgb(theme::DOC_CODE))
                 .border_1()
-                .border_color(rgb(theme::BORDER))
+                .border_color(rgb(theme::DOC_RULE))
                 .child(
                     div()
                         .text_xs()
                         .font_family("Consolas")
                         .line_height(px(18.))
-                        .text_color(rgb(theme::MUTED))
+                        .text_color(rgb(theme::DOC_MUTED))
                         .child(code),
                 ),
         });

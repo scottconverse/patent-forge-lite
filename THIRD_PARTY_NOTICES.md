@@ -33,3 +33,27 @@ revision `2f808b3c2de049ecfdbad0fdb26763cebfcaa3b4`.
 not a copy or relicense of the complete Zed application. Its package-specific
 and transitive license/notice obligations remain applicable. This file is not
 a complete distribution SBOM or a claim that packaging license review passed.
+
+## Barlow typefaces
+
+`assets/fonts/Barlow-Regular.ttf` and `assets/fonts/Barlow-Bold.ttf` are Barlow,
+by Jeremy Tribby, released under the SIL Open Font License 1.1. The license text
+is copied verbatim at `assets/fonts/OFL.txt` and travels with the binaries. The
+identity guide specifies Barlow Bold for headings and Barlow Regular for body
+text and captions.
+
+## PatentForge visual identity assets
+
+`assets/brand/` contains the PatentForge identity assets supplied by Scott
+Converse: the scalable symbol masters (`symbol-reverse.svg`,
+`symbol-primary.svg`), the framed application icon (`app-256.png`) and the
+Windows icon (`patentforge.ico`). They are first-party product artwork, not
+third-party material, and are used according to the identity guide:
+
+- Ink `#102B40`, Paper `#F5F1E8`, Copper `#B65A32`, Hot copper `#F08F56`.
+- Ink on paper for documents; the paper-coloured mark with the hotter copper
+  fold on dark surfaces.
+- The framed icon for application surfaces such as the rail and installers;
+  the full signature at 160 px or wider, otherwise the symbol.
+
+The guide itself is not redistributed in this repository.

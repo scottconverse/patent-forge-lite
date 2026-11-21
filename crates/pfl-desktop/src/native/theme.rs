@@ -1,29 +1,44 @@
-//! Visual language for the native desktop.
+//! Visual language for the native desktop, taken from the PatentForge identity
+//! guide: Ink, Paper, Copper and Hot copper, with Barlow for all type.
 //!
 //! Everything here is presentation only: no state, no commands, no provider work.
-//! Components are GPUI primitives (flex layout, box shadows, corner radii, hover
-//! state styles) rather than an HTML/DOM layer.
 use gpui::{BoxShadow, Div, FontWeight, SharedString, div, prelude::*, px, rgb, rgba};
 
-// Layered dark surfaces, darkest at the back.
-pub const BG: u32 = 0x080d14;
-pub const RAIL: u32 = 0x0b121b;
-pub const SURFACE: u32 = 0x121b27;
-pub const SURFACE_2: u32 = 0x18232f;
-pub const BORDER: u32 = 0x233244;
-pub const BORDER_SOFT: u32 = 0x1a2532;
+// Brand primitives, exactly as specified.
+pub const INK: u32 = 0x102b40;
+pub const PAPER: u32 = 0xf5f1e8;
+pub const COPPER: u32 = 0xb65a32;
+pub const HOT_COPPER: u32 = 0xf08f56;
 
-pub const TEXT: u32 = 0xe9f1f8;
-pub const MUTED: u32 = 0x94a7bd;
-pub const FAINT: u32 = 0x5f7185;
+// Ink ladder: the branded base plus darker and lighter ink for elevation.
+pub const BG: u32 = INK;
+pub const RAIL: u32 = 0x0b1f2f;
+pub const SURFACE: u32 = 0x16344b;
+pub const SURFACE_2: u32 = 0x1d4059;
+pub const BORDER: u32 = 0x2b4a61;
+pub const BORDER_SOFT: u32 = 0x21405a;
 
-pub const ACCENT: u32 = 0x4d8dff;
-pub const ACCENT_DIM: u32 = 0x1c3459;
-pub const OK: u32 = 0x3ddc97;
-pub const WARN: u32 = 0xf5b942;
-pub const DANGER: u32 = 0xff6b7a;
+// Paper ladder for text on ink.
+pub const TEXT: u32 = PAPER;
+pub const MUTED: u32 = 0xc3cbc9;
+pub const FAINT: u32 = 0x8ea0a8;
+
+pub const ACCENT: u32 = COPPER;
+pub const ACCENT_DIM: u32 = 0x3a2418;
+pub const OK: u32 = 0x7fb69a;
+pub const WARN: u32 = 0xe0a458;
+pub const DANGER: u32 = 0xd9614f;
 pub const VIOLET: u32 = 0xa78bfa;
 
+// Document surfaces: the guide says "use ink on paper for documents".
+pub const DOC_BG: u32 = PAPER;
+pub const DOC_TEXT: u32 = INK;
+pub const DOC_MUTED: u32 = 0x4a6172;
+pub const DOC_RULE: u32 = 0xd8cfbe;
+pub const DOC_CODE: u32 = 0xeee8db;
+
+#[allow(dead_code)]
+pub const DOC_COPPER: u32 = COPPER;
 pub fn card_shadow() -> Vec<BoxShadow> {
     vec![
         BoxShadow::new(px(0.), px(12.), rgba(0x00000059).into())
@@ -90,12 +105,12 @@ pub fn divider() -> Div {
 /// Outcome colour pairing for a run state.
 pub fn outcome_colors(outcome: &str) -> (u32, u32) {
     match outcome.to_ascii_lowercase().as_str() {
-        "completed" => (OK, 0x0f2f24),
-        "running" => (ACCENT, 0x152844),
-        "cancelling" | "cancelled" => (WARN, 0x33280f),
-        "failed" => (DANGER, 0x341518),
-        "interrupted" => (VIOLET, 0x241a3d),
-        _ => (MUTED, 0x1a2431),
+        "completed" => (OK, 0x14322a),
+        "running" => (HOT_COPPER, 0x3a2418),
+        "cancelling" | "cancelled" => (WARN, 0x352a13),
+        "failed" => (DANGER, 0x361a19),
+        "interrupted" => (VIOLET, 0x2a2340),
+        _ => (MUTED, 0x1b3247),
     }
 }
 

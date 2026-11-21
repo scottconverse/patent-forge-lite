@@ -32,6 +32,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ; Per-user data is NOT touched by the installer or uninstaller:
 ;   %LOCALAPPDATA%\patent-forge-lite
 UninstallDisplayIcon={app}\pfl-desktop.exe
+SetupIconFile=..\..\assets\brand\patentforge.ico
 ; Signing tool directives are intentionally absent until a policy is chosen.
 
 [Files]
@@ -43,6 +44,9 @@ Source: "..\..\LEGAL_NOTICE.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs
 Source: "..\..\prompts\*"; DestDir: "{app}\prompts"; Flags: ignoreversion recursesubdirs
+Source: "..\..\assets\brand\patentforge.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\assets\fonts\*"; DestDir: "{app}\fonts"; Flags: ignoreversion
+Source: "..\..\assets\fonts\OFL.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\pfl-desktop.exe"
