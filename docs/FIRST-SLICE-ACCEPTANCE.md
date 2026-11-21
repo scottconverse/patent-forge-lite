@@ -4,7 +4,7 @@
 
 Demonstrate one usable native Patent Forge Lite journey on Windows, macOS and Linux, while keeping PatentForge in place. Establish native builds on all three from the start, rather than completing one platform before considering the others.
 
-This is a planned acceptance checklist. No item is marked passed by documentation, a build declaration or a fixture alone. The current repository bootstrap has no implementation or test results.
+This is an acceptance checklist, not a blanket pass. First-slice source implementation is active. The initial 14 portable desktop editor/state tests passed centrally before the nine-field context extension; context/history and real-session tests require their own reruns. See [native UI evidence and limitations](native-ui.md). No app window, live local inference, native interaction or installed acceptance is established by the initial portable tests or the native-dependency-only check.
 
 ## Stage 1: deterministic native vertical slice
 
@@ -15,16 +15,19 @@ Use a synthetic invention and recorded provider responses. Fixtures must be clea
 | Native entry point | A minimal GPUI application builds natively for each target from the same revision. It does not require the legacy application services. |
 | Separate identity | Launch uses distinct application identity and writable locations; no existing installation, settings, ports or integrations are claimed or modified. |
 | Intake | Create/open a synthetic project, enter and edit invention text, save it, close/reopen the app and recover the same content. |
+| Optional context | Edit each of the nine optional invention fields; collapse/reopen them and save a basic-field-only change without erasing untouched context. Preserve original labels/order in all six stages. |
 | Text usability | Unicode entry, selection, clipboard, undo, focus traversal and platform shortcuts work. Long report navigation/scrolling remains usable. |
 | Analysis | Start the recorded analysis through the normal native command path; show stage progress, streaming and explicit terminal status. Clearly identify replay mode. |
 | Navigation | Navigate away and back during the run. The runner continues, the view resubscribes and no duplicate provider request or run is started. |
 | Cancellation | Cancel in-flight work, acknowledge cancellation and preserve completed checkpoints and usage. Repeated commands do not create overlapping attempts. |
 | Recovery | Interrupt before stage 1 and during a later stage, restart, then resume the same run without repeating completed stages or losing saved input. |
 | Saved result | Reopen the persisted report and stage/history views without generating again. Verify the selected saved version is the one displayed. |
+| Historical import | With an explicit synthetic import, reopen the older edited report while a newer version progresses. Preserve selected-version display/export and disclose any reconstructed legacy request metadata. |
 | Export | Export the saved report through the native interface to the selected destination. Open the actual file and check content, Unicode and version identity. Record exactly which formats were exercised. |
 | Setup profiles | Lean reaches Cloud setup without acquiring Ollama. Full offers Local/Cloud and recognizes a fixture-declared existing model without initiating acquisition. |
 | Core policy | Navigation/read/export causes zero inference calls. Declined paid approval causes zero paid requests. Local selection cannot silently fall back to Cloud. |
 | Lifecycle | Window close, quit, restart and interruption have documented effects. Existing PatentForge, DSH and independently owned Ollama remain untouched. |
+| Profile ownership | A second process cannot recover an actively owned Lite database; death of the owning process releases its OS lock and permits recovery on restart. |
 
 Replay verifies orchestration and usability, not live model readiness or output quality. Do not mark live inference passed from this stage.
 

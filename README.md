@@ -6,9 +6,11 @@ The intended architecture is a standalone Rust application core with a GPUI desk
 
 ## Current status
 
-The staged delivery approach and product identity have been approved. This repository bootstrap contains documentation only. Coding scopes, shared contracts and toolchain versions have not yet been activated or selected. There is no runnable application, Cargo workspace, build result or installed acceptance result here.
+Implementation is active on a first complete feasibility slice. The workspace contains shared Rust domain, storage and workflow crates, a CLI, and a GPUI desktop with portable presentation/input tests. Desktop source covers project/intake editing (including nine optional invention-context fields), explicit execution setup, progress/cancel/resume, history, native report selection and Markdown/HTML export through the shared core. Source presence is not a native or installed acceptance result.
 
-The selected hosting destination is the private [scottconverse/patent-forge-lite repository](https://github.com/scottconverse/patent-forge-lite), separate from PatentForge. Repository creation and Git initialization are assigned separately; this bootstrap does not establish their completion. No source license has been selected.
+The private [scottconverse/patent-forge-lite repository](https://github.com/scottconverse/patent-forge-lite) is separate from PatentForge. No new application-wide source license has been selected.
+
+Rust is pinned centrally to 1.98.1. GPUI and its platform adapter use the same official Zed revision. [Native UI notes](docs/native-ui.md) distinguish implemented source, headless evidence and still-required native/installed acceptance. Neither a dependency-only compile nor browser tests prove the native slice works.
 
 ## Delivery approach
 
@@ -18,14 +20,14 @@ The selected hosting destination is the private [scottconverse/patent-forge-lite
 4. Expand through research, claims, compliance, application drafting, data compatibility, authenticated API compatibility and full export/lifecycle coverage.
 5. Prepare and validate Full and Lean packages on each platform. Signing and publication have separate authorization gates.
 
-Full and Lean are planned setup/distribution profiles of **one product**, sharing the same Rust core and GPUI interface. "Lite" is the product name, not permission to drop the Full profile or existing functional scope. Lean reaches Cloud setup without acquiring Ollama; Full supports Local/Cloud setup and reuses an existing model where available.
+Full and Lean are later setup/distribution profiles of **one product**, sharing the same Rust core and GPUI interface. "Lite" is the product name, not permission to drop Full or existing functional scope. The first slice exposes explicitly selected synthetic replay and existing local inference; Cloud/paid providers are fail-closed. Later Lean setup will reach Cloud without acquiring Ollama; Full will support Local/Cloud setup and existing-model reuse.
 
 Native usability comes early: text editing, selection, clipboard, focus, keyboard conventions and long-document navigation. Framework comparisons and a GPU benchmark project are outside scope.
 
 ## Coexistence with PatentForge
 
 - Keep the existing PatentForge repository, installation, services, projects and models untouched.
-- Use a distinct application identity and separate writable data, configuration, log and installation locations. Exact identifiers and paths are not selected yet.
+- The desktop uses application ID `com.scottconverse.patentforgelite`, a dedicated per-user `patent-forge-lite` data directory and an OS-backed profile lock. Packaging/configuration identities must remain distinct as later distribution work lands.
 - Do not claim existing ports, alter old launchers, stop independently owned Ollama/DSH processes or redirect current integrations automatically.
 - Migration is a later, opt-in, copy-first operation using authorized consistent backups. Do not open production data as a bootstrap shortcut.
 - Future deprecation or cutover requires an explicit decision. Shipping this application does not deprecate PatentForge.
@@ -42,9 +44,10 @@ Cross-platform builds, native interaction, package creation and installed accept
 
 The functional reference remains [PatentForge v0.5.0](https://github.com/scottconverse/patentforge/releases/tag/v0.5.0), with applicable fixes at [the pinned source baseline](https://github.com/scottconverse/patentforge/tree/7a3200c8d861c2d291e07d8c8bc6c6e44417f623). This is a behavior reference, not a directive to copy its source or installation.
 
-Before importing any source, prompt or asset, review its applicable license, attribution and notice requirements, including the legacy `LICENSE`, `LICENSE-PROMPTS` and legal notices. Preserve required prompt text, provenance, attribution, license notices and product disclaimers. A Rust rewrite does not remove those obligations or grant permission to relicense material. No legacy source, prompts or assets are included in this bootstrap.
+Before importing any source, prompt or asset, review its applicable license, attribution and notice requirements, including the legacy `LICENSE`, `LICENSE-PROMPTS` and legal notices. Preserve required prompt text, provenance, attribution, license notices and product disclaimers. A Rust rewrite does not remove those obligations or grant permission to relicense material. Workflow prompt provenance and upstream notices are maintained with the integrated core, not replaced by a new blanket license.
 
 ## Documents
 
 - [Architecture and boundaries](docs/ARCHITECTURE.md)
 - [First-slice acceptance](docs/FIRST-SLICE-ACCEPTANCE.md)
+- [Native desktop source, controls and acceptance limits](docs/native-ui.md)

@@ -2,7 +2,7 @@
 
 ## Product and current boundary
 
-Patent Forge Lite is a separate application and repository that coexists with PatentForge. This document describes the intended architecture, not implemented modules or approved dependencies. The current bootstrap is documentation only.
+Patent Forge Lite is a separate application and repository that coexists with PatentForge. First-slice implementation is active. Shared contracts live in `pfl-domain`, persistence in `pfl-storage`, durable execution/providers in `pfl-workflow`, and desktop presentation in `pfl-desktop`. Broader research/drafting, compatibility and distribution boundaries below remain staged scope, not claims of implemented parity.
 
 Rust owns persistence, workflow execution, provider policy, research, editing, exports and lifecycle. GPUI owns the native desktop. Windows, macOS and Linux are first-class targets from the first build milestone. Do not introduce a browser-hosted interface or require legacy application services as a delivery shortcut.
 
@@ -19,11 +19,11 @@ Rust owns persistence, workflow execution, provider policy, research, editing, e
 | Platform adapters | Application paths and identity, single instance, dialogs, credential access, tray/menu, runtime discovery and owned-process shutdown. |
 | Compatibility API | Opt-in, authenticated and configurable binding through the same application service, without imposing the old private service topology. |
 
-These are ownership boundaries, not a final crate layout. The coordinator owns shared contracts, workspace manifests, lockfile and integration. Activate exclusive module scopes before parallel code changes; a named release owner coordinates workflow edits.
+The coordinator/integration owner controls shared contracts, workspace manifests, lockfile, Git operations and resource-heavy builds. Workers own disjoint modules. The desktop's portable `editor` and `state` modules contain no provider execution; its application-session actor owns a long-lived Tokio runtime and uses the real `WorkflowService`. Navigation changes presentation, not runner ownership.
 
 ## Commands, events and recovery
 
-The first contract should identify project, run, version, attempt and stage. Snapshot invention input, prompt version, provider/model and research policy for each run. Use secret references, not credential material.
+The domain contract identifies project, run, version, attempt and stage. Snapshot invention input, prompt version, provider/model and research policy for each new run. Intake includes all nine legacy optional context fields, not only title/description; collapsed optional controls must preserve their values. Use secret references, not credential material.
 
 Commands cover preparation/estimate, authorized idempotent start, cancellation, checkpoint resume, rerun-as-version and export. Queries cover snapshots, history and saved artifacts. Subscriptions replay sequenced events after a known sequence number and never start or resume work.
 
@@ -35,9 +35,9 @@ Closing a window and explicitly quitting are different operations. Quit must che
 
 The first slice covers the project browser, intake/editor, running view, saved report/history, settings/setup and export interaction. Later slices add the remaining research and drafting views without dropping them from scope.
 
-The report reader must be a usable native long-document surface, not a retained HTML iframe. Verify text selection, copy/paste, Unicode input, undo, focus traversal, scrolling and platform keyboard conventions before broadening feature coverage.
+The desktop source uses a custom `EntityInputHandler` backed by a portable grapheme-safe buffer, UTF-16/IME composition, undo/redo and native shaped/wrapped text. Saved reports use the same surface read-only, with selection, copying and document scrolling, not an HTML iframe. Verify actual OS input, focus, clipboard and long-report behavior in an authorized native session; portable tests do not establish that evidence.
 
-Full and Lean share the same implementation and candidate revision:
+Full and Lean will share the same implementation and candidate revision as later distribution work:
 
 - **Lean:** Cloud-first setup, no automatic Ollama acquisition.
 - **Full:** Local/Cloud choice, system/model readiness, existing-model reuse and explicitly authorized runtime/model acquisition.
@@ -48,9 +48,13 @@ Do not make a Full launch install software, pull a model or send invention data 
 
 Select distinct application/bundle identifiers, install destinations, writable directories and instance ownership. Select API binding deliberately; never reuse or change existing ports automatically.
 
+The first desktop uses application ID `com.scottconverse.patentforgelite` and a dedicated `patent-forge-lite` directory under the platform's per-user data base. A held OS file lock, not a stale create-only sentinel, excludes another owner of the same Lite profile before startup recovery. It is unrelated to legacy locks and ports.
+
 Legacy import is an explicit later operation: authorized consistent backup including committed WAL data, migration of a separate copy, a schema ledger, validation, then atomic activation. Repeating or interrupting import must preserve a usable original and avoid duplicate records. Preserve relationships, history, edits, settings and model references. If credential import fails, retain the original ciphertext and offer re-entry without blocking project recovery.
 
 Existing integrations remain on PatentForge until an explicit compatibility/cutover decision. HTTP contract parity alone does not prove compatibility with launchers that expect legacy executables and multiple processes.
+
+Synthetic migration fixtures can demonstrate imported projects/history without touching private installations. Legacy history may lack original per-run prompt/provider snapshots; reconstructed import metadata must not be presented as proof of the original request, and incompatible imported runs cannot be silently resumed with new prompts or destinations.
 
 ## Platform and distribution evidence
 
