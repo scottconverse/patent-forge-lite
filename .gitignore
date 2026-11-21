@@ -44,3 +44,5 @@ Desktop.ini
 # Local interactive-session evidence (contains the real desktop; never commit)
 shots/
 session-screen.png
+# Built installers and bundles are outputs, not sources
+dist/

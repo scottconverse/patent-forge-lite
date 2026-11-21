@@ -1,42 +1,53 @@
 ; Inno Setup definition for Patent Forge Lite (Windows x64).
 ;
-; NOT BUILT OR SIGNED. Inno Setup is not installed on the development machine, and
-; no signing policy has been decided. This file is the packaging source, not
-; evidence that an installer exists.
-;
-; Build (once authorized, with Inno Setup 6 installed):
+; Build:
 ;   cargo build -p pfl-desktop --features native --release --locked
 ;   iscc packaging\windows\patent-forge-lite.iss
 ;
-; Signing must follow whatever policy Scott selects (GitHub-hosted SignPath or
-; Azure Trusted Signing); nothing here performs or implies a signing decision.
+; Installs per-user (no elevation) into %LOCALAPPDATA%\Programs\PatentForge Lite,
+; matching the application's own per-user data model. The profile directory
+; %LOCALAPPDATA%\patent-forge-lite is never touched by install or uninstall.
+;
+; UNSIGNED BY DEFAULT. Signing must follow whichever policy Scott selects
+; (GitHub-hosted SignPath or Azure Trusted Signing); this file performs no signing
+; and implies no decision. Add SignTool directives only after that choice.
 
 #define AppName "Patent Forge Lite"
 #define AppVersion "0.1.0"
 #define AppPublisher "Scott Converse"
 #define AppId "com.scottconverse.patentforgelite"
+#define AppExe "pfl-desktop.exe"
 
 [Setup]
 AppId={#AppId}
 AppName={#AppName}
 AppVersion={#AppVersion}
+AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
-DefaultDirName={autopf}\Patent Forge Lite
+VersionInfoVersion={#AppVersion}
+VersionInfoDescription={#AppName} installer
+VersionInfoProductName={#AppName}
+DefaultDirName={localappdata}\Programs\PatentForge Lite
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
+OutputDir=..\..\dist
 OutputBaseFilename=patent-forge-lite-{#AppVersion}-x64
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; Per-user data is NOT touched by the installer or uninstaller:
-;   %LOCALAPPDATA%\patent-forge-lite
-UninstallDisplayIcon={app}\pfl-desktop.exe
+UninstallDisplayIcon={app}\{#AppExe}
+UninstallDisplayName={#AppName}
 SetupIconFile=..\..\assets\brand\patentforge.ico
-; Signing tool directives are intentionally absent until a policy is chosen.
+WizardStyle=modern
+; A running copy must be closed before files are replaced.
+CloseApplications=yes
+RestartApplications=no
 
 [Files]
-Source: "..\..\target\release\pfl-desktop.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\target\release\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE-PROMPTS"; DestDir: "{app}"; Flags: ignoreversion
@@ -45,21 +56,23 @@ Source: "..\..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs
 Source: "..\..\prompts\*"; DestDir: "{app}\prompts"; Flags: ignoreversion recursesubdirs
 Source: "..\..\assets\brand\patentforge.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\assets\fonts\*"; DestDir: "{app}\fonts"; Flags: ignoreversion
-Source: "..\..\assets\fonts\OFL.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\assets\brand\app-256.png"; DestDir: "{app}\assets"; Flags: ignoreversion
+Source: "..\..\assets\fonts\Barlow-Regular.ttf"; DestDir: "{app}\fonts"; Flags: ignoreversion
+Source: "..\..\assets\fonts\Barlow-Bold.ttf"; DestDir: "{app}\fonts"; Flags: ignoreversion
+Source: "..\..\assets\fonts\OFL.txt"; DestDir: "{app}\fonts"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\pfl-desktop.exe"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\pfl-desktop.exe"; Tasks: desktopicon
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
+Name: "{userdesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 
 [Run]
-Filename: "{app}\pfl-desktop.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExe}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Only generated shortcuts; the application's data directory is preserved
-; deliberately so a reinstall or upgrade keeps history. A user-initiated
+; Only generated files. The user's profile at %LOCALAPPDATA%\patent-forge-lite is
+; deliberately preserved so a reinstall or upgrade keeps history. A user-initiated
 ; "remove my data" action is a separate product decision.
 Type: filesandordirs; Name: "{group}"

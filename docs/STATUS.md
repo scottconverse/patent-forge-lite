@@ -41,7 +41,7 @@ automated UI checks against the real native window.
 | Paid Cloud call never executed | Deliberately fail-closed; a real call needs an API key and explicit cost approval. |
 | Live research provider | Requires an external prior-art API and its terms; only the seam and fixture exist. |
 | macOS and Linux | No runners on this machine; the manual CI workflow exists but has never been dispatched. |
-| Packaging, signing, notarization | Not started. Requires policy decisions and certificates. |
+| Packaging, signing, notarization | Windows installer built and install-accepted (7.15 MB, per-user, uninstall preserves history) but **unsigned**; signing policy still undecided. No macOS or Linux package. |
 | Full data migration of a real PatentForge database | Only the synthetic fixture importer exists; real migration needs explicit authorization. |
 | Legacy tray lifecycle and DSH integration | Not implemented; Lite has no tray-resident background mode. |
 

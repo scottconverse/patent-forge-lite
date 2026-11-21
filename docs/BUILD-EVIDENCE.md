@@ -99,3 +99,43 @@ Do not launch the native binary on an occupied desktop without authorization.
 The manual-only workflow defines native build jobs for all three targets; its
 existence is not evidence that any job ran or that a hosted runner is available.
 Any cloud run retains its explicit runner/cost authorization gate.
+
+## Windows installer, 2026-11-21
+
+First package ever built for this product. **Unsigned** — no signing policy has
+been chosen yet, so SmartScreen will warn on first run.
+
+| Fact | Value |
+| --- | --- |
+| Build command | `cargo build -p pfl-desktop --features native --release --locked` (7m27s) then `iscc packaging\windows\patent-forge-lite.iss` (6.2s) |
+| Inno Setup | 6, at `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe` |
+| Artifact | `dist\patent-forge-lite-0.1.0-x64.exe`, 7.15 MB |
+| SHA-256 | `10A165F366EAF0FBE18C3C26A938A5C299F9A6960F822F5C6A9E5286EF17DC77` |
+| Install scope | Per-user, no elevation: `%LOCALAPPDATA%\Programs\PatentForge Lite` |
+| Installed payload | `pfl-desktop.exe` (19.6 MB), docs, all prompt files, Barlow fonts with OFL, brand icon |
+
+Verified on this machine:
+
+1. Silent install (`/VERYSILENT /DIR=...`) exited 0 and wrote the uninstall key
+   under `HKCU`.
+2. The **installed** binary launched, exposed its accessibility tree (15 nodes) and
+   **passed all 26 UI acceptance checks** when the suite was pointed at the
+   installed path (`scripts/ui-acceptance.ps1 -Exe ...`).
+3. Start-menu shortcut created.
+4. Silent uninstall exited 0, removed the install directory and shortcut, and
+   **preserved** `%LOCALAPPDATA%\patent-forge-lite` (the user's project history).
+
+Not done: code signing, an upgrade path across versions, macOS/Linux packages.
+
+## GitHub Actions dispatch, 2026-11-21
+
+The manual native workflow was dispatched once and **did not run**: all three jobs
+were rejected before starting with
+
+> The job was not started because recent account payments have failed or your
+> spending limit needs to be increased.
+
+That is a GitHub billing condition on the account, not a workflow or code failure.
+`workflow_dispatch` triggered (run 44949798709), so the definition itself is
+reachable; no runner ever executed a compile. macOS and Linux therefore remain
+**never compiled**, and the platform row stays open until billing is resolved.
