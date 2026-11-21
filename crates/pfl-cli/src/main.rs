@@ -495,6 +495,12 @@ async fn pipeline(workspace: PathBuf) -> Result<()> {
             &html,
         )
         .map_err(|e| Error::Io(e.to_string()))?;
+        let word = pfl_workflow::export_docx(&completed)?;
+        std::fs::write(
+            workspace.join(format!("{}-report.docx", kind.slug())),
+            &word,
+        )
+        .map_err(|e| Error::Io(e.to_string()))?;
         runs.push(serde_json::json!({
             "workflow": kind.slug(),
             "run_id": completed.id,

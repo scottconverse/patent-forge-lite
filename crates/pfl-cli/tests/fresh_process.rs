@@ -151,6 +151,8 @@ fn full_pipeline_runs_all_four_workflows_in_dependency_order() {
     for name in names {
         assert!(workspace.join(format!("{name}-report.md")).is_file());
         assert!(workspace.join(format!("{name}-report.html")).is_file());
+        let word = std::fs::read(workspace.join(format!("{name}-report.docx"))).unwrap();
+        assert_eq!(&word[..2], b"PK", "{name} word export must be a docx");
     }
 }
 

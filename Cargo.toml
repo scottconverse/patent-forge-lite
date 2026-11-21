@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/pfl-domain", "crates/pfl-storage", "crates/pfl-workflow", "crates/pfl-desktop", "crates/pfl-cli"]
-default-members = ["crates/pfl-domain", "crates/pfl-storage", "crates/pfl-workflow", "crates/pfl-desktop", "crates/pfl-cli"]
+members = ["crates/pfl-domain", "crates/pfl-storage", "crates/pfl-workflow", "crates/pfl-desktop", "crates/pfl-cli", "crates/pfl-api"]
+default-members = ["crates/pfl-domain", "crates/pfl-storage", "crates/pfl-workflow", "crates/pfl-desktop", "crates/pfl-cli", "crates/pfl-api"]
 resolver = "2"
 
 [workspace.package]
@@ -26,6 +26,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "str
 futures-util = "0.3"
 sha2 = "0.10"
 unicode-segmentation = "1.12"
+axum = "0.8.6"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "2f808b3c2de049ecfdbad0fdb26763cebfcaa3b4" }
 gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "2f808b3c2de049ecfdbad0fdb26763cebfcaa3b4", features = ["font-kit", "wayland", "x11"] }
 

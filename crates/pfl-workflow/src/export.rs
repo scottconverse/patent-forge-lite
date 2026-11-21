@@ -57,3 +57,42 @@ pub fn export_html(run: &RunSnapshot) -> Result<String> {
         escape(&text)
     ))
 }
+
+/// Word export for the same saved run identity. Headings are kept as real
+/// paragraphs; everything else is reproduced verbatim so no text is lost.
+pub fn export_docx(run: &RunSnapshot) -> Result<Vec<u8>> {
+    use docx_rs::*;
+
+    let text = export_markdown(run)?;
+    let title = format!("Patent Forge Lite · saved analysis v{}", run.version);
+    let mut document = Docx::new();
+    document = document.add_paragraph(
+        Paragraph::new()
+            .add_run(Run::new().add_text(&title).bold())
+            .style("Heading1"),
+    );
+    for line in text.lines().skip(2) {
+        let trimmed = line.trim_end();
+        let heading_level = trimmed
+            .strip_prefix("# ")
+            .map(|_| 2)
+            .or_else(|| trimmed.strip_prefix("## ").map(|_| 3));
+        let body = match heading_level {
+            Some(_) => trimmed.trim_start_matches('#').trim().to_string(),
+            None => trimmed.to_string(),
+        };
+        let run = Run::new().add_text(&body);
+        let paragraph = match heading_level {
+            Some(2) => Paragraph::new().add_run(run.bold()).style("Heading2"),
+            Some(_) => Paragraph::new().add_run(run.bold()).style("Heading3"),
+            None => Paragraph::new().add_run(run),
+        };
+        document = document.add_paragraph(paragraph);
+    }
+    let mut buffer = Vec::new();
+    document
+        .build()
+        .pack(&mut std::io::Cursor::new(&mut buffer))
+        .map_err(|e| Error::Io(format!("word export: {e}")))?;
+    Ok(buffer)
+}

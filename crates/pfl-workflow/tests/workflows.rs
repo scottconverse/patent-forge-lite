@@ -321,6 +321,32 @@ async fn a_later_feasibility_version_never_changes_an_existing_claims_snapshot()
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn word_export_is_a_real_docx_carrying_the_saved_report() {
+    use std::io::Read;
+
+    let (service, _provider, _project, run) = with_feasibility().await;
+    let bytes = export_docx(&run).unwrap();
+    assert_eq!(&bytes[..2], b"PK", "a .docx is a zip container");
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+    let mut document = String::new();
+    archive
+        .by_name("word/document.xml")
+        .expect("a docx must contain word/document.xml")
+        .read_to_string(&mut document)
+        .unwrap();
+    // The saved report text is present verbatim, not summarised or truncated.
+    assert!(document.contains("Final report"));
+    assert!(document.contains("not a model response"));
+    // Word/HTML/Markdown all describe the same saved run identity.
+    assert!(
+        export_markdown(&run)
+            .unwrap()
+            .contains(&run.report.unwrap().markdown)
+    );
+    service.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn every_workflow_prompt_carries_the_upstream_legal_disclaimers() {
     for kind in WorkflowKind::ALL {
         for stage in kind.stages() {

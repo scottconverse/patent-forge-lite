@@ -1,0 +1,307 @@
+//! HTTP compatibility surface: legacy auth semantics, health shape, and a real
+//! recorded-replay journey over the API.
+use pfl_api::{ApiState, router};
+use pfl_storage::SqliteStore;
+use pfl_workflow::{ReplayProvider, WorkflowService};
+use serde_json::json;
+use std::{sync::Arc, time::Duration};
+use tokio::net::TcpListener;
+
+async fn base_url(token: Option<&str>) -> (String, Arc<pfl_api::ApiState>) {
+    let store: Arc<dyn pfl_domain::Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+    let state = ApiState::new(service, token.map(str::to_string));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let app = router(state.clone());
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    (format!("http://{addr}"), state)
+}
+
+fn intake() -> serde_json::Value {
+    json!({
+        "title": "SYNTHETIC API fixture café",
+        "description": concat!(
+            "SYNTHETIC TEST MATERIAL ONLY, not an actual invention or patent claim. ",
+            "A fictional container carries a sensor sampled by a controller driving one ",
+            "indicator and reporting an unavailable sensor rather than inventing a reading. ",
+            "This text exists only to satisfy the explicit word minimum and to exercise the ",
+            "HTTP surface deterministically with recorded responses and no real data."
+        ),
+        "technical_field": "Synthetic fixtures"
+    })
+}
+
+fn authorization() -> serde_json::Value {
+    json!({
+        "synthetic_data": true,
+        "local_inference": false,
+        "paid_provider": false,
+        "research": false
+    })
+}
+
+async fn wait_completed(client: &reqwest::Client, base: &str, run_id: &str) -> serde_json::Value {
+    for _ in 0..600 {
+        let run: serde_json::Value = client
+            .get(format!("{base}/api/runs/{run_id}"))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let outcome = run["outcome"].as_str().unwrap_or_default();
+        if matches!(outcome, "completed" | "failed" | "cancelled") {
+            return run;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("run never reached a terminal outcome");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn health_matches_the_legacy_shape_and_needs_no_token_when_unset() {
+    let (base, _) = base_url(None).await;
+    let client = reqwest::Client::new();
+    let health: serde_json::Value = client
+        .get(format!("{base}/api/health"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(health["status"], "ok");
+    assert_eq!(health["service"], "patentforge-backend");
+    assert!(health["timestamp"].as_str().unwrap().ends_with('Z'));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn bearer_auth_and_download_tokens_match_legacy_semantics() {
+    let (base, _state) = base_url(Some("secret-token")).await;
+    let client = reqwest::Client::new();
+    // No credentials: legacy exact message.
+    let missing = client
+        .get(format!("{base}/api/projects"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), 401);
+    let body: serde_json::Value = missing.json().await.unwrap();
+    assert_eq!(
+        body["message"],
+        "Authentication required. Set Authorization: Bearer <token> header."
+    );
+    assert_eq!(body["error"], "Unauthorized");
+    assert_eq!(body["statusCode"], 401);
+    // Wrong bearer: invalid-token message.
+    let wrong = client
+        .get(format!("{base}/api/projects"))
+        .bearer_auth("nope")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(wrong.status(), 401);
+    let body: serde_json::Value = wrong.json().await.unwrap();
+    assert_eq!(body["message"], "Invalid authentication token.");
+    // Correct bearer.
+    let ok = client
+        .get(format!("{base}/api/projects"))
+        .bearer_auth("secret-token")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ok.status(), 200);
+    // Long-lived token is also accepted in the query string, repeatedly.
+    for _ in 0..2 {
+        let query = client
+            .get(format!("{base}/api/projects?token=secret-token"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(query.status(), 200);
+    }
+    // One-time download token: single use only.
+    let token: serde_json::Value = client
+        .post(format!("{base}/api/health/download-token"))
+        .bearer_auth("secret-token")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let download = token["token"].as_str().unwrap().to_string();
+    assert_ne!(download, "secret-token");
+    let first = client
+        .get(format!("{base}/api/projects?token={download}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(first.status(), 200);
+    let second = client
+        .get(format!("{base}/api/projects?token={download}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(second.status(), 401, "a download token is single use");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn api_drives_feasibility_then_claims_and_exports_three_formats() {
+    let (base, state) = base_url(None).await;
+    let client = reqwest::Client::new();
+    let project: serde_json::Value = client
+        .post(format!("{base}/api/projects"))
+        .json(&json!({ "intake": intake() }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let project_id = project["id"].as_str().unwrap().to_string();
+
+    let run: serde_json::Value = client
+        .post(format!("{base}/api/runs"))
+        .json(&json!({
+            "projectId": project_id,
+            "idempotencyKey": "api-feasibility",
+            "authorization": authorization()
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let run_id = run["id"].as_str().unwrap().to_string();
+    let completed = wait_completed(&client, &base, &run_id).await;
+    assert_eq!(completed["outcome"], "completed");
+    assert_eq!(completed["checkpoints"].as_array().unwrap().len(), 6);
+
+    // A claims run over HTTP consumes the completed feasibility run.
+    let claims: serde_json::Value = client
+        .post(format!("{base}/api/runs"))
+        .json(&json!({
+            "projectId": project_id,
+            "workflow": "claims",
+            "idempotencyKey": "api-claims",
+            "authorization": authorization()
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let claims_id = claims["id"].as_str().unwrap().to_string();
+    let completed_claims = wait_completed(&client, &base, &claims_id).await;
+    assert_eq!(completed_claims["outcome"], "completed");
+    assert_eq!(completed_claims["checkpoints"].as_array().unwrap().len(), 4);
+
+    // A workflow with unmet prerequisites is a clear client error, on a project
+    // that has completed nothing yet.
+    let fresh: serde_json::Value = client
+        .post(format!("{base}/api/projects"))
+        .json(&json!({ "intake": intake() }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let refused = client
+        .post(format!("{base}/api/runs"))
+        .json(&json!({
+            "projectId": fresh["id"],
+            "workflow": "compliance",
+            "idempotencyKey": "api-fresh-project-compliance",
+            "authorization": authorization()
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(refused.status(), 400);
+    let body: serde_json::Value = refused.json().await.unwrap();
+    assert!(
+        body["message"].as_str().unwrap().contains("must complete"),
+        "unexpected message: {body}"
+    );
+
+    let report: serde_json::Value = client
+        .get(format!("{base}/api/runs/{run_id}/report"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(
+        report["markdown"]
+            .as_str()
+            .unwrap()
+            .contains("Final report")
+    );
+
+    let markdown = client
+        .get(format!("{base}/api/runs/{run_id}/export?format=markdown"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(markdown.status(), 200);
+    assert!(markdown.text().await.unwrap().contains("saved analysis"));
+    let html = client
+        .get(format!("{base}/api/runs/{run_id}/export?format=html"))
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        html.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .contains("text/html")
+    );
+    let docx = client
+        .get(format!("{base}/api/runs/{run_id}/export?format=docx"))
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        docx.headers()["content-disposition"]
+            .to_str()
+            .unwrap()
+            .contains("report-v")
+    );
+    let bytes = docx.bytes().await.unwrap();
+    assert_eq!(&bytes[..2], b"PK");
+    let bad = client
+        .get(format!("{base}/api/runs/{run_id}/export?format=pdf"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(bad.status(), 400);
+
+    // Events are a read cursor and stay consecutive.
+    let events: serde_json::Value = client
+        .get(format!("{base}/api/runs/{run_id}/events?after=0"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let sequences: Vec<u64> = events
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["sequence"].as_u64().unwrap())
+        .collect();
+    assert_eq!(sequences, (1..=sequences.len() as u64).collect::<Vec<_>>());
+
+    state.service.shutdown().await.unwrap();
+}
