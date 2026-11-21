@@ -1,4 +1,32 @@
-# First-slice workflow
+# Workflow execution
+
+## The four workflows
+
+One run belongs to exactly one workflow. Stage numbering restarts at 1 inside each
+workflow, and a checkpoint prefix must always be contiguous within that workflow.
+
+| Workflow | Stages | Prompts |
+| --- | --- | --- |
+| Feasibility | technical restatement → prior art → patentability → landscape → IP strategy → final report | `prompts/feasibility` |
+| Claims | strategy → draft → examiner review → revision | `prompts/claims` |
+| Compliance | written description → definiteness → formalities → eligibility | `prompts/compliance` |
+| Application | background → summary → detailed description → abstract → figures | `prompts/application` |
+
+Dependencies are declared, not inferred: claims needs feasibility, compliance needs
+feasibility and claims, application needs feasibility and claims. `start_workflow`
+returns a clear error naming the missing prerequisite rather than substituting a
+different run's output.
+
+Each dependent run **snapshots** the upstream text it consumes into
+`RunInput.upstream` at creation:
+`IpStrategy`/`FinalReport` text for claims, the final claims text for compliance and
+application, and the feasibility report as the specification. A later upstream
+version never changes an existing run, and a resume never re-reads upstream.
+
+Composing a report is per workflow. Feasibility and claims save the final stage's
+text verbatim; compliance assembles its four findings; application assembles the
+sections with an IDS table built from snapshotted prior-art items, without an LLM
+call, matching the upstream generator's non-LLM formatting step.
 
 ## Application facade
 

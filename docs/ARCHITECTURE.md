@@ -2,7 +2,7 @@
 
 ## Product and current boundary
 
-Patent Forge Lite is a separate application and repository that coexists with PatentForge. First-slice implementation is active. Shared contracts live in `pfl-domain`, persistence in `pfl-storage`, durable execution/providers in `pfl-workflow`, and desktop presentation in `pfl-desktop`. Broader research/drafting, compatibility and distribution boundaries below remain staged scope, not claims of implemented parity.
+Patent Forge Lite is a separate application and repository that coexists with PatentForge. Shared contracts live in `pfl-domain`, persistence in `pfl-storage`, durable execution/providers/research in `pfl-workflow`, the legacy-compatible HTTP surface in `pfl-api`, desktop presentation in `pfl-desktop`, and the synthetic harness in `pfl-cli`. All four analysis workflows (feasibility, claims, compliance, application) are implemented on these crates; live inference, live research, packaging and cross-platform acceptance remain open.
 
 Rust owns persistence, workflow execution, provider policy, research, editing, exports and lifecycle. GPUI owns the native desktop. Windows, macOS and Linux are first-class targets from the first build milestone. Do not introduce a browser-hosted interface or require legacy application services as a delivery shortcut.
 
@@ -10,12 +10,12 @@ Rust owns persistence, workflow execution, provider policy, research, editing, e
 
 | Area | Responsibility |
 | --- | --- |
-| GPUI desktop | Projects, invention form, setup/settings, analysis progress, report reader, research/details, claim/compliance/application views, input, focus, selection, clipboard, undo and navigation. |
-| Application service | Shared typed commands, queries and events for desktop and the future compatibility API. Validation, authorization and idempotency live below the view layer. |
-| Workflow runner | Own jobs independently of windows; immutable run inputs, cancellation, checkpointing, resume, attempts, rerun versions and terminal outcomes. |
+| GPUI desktop | Projects, invention form, setup/settings, workflow selection, analysis progress, report reader, history, input, focus, selection, clipboard, undo and navigation. |
+| Application service | Shared typed commands, queries and events for desktop and the compatibility API. Validation, authorization and idempotency live below the view layer. |
+| Workflow runner | Own jobs independently of windows; immutable run inputs, upstream snapshots, cancellation, checkpointing, resume, attempts, rerun versions and terminal outcomes. |
 | Storage | SQLite repositories, versioned schema, durable relationships, history, usage and transactional checkpoints. Keep secrets out of ordinary event payloads and logs. |
-| Provider and research adapters | Ollama, authorized Cloud inference and opted-in research. Enforce destinations, data purpose, spend approval, cancellation and explicit known/unknown usage. |
-| Import/export adapters | Authorized copy-first legacy import, report/document formats, Unicode and edit/version preservation. |
+| Provider and research adapters | Replay, Ollama, authorized Cloud inference and opted-in research. Enforce destinations, data purpose, spend approval, cancellation and explicit known/unknown usage. |
+| Import/export adapters | Authorized copy-first legacy import, Markdown/HTML/Word formats, Unicode and edit/version preservation. |
 | Platform adapters | Application paths and identity, single instance, dialogs, credential access, tray/menu, runtime discovery and owned-process shutdown. |
 | Compatibility API | Opt-in, authenticated and configurable binding through the same application service, without imposing the old private service topology. |
 

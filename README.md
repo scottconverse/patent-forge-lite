@@ -7,23 +7,23 @@ The intended architecture is a standalone Rust application core with a GPUI desk
 ## Current status
 
 The staged delivery approach and product identity have been approved. The Rust workspace
-now contains the application core, not a stub: typed domain contracts, transactional SQLite
-storage with a synthetic legacy importer, the six-stage feasibility workflow with recorded
-replay and Ollama adapters, a GPUI desktop interface, and a `pfl-cli` harness that drives the
-real core end to end.
+contains the application core: typed domain contracts, transactional SQLite storage with a
+synthetic legacy importer, **four analysis workflows** (feasibility, claims drafting,
+compliance review, application drafting — 19 stages with the upstream prompts ported
+verbatim), recorded-replay, Ollama and Anthropic Cloud adapters, a compatibility HTTP API,
+a GPUI desktop interface, and a `pfl-cli` harness that drives the real core end to end.
 
 On Windows x86_64 with the pinned `1.98.1` toolchain, the workspace formats, compiles, passes
-`clippy -D warnings`, and passes its full test suite, and the native desktop feature compiles
-and links against the pinned GPUI revision. `pfl-cli` demonstrates the complete deterministic
-journey: import a synthetic legacy project, export its preserved edited report, run and
-recover an interruption in a fresh process, and reopen the saved result without regenerating
-it. [Native UI notes](docs/native-ui.md) separate implemented source, headless evidence and
-still-required interactive acceptance.
+`clippy -D warnings`, and passes 96 tests, and the native desktop feature compiles and links
+against the pinned GPUI revision. `pfl-cli pipeline` runs all four workflows in dependency
+order on one project, exports Markdown, HTML and Word for each, and reopens the profile
+without regenerating anything. `pfl-cli serve` exposes the legacy-compatible HTTP surface.
 
 Not yet established, and not claimed: a launched native window and interactive keyboard, IME,
-GPU, dialog or installed behavior; live local inference or Cloud; macOS and Linux native
-builds; packaging, signing and release. `docs/BUILD-EVIDENCE.md` records exactly which checks
-ran, and `docs/FIRST-SLICE-ACCEPTANCE.md` keeps the unexercised items open.
+GPU, dialog or installed behavior; live local or Cloud inference; live research; macOS and
+Linux native builds; packaging, signing and release. `docs/STATUS.md` is the honest inventory,
+`docs/BUILD-EVIDENCE.md` records exactly which checks ran, and
+`docs/FIRST-SLICE-ACCEPTANCE.md` keeps the unexercised items open.
 
 The product remains the private [scottconverse/patent-forge-lite repository](https://github.com/scottconverse/patent-forge-lite), separate from PatentForge. No source license has been selected; upstream prompt and legal notices are preserved as described in `docs/BUILD-EVIDENCE.md` and `THIRD_PARTY_NOTICES.md`.
 
@@ -63,6 +63,11 @@ Before importing any source, prompt or asset, review its applicable license, att
 
 ## Documents
 
+- [Product status: what works and what does not](docs/STATUS.md)
 - [Architecture and boundaries](docs/ARCHITECTURE.md)
+- [Compatibility API](docs/API.md)
 - [First-slice acceptance](docs/FIRST-SLICE-ACCEPTANCE.md)
 - [Native desktop source, controls and acceptance limits](docs/native-ui.md)
+- [Build and acceptance evidence](docs/BUILD-EVIDENCE.md)
+- [Storage and migration](docs/storage-and-migration.md)
+- [Workflow execution](docs/workflow.md)

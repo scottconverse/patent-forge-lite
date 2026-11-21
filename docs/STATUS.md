@@ -1,0 +1,51 @@
+# Product status
+
+Last updated: 2026-11-21. Windows x86_64.
+
+Patent Forge Lite is a stand-alone Rust core with a GPUI desktop, a CLI harness
+and a compatibility HTTP API. It is **not** a finished shipping product. This page
+is the honest inventory.
+
+## Implemented and verified
+
+| Area | State |
+| --- | --- |
+| Domain contracts | 19 stages across four workflows, immutable run inputs, upstream snapshots, typed IDs, durable events. |
+| Storage | Transactional SQLite, idempotent versions, atomic checkpoint/usage/event writes, cancellation and stale-attempt guards, synthetic legacy importer with backup/verify/activate, OS-lock-protected profiles. |
+| Feasibility workflow | 6 stages, prompts byte-identical to the frozen legacy source. |
+| Claims workflow | 4 stages (plan, draft, examine, revise) using the legacy claim-drafter prompts. |
+| Compliance workflow | 4 checks (written description, definiteness, formalities, eligibility) using the legacy compliance prompts. |
+| Application workflow | 5 sections plus a non-LLM IDS/assembly step using the legacy application prompts. |
+| Exports | Markdown, HTML and real `.docx`, all from the same saved run identity. |
+| Desktop | Native GPUI interface: projects, intake with nine context fields, workflow selection, live progress, cancel/resume, history, reports, three export formats, Word export, setup-profile selection, single-owner lock, app-wide quit guard. |
+| CLI | `replay`, `import-replay`, `pause-fixture`, `resume`, `pipeline` (all four workflows), `serve`. |
+| API | Compatibility auth (Bearer, legacy 401 messages, tokenless mode, single-use 5-minute download tokens, long-lived query tokens), health shape, project/run/event/report/export routes. |
+| Providers | Recorded replay, Ollama over NDJSON streaming, Anthropic Messages over SSE. Each fails closed without its exact snapshot and explicit authorization. |
+| Research | Injectable `ResearchSource` seam with an offline fixture implementation; supplied references are snapshotted and reach the prior-art prompt. |
+| Setup profiles | Lean is Cloud-only and refuses a local runtime; Full permits both. |
+
+Test suite: **96 passing tests** across the workspace, plus `cargo fmt --check`
+and `cargo clippy --all-targets -D warnings` clean. Provider wire formats are
+verified against local mock servers.
+
+## Not done, and not claimed
+
+| Gap | Why it is open |
+| --- | --- |
+| Native window never launched | Requires an authorized isolated interactive session; nothing about keyboard, IME, GPU rendering or dialogs has been observed. |
+| Live inference never executed | Needs a specific on-machine Ollama endpoint and model, selected by the user. The wire path is verified against mocks only. |
+| Paid Cloud call never executed | Deliberately fail-closed; a real call needs an API key and explicit cost approval. |
+| Live research provider | Requires an external prior-art API and its terms; only the seam and fixture exist. |
+| macOS and Linux | No runners on this machine; the manual CI workflow exists but has never been dispatched. |
+| Packaging, signing, notarization | Not started. Requires policy decisions and certificates. |
+| Full data migration of a real PatentForge database | Only the synthetic fixture importer exists; real migration needs explicit authorization. |
+| Legacy tray lifecycle and DSH integration | Not implemented; Lite has no tray-resident background mode. |
+
+## Suggested next steps
+
+1. Authorize one isolated native launch and drive the checklist in
+   `FIRST-SLICE-ACCEPTANCE.md` by hand.
+2. Select a specific installed local model and run the same journey live,
+   keeping replay and live results separate.
+3. Decide the packaging/signing policy, then build installers per platform.
+4. Only after that, consider real-data migration and any API cutover.
