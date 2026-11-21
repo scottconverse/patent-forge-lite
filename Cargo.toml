@@ -1,0 +1,41 @@
+[workspace]
+members = ["crates/pfl-domain", "crates/pfl-storage", "crates/pfl-workflow", "crates/pfl-desktop", "crates/pfl-cli"]
+default-members = ["crates/pfl-domain", "crates/pfl-storage", "crates/pfl-workflow", "crates/pfl-desktop", "crates/pfl-cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+
+[workspace.dependencies]
+pfl-domain = { path = "crates/pfl-domain" }
+pfl-storage = { path = "crates/pfl-storage" }
+pfl-workflow = { path = "crates/pfl-workflow" }
+async-trait = "0.1.92"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+uuid = { version = "1.29.3", features = ["v4", "serde"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-util = { version = "0.7.20", features = ["rt"] }
+rusqlite = { version = "0.41.0", features = ["bundled", "backup"] }
+tempfile = "3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+futures-util = "0.3"
+sha2 = "0.10"
+unicode-segmentation = "1.12"
+gpui = { git = "https://github.com/zed-industries/zed", rev = "2f808b3c2de049ecfdbad0fdb26763cebfcaa3b4" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "2f808b3c2de049ecfdbad0fdb26763cebfcaa3b4", features = ["font-kit", "wayland", "x11"] }
+
+[workspace.metadata.foundation]
+gpui-revision = "2f808b3c2de049ecfdbad0fdb26763cebfcaa3b4"
+native-targets = ["x86_64-pc-windows-msvc", "aarch64-apple-darwin", "x86_64-unknown-linux-gnu"]
+license-status = "No new application-wide license selected; preserve upstream notices for imported material."
+
+[profile.dev]
+debug = 0
+
+[profile.test]
+debug = 0
