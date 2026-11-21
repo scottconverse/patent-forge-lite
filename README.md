@@ -69,5 +69,6 @@ Before importing any source, prompt or asset, review its applicable license, att
 - [First-slice acceptance](docs/FIRST-SLICE-ACCEPTANCE.md)
 - [Native desktop source, controls and acceptance limits](docs/native-ui.md)
 - [Build and acceptance evidence](docs/BUILD-EVIDENCE.md)
+- [Packaging sources and open decisions](docs/PACKAGING.md)
 - [Storage and migration](docs/storage-and-migration.md)
 - [Workflow execution](docs/workflow.md)

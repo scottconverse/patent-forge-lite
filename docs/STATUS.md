@@ -21,6 +21,7 @@ is the honest inventory.
 | CLI | `replay`, `import-replay`, `pause-fixture`, `resume`, `pipeline` (all four workflows), `serve`. |
 | API | Compatibility auth (Bearer, legacy 401 messages, tokenless mode, single-use 5-minute download tokens, long-lived query tokens), health shape, project/run/event/report/export routes. |
 | Providers | Recorded replay, Ollama over NDJSON streaming, Anthropic Messages over SSE. Each fails closed without its exact snapshot and explicit authorization. |
+| Live local inference | Verified once on 2026-11-21: six real stages on `phi4-mini:latest` via the running local Ollama, 189.5 s, real token usage, synthetic input only. |
 | Research | Injectable `ResearchSource` seam with an offline fixture implementation; supplied references are snapshotted and reach the prior-art prompt. |
 | Setup profiles | Lean is Cloud-only and refuses a local runtime; Full permits both. |
 
@@ -33,7 +34,7 @@ verified against local mock servers.
 | Gap | Why it is open |
 | --- | --- |
 | Native window never launched | Requires an authorized isolated interactive session; nothing about keyboard, IME, GPU rendering or dialogs has been observed. |
-| Live inference never executed | Needs a specific on-machine Ollama endpoint and model, selected by the user. The wire path is verified against mocks only. |
+| Only one live model tested | `phi4-mini:latest` on this machine. Larger models, other stages, and quality across workflows are unmeasured. The single live run also invented prior-art reference numbers, which is expected without a research source. |
 | Paid Cloud call never executed | Deliberately fail-closed; a real call needs an API key and explicit cost approval. |
 | Live research provider | Requires an external prior-art API and its terms; only the seam and fixture exist. |
 | macOS and Linux | No runners on this machine; the manual CI workflow exists but has never been dispatched. |

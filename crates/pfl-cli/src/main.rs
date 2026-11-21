@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use pfl_domain::*;
 use pfl_storage::SqliteStore;
-use pfl_workflow::{ReplayProvider, WorkflowService, export_html, export_markdown};
+use pfl_workflow::{OllamaProvider, ReplayProvider, WorkflowService, export_html, export_markdown};
 use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
@@ -585,24 +585,126 @@ async fn serve(workspace: PathBuf, addr: String) -> Result<()> {
     served
 }
 
+/// Runs the feasibility workflow against an explicitly selected on-machine
+/// Ollama endpoint/model, with synthetic input only. This is the only command
+/// that performs real inference; it never downloads a model and never falls back.
+async fn live(workspace: PathBuf, endpoint: String, model: String) -> Result<()> {
+    let mut marker = create_workspace(&workspace)?;
+    let database = workspace.join(&marker.database);
+    let _profile_lock = take_profile_lock(&database)?;
+    let open = database.clone();
+    let store: Arc<dyn Store> = Arc::new(
+        tokio::task::spawn_blocking(move || SqliteStore::open(open))
+            .await
+            .map_err(|e| Error::Storage(e.to_string()))??,
+    );
+    let provider = Arc::new(OllamaProvider::new(&endpoint, &model)?);
+    let on_machine = provider.is_on_machine();
+    let service = WorkflowService::new(store, provider.clone(), tokio::runtime::Handle::current());
+    // Selecting a local runtime is a Full-setup choice; Lean is Cloud-only.
+    let mut settings = service.settings().await?;
+    settings.profile = SetupProfile::Full;
+    settings.local_endpoint = Some(endpoint.clone());
+    settings.local_model = Some(model.clone());
+    service.save_settings(settings).await?;
+    let project = service.create_project(synthetic_intake()).await?;
+    marker.project_id = Some(project.id.clone());
+    write_marker(&workspace, &marker)?;
+    let started = std::time::Instant::now();
+    let run = service
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Feasibility,
+            "live-local-v1".into(),
+            Authorization {
+                synthetic_data: true,
+                local_inference: true,
+                ..Authorization::default()
+            },
+        )
+        .await?;
+    let completed = tokio::time::timeout(Duration::from_secs(3600), async {
+        loop {
+            let snapshot = service.run(run.id.clone()).await?;
+            if snapshot.outcome.is_terminal() {
+                return Ok::<RunSnapshot, Error>(snapshot);
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+    })
+    .await
+    .map_err(|_| Error::Provider("live run timed out".into()))??;
+    service.shutdown().await?;
+    let elapsed = started.elapsed().as_secs_f64();
+    if completed.outcome != RunOutcome::Completed {
+        return Err(Error::Conflict(format!(
+            "live run ended {:?}; see the durable run record",
+            completed.outcome
+        )));
+    }
+    let stages: Vec<serde_json::Value> = completed
+        .checkpoints
+        .iter()
+        .map(|checkpoint| {
+            serde_json::json!({
+                "stage": checkpoint.stage.key(),
+                "chars": checkpoint.text.chars().count(),
+                "input_tokens": checkpoint.usage.input_tokens,
+                "output_tokens": checkpoint.usage.output_tokens,
+            })
+        })
+        .collect();
+    let report = completed
+        .report
+        .clone()
+        .ok_or_else(|| invalid("live run produced no saved report"))?;
+    std::fs::write(
+        workspace.join("live-report.md"),
+        export_markdown(&completed)?,
+    )
+    .map_err(|e| Error::Io(e.to_string()))?;
+    std::fs::write(workspace.join("live-report.html"), export_html(&completed)?)
+        .map_err(|e| Error::Io(e.to_string()))?;
+    println!(
+        "{}",
+        serde_json::json!({
+            "mode": "live_local_inference",
+            "endpoint": endpoint,
+            "model": model,
+            "on_machine": on_machine,
+            "outcome": "completed",
+            "run_id": completed.id,
+            "stages": stages,
+            "report_chars": report.markdown.chars().count(),
+            "elapsed_seconds": elapsed,
+            "synthetic_input_only": true,
+        })
+    );
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = async {
         let command = args.first().map(String::as_str).ok_or_else(|| invalid(
-            "usage: pfl-cli <replay|import-replay|pause-fixture|resume|pipeline|serve> --workspace <directory> [--stage <1..6>] [--addr <host:port>]"
+            "usage: pfl-cli <replay|import-replay|pause-fixture|resume|pipeline|serve|live> --workspace <directory> [--stage <1..6>] [--addr <host:port>] [--endpoint <url> --model <name>]"
         ))?;
-        if !matches!(command, "replay" | "import-replay" | "pause-fixture" | "resume" | "pipeline" | "serve") {
-            return Err(invalid("unknown command; this harness never starts live inference"));
+        if !matches!(command, "replay" | "import-replay" | "pause-fixture" | "resume" | "pipeline" | "serve" | "live") {
+            return Err(invalid("unknown command; only live performs real inference"));
         }
         let mut workspace = None;
         let mut stage = None;
         let mut addr = None;
+        let mut endpoint = None;
+        let mut model = None;
         let mut i = 1;
         while i < args.len() {
             match (args[i].as_str(), args.get(i + 1)) {
                 ("--workspace", Some(value)) if workspace.is_none() => workspace = Some(PathBuf::from(value)),
                 ("--addr", Some(value)) if addr.is_none() => addr = Some(value.to_string()),
+                ("--endpoint", Some(value)) if endpoint.is_none() => endpoint = Some(value.to_string()),
+                ("--model", Some(value)) if model.is_none() => model = Some(value.to_string()),
                 ("--stage", Some(value)) if stage.is_none() => {
                     stage = Some(value.parse::<usize>().map_err(|_| invalid("invalid pause stage"))?);
                 }
@@ -618,12 +720,23 @@ async fn main() {
         if addr.is_some() != (command == "serve") {
             return Err(invalid("only serve accepts --addr"));
         }
+        if (endpoint.is_some() || model.is_some()) && command != "live" {
+            return Err(invalid("only live accepts --endpoint and --model"));
+        }
         let workspace = workspace.ok_or_else(|| invalid("--workspace is required"))?;
         if command == "pipeline" {
             return pipeline(workspace).await;
         }
         if command == "serve" {
             return serve(workspace, addr.unwrap_or_else(|| "127.0.0.1:4330".into())).await;
+        }
+        if command == "live" {
+            return live(
+                workspace,
+                endpoint.ok_or_else(|| invalid("live requires --endpoint"))?,
+                model.ok_or_else(|| invalid("live requires --model"))?,
+            )
+            .await;
         }
         journey(command, workspace, stage).await
     }.await;

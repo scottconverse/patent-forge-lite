@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Patent Forge Lite
+Comment=Standalone patent analysis and drafting workspace
+Exec=pfl-desktop
+Icon=patent-forge-lite
+Terminal=false
+Categories=Office;Utility;
+StartupWMClass=com.scottconverse.patentforgelite
+X-GNOME-UsesNotifications=false
