@@ -13,7 +13,9 @@ Desktop source currently provides:
 - Durable event replay, stage/status/stream display, cancellation, explicit matching-provider resume, saved reports and version history.
 - A native save dialog passing the exact selected run to shared-core Markdown/HTML export. Existing destination files are rejected, never silently overwritten.
 
-Initial editor/state tests (8 editor and 6 state) passed centrally on the pre-context source snapshot. The subsequent optional-context/history tests and real-service actor/lock tests require reruns against integrated peers. The initial native check compiled dependency/stub inputs only, not this application. No desktop window or GPU trial has been launched, and native input/dialog/rendering behavior and installed acceptance remain **not run**. Native source must compile and pass its applicable headless checks before requesting interactive acceptance.
+The real peers are now integrated into this crate. On Windows x86_64 with the pinned toolchain, `cargo fmt`, `cargo test -p pfl-desktop` (8 editor, 8 state, 7 session) and `cargo clippy -p pfl-desktop --features native --all-targets -- -D warnings` all pass, `cargo check -p pfl-desktop --features native` passes against the real GPUI revision, and `cargo build -p pfl-desktop --features native` produced a linked `pfl-desktop.exe`. That first real compile found one genuine GPUI API mismatch (`FocusHandle::focus` now requires `cx`), which is fixed. The session and its tests are no longer gated behind the native feature, so the actor and single-owner lock tests run headlessly.
+
+No desktop window or GPU trial has been launched, and native keyboard/IME, dialog, rendering and installed behavior remain **not run**. A linked binary is not interactive acceptance; those checks still require an authorized isolated session.
 
 ## Safe entry point and execution
 
@@ -47,9 +49,11 @@ Legacy synthetic import is a separate explicit harness operation, never an ordin
 
 This first slice closes the app when its last window closes and asks the core to shut down its own jobs. It does not implement a tray-resident background lifecycle yet. Quit/interruption must leave recoverable state and cannot terminate independently owned Ollama, PatentForge or DSH.
 
+The quit guard counts every job this application still owns, in any project or historical run, not only the run the current view shows; navigation never cancels work, so leaving a running analysis behind a different view still warns. `ApplicationSession::active_jobs()` is that app-wide count, and it is covered by a headless test that starts a job, opens an unrelated project, and then asserts the count only drops once the run is terminal.
+
 ## Headless checks and interactive gate
 
-Portable checks use `cargo test -p pfl-desktop --no-default-features`. The shared build owner schedules Cargo commands; workers must not compete for memory/disk. Actor tests exercise the real store/workflow with synthetic controlled replay, not a live provider.
+Portable checks use `cargo test -p pfl-desktop --locked --offline`; the actor tests no longer require the `native` feature. The shared build owner schedules Cargo commands; workers must not compete for memory/disk. Actor tests exercise the real store/workflow with synthetic controlled replay, not a live provider.
 
 The intended real-service checks cover safe startup/configuration, serialized/idempotent starts, reopen without generation, cancellation/resume without repeating durable checkpoints, selected older-version export during newer progress, exclusive profile ownership and child-process crash release. A passing mock input test is not OS-level IME evidence.
 

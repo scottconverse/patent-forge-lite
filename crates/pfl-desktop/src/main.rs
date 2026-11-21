@@ -8,6 +8,8 @@ fn main() {
 
 #[cfg(not(feature = "native"))]
 fn main() {
-    eprintln!("Patent Forge Lite desktop requires a native build: cargo run -p pfl-desktop --features native");
+    eprintln!(
+        "Patent Forge Lite desktop requires a native build: cargo run -p pfl-desktop --features native"
+    );
     std::process::exit(2);
 }

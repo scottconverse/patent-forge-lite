@@ -1,6 +1,9 @@
 //! Read-only presentation projections. No provider or runner lives in a view.
 use crate::editor::TextBuffer;
-use pfl_domain::{EventKind, Intake, InventionContext, Project, RunEvent, RunId, RunOutcome, RunSnapshot, Stage, Subscribe};
+use pfl_domain::{
+    EventKind, Intake, InventionContext, Project, RunEvent, RunId, RunOutcome, RunSnapshot, Stage,
+    Subscribe,
+};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -15,7 +18,12 @@ pub enum Page {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EventApplied { Applied, Duplicate, OtherRun, Gap }
+pub enum EventApplied {
+    Applied,
+    Duplicate,
+    OtherRun,
+    Gap,
+}
 
 #[derive(Clone, Debug)]
 pub struct RunView {
@@ -30,17 +38,32 @@ impl RunView {
     pub fn new(snapshot: RunSnapshot) -> Self {
         // Replay from the beginning on initial subscription so in-flight text is
         // reconstructed, not mistaken for a durable checkpoint.
-        Self { snapshot, sequence: 0, active_stage: None, streaming: BTreeMap::new(), message: None }
+        Self {
+            snapshot,
+            sequence: 0,
+            active_stage: None,
+            streaming: BTreeMap::new(),
+            message: None,
+        }
     }
 
     pub fn cursor(&self) -> Subscribe {
-        Subscribe { run_id: self.snapshot.id.clone(), after_sequence: self.sequence }
+        Subscribe {
+            run_id: self.snapshot.id.clone(),
+            after_sequence: self.sequence,
+        }
     }
 
     pub fn apply(&mut self, event: &RunEvent) -> EventApplied {
-        if event.run_id != self.snapshot.id { return EventApplied::OtherRun; }
-        if event.sequence <= self.sequence { return EventApplied::Duplicate; }
-        if event.sequence != self.sequence + 1 { return EventApplied::Gap; }
+        if event.run_id != self.snapshot.id {
+            return EventApplied::OtherRun;
+        }
+        if event.sequence <= self.sequence {
+            return EventApplied::Duplicate;
+        }
+        if event.sequence != self.sequence + 1 {
+            return EventApplied::Gap;
+        }
         self.sequence = event.sequence;
         match &event.event {
             EventKind::Prepared => {}
@@ -68,21 +91,33 @@ impl RunView {
     }
 
     pub fn refresh(&mut self, snapshot: RunSnapshot) {
-        if snapshot.id == self.snapshot.id && snapshot.last_sequence >= self.snapshot.last_sequence {
+        if snapshot.id == self.snapshot.id && snapshot.last_sequence >= self.snapshot.last_sequence
+        {
             self.snapshot = snapshot;
         }
     }
 
     pub fn stage_text(&self, stage: Stage) -> &str {
-        self.snapshot.checkpoints.iter().find(|c| c.stage == stage)
+        self.snapshot
+            .checkpoints
+            .iter()
+            .find(|c| c.stage == stage)
             .map(|c| c.text.as_str())
-            .or_else(|| self.streaming.get(&stage).map(String::as_str)).unwrap_or("")
+            .or_else(|| self.streaming.get(&stage).map(String::as_str))
+            .unwrap_or("")
     }
 
-    pub fn can_cancel(&self) -> bool { self.snapshot.outcome == RunOutcome::Running }
+    pub fn can_cancel(&self) -> bool {
+        self.snapshot.outcome == RunOutcome::Running
+    }
     pub fn can_resume(&self) -> bool {
-        matches!(self.snapshot.outcome,
-            RunOutcome::Prepared | RunOutcome::Cancelled | RunOutcome::Failed | RunOutcome::Interrupted)
+        matches!(
+            self.snapshot.outcome,
+            RunOutcome::Prepared
+                | RunOutcome::Cancelled
+                | RunOutcome::Failed
+                | RunOutcome::Interrupted
+        )
     }
 }
 
@@ -97,7 +132,10 @@ pub struct IntakeDraft {
 
 impl IntakeDraft {
     pub fn new(intake: Intake) -> Self {
-        let context = intake.context.labeled_fields().map(|(_, value)| TextBuffer::new(value, true));
+        let context = intake
+            .context
+            .labeled_fields()
+            .map(|(_, value)| TextBuffer::new(value, true));
         Self {
             title: TextBuffer::new(intake.title.clone(), false),
             description: TextBuffer::new(intake.description.clone(), true),
@@ -107,19 +145,46 @@ impl IntakeDraft {
         }
     }
     pub fn intake(&self) -> Intake {
-        Intake { title: self.title.text().to_owned(), description: self.description.text().to_owned(),
+        Intake {
+            title: self.title.text().to_owned(),
+            description: self.description.text().to_owned(),
             technical_field: self.technical_field.text().to_owned(),
-            context: context_from_values(std::array::from_fn(|i| self.context[i].text().to_owned())) }
+            context: context_from_values(std::array::from_fn(|i| {
+                self.context[i].text().to_owned()
+            })),
+        }
     }
-    pub fn dirty(&self) -> bool { self.intake() != self.saved }
-    pub fn mark_saved(&mut self, intake: Intake) { self.saved = intake; }
+    pub fn dirty(&self) -> bool {
+        self.intake() != self.saved
+    }
+    pub fn mark_saved(&mut self, intake: Intake) {
+        self.saved = intake;
+    }
 }
 
 pub fn context_from_values(values: [String; 9]) -> InventionContext {
-    let [problem_solved, how_it_works, ai_components, three_d_print_components,
-        what_is_novel, current_alternatives, what_is_built, what_to_protect, additional_notes] = values;
-    InventionContext { problem_solved, how_it_works, ai_components, three_d_print_components,
-        what_is_novel, current_alternatives, what_is_built, what_to_protect, additional_notes }
+    let [
+        problem_solved,
+        how_it_works,
+        ai_components,
+        three_d_print_components,
+        what_is_novel,
+        current_alternatives,
+        what_is_built,
+        what_to_protect,
+        additional_notes,
+    ] = values;
+    InventionContext {
+        problem_solved,
+        how_it_works,
+        ai_components,
+        three_d_print_components,
+        what_is_novel,
+        current_alternatives,
+        what_is_built,
+        what_to_protect,
+        additional_notes,
+    }
 }
 
 #[derive(Default)]
@@ -133,7 +198,9 @@ pub struct DesktopState {
 }
 
 impl DesktopState {
-    pub fn navigate(&mut self, page: Page) { self.page = page; }
+    pub fn navigate(&mut self, page: Page) {
+        self.page = page;
+    }
 
     pub fn open(&mut self, project: Project) {
         let changed = self.selected_project.as_ref().map(|p| &p.id) != Some(&project.id);
@@ -146,7 +213,9 @@ impl DesktopState {
     }
 
     pub fn show_run(&mut self, snapshot: RunSnapshot) {
-        if self.selected_project.as_ref().map(|p| &p.id) != Some(&snapshot.project_id) { return; }
+        if self.selected_project.as_ref().map(|p| &p.id) != Some(&snapshot.project_id) {
+            return;
+        }
         self.remember_run(snapshot.clone());
         if let Some(run) = &mut self.run
             && run.snapshot.id == snapshot.id
@@ -158,10 +227,16 @@ impl DesktopState {
     }
 
     pub fn remember_run(&mut self, snapshot: RunSnapshot) {
-        if self.selected_project.as_ref().map(|p| &p.id) != Some(&snapshot.project_id) { return; }
+        if self.selected_project.as_ref().map(|p| &p.id) != Some(&snapshot.project_id) {
+            return;
+        }
         if let Some(saved) = self.history.iter_mut().find(|s| s.id == snapshot.id) {
-            if snapshot.last_sequence >= saved.last_sequence { *saved = snapshot; }
-        } else { self.history.push(snapshot); }
+            if snapshot.last_sequence >= saved.last_sequence {
+                *saved = snapshot;
+            }
+        } else {
+            self.history.push(snapshot);
+        }
         self.history.sort_by_key(|s| std::cmp::Reverse(s.version));
     }
 

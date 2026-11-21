@@ -56,7 +56,10 @@ fn utf16_surrogate_boundaries_are_safe_and_roundtrip() {
     assert_eq!(text.from_utf16(2..3), 1..5);
     text.replace_utf16(Some(1..3), "é");
     assert_eq!(text.text(), "AéB");
-    assert_eq!(text.from_utf16(999..999), text.text().len()..text.text().len());
+    assert_eq!(
+        text.from_utf16(999..999),
+        text.text().len()..text.text().len()
+    );
 }
 
 #[test]
