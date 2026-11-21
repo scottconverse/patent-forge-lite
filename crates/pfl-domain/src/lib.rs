@@ -54,10 +54,58 @@ id!(RunId);
 id!(AttemptId);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct InventionContext {
+    #[serde(alias = "problemSolved")]
+    pub problem_solved: String,
+    #[serde(alias = "howItWorks")]
+    pub how_it_works: String,
+    #[serde(alias = "aiComponents")]
+    pub ai_components: String,
+    #[serde(alias = "threeDPrintComponents")]
+    pub three_d_print_components: String,
+    #[serde(alias = "whatIsNovel")]
+    pub what_is_novel: String,
+    #[serde(alias = "currentAlternatives")]
+    pub current_alternatives: String,
+    #[serde(alias = "whatIsBuilt")]
+    pub what_is_built: String,
+    #[serde(alias = "whatToProtect")]
+    pub what_to_protect: String,
+    #[serde(alias = "additionalNotes")]
+    pub additional_notes: String,
+}
+
+impl InventionContext {
+    /// Legacy feasibility input labels and order; callers trim and omit blanks.
+    pub fn labeled_fields(&self) -> [(&'static str, &str); 9] {
+        [
+            ("Problem Solved", &self.problem_solved),
+            ("How It Works", &self.how_it_works),
+            ("AI / ML Components", &self.ai_components),
+            (
+                "3D Printing / Physical Design Components",
+                &self.three_d_print_components,
+            ),
+            ("What I Believe Is Novel", &self.what_is_novel),
+            (
+                "Current Alternatives / Prior Solutions",
+                &self.current_alternatives,
+            ),
+            ("What Has Been Built So Far", &self.what_is_built),
+            ("What I Want Protected", &self.what_to_protect),
+            ("Additional Notes", &self.additional_notes),
+        ]
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Intake {
     pub title: String,
     pub description: String,
     pub technical_field: String,
+    #[serde(default)]
+    pub context: InventionContext,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -362,6 +410,43 @@ pub fn now_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn old_intake_snapshots_default_context_and_partial_context_defaults_fields() {
+        let old: Intake = serde_json::from_str(
+            r#"{"title":"old","description":"saved","technical_field":"sensors"}"#,
+        )
+        .unwrap();
+        assert_eq!(old.context, InventionContext::default());
+        let partial: Intake = serde_json::from_str(
+            r#"{"title":"new","description":"saved","technical_field":"","context":{"problem_solved":"problem"}}"#,
+        ).unwrap();
+        assert_eq!(partial.context.problem_solved, "problem");
+        assert_eq!(partial.context.how_it_works, "");
+    }
+
+    #[test]
+    fn all_nine_legacy_aliases_roundtrip_without_losing_context() {
+        let context: InventionContext = serde_json::from_value(serde_json::json!({
+            "problemSolved":"one", "howItWorks":"two", "aiComponents":"three",
+            "threeDPrintComponents":"four", "whatIsNovel":"five",
+            "currentAlternatives":"six", "whatIsBuilt":"seven",
+            "whatToProtect":"eight", "additionalNotes":"café α"
+        }))
+        .unwrap();
+        assert_eq!(
+            context.labeled_fields().map(|(_, value)| value),
+            [
+                "one", "two", "three", "four", "five", "six", "seven", "eight", "café α"
+            ]
+        );
+        let encoded = serde_json::to_value(&context).unwrap();
+        assert_eq!(encoded["three_d_print_components"], "four");
+        assert_eq!(encoded["additional_notes"], "café α");
+        assert_eq!(
+            serde_json::from_value::<InventionContext>(encoded).unwrap(),
+            context
+        );
+    }
     #[test]
     fn stages_have_stable_order_and_ids_roundtrip() {
         assert_eq!(Stage::ALL.map(Stage::number), [1, 2, 3, 4, 5, 6]);
