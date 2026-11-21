@@ -82,7 +82,7 @@ jobs:
       - name: Build desktop
         run: cargo build -p pfl-desktop --features native --release --locked
       - name: Assemble app bundle
-        run: packaging/macos/bundle.sh
+        run: bash packaging/macos/bundle.sh
       - name: Package
         run: |
           set -euo pipefail
