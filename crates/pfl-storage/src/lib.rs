@@ -370,12 +370,12 @@ impl Store for SqliteStore {
                     ))
                 };
             }
-            if let Some(source) = &request.rerun_of {
-                if load_run(tx, source)?.project_id != request.project_id {
-                    return Err(Error::Invalid(
-                        "rerun source belongs to another project".into(),
-                    ));
-                }
+            if let Some(source) = &request.rerun_of
+                && load_run(tx, source)?.project_id != request.project_id
+            {
+                return Err(Error::Invalid(
+                    "rerun source belongs to another project".into(),
+                ));
             }
             let version: u32 = tx
                 .query_row(
