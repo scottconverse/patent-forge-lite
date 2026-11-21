@@ -35,10 +35,15 @@ export are worth exercising.
 Launch:
 
 ```powershell
-& '.\target\debug\pfl-desktop.exe' --replay
+& '.\target\session\debug\pfl-desktop.exe' --replay --select-latest
 ```
 
-`--replay` only preselects recorded mode. It does not create a project or start a run.
+`--replay` only preselects recorded mode; `--select-latest` opens the newest project
+and its latest run. Add `--page analysis`, `--page report`, `--page history`,
+`--page intake` or `--page setup` to land directly on a screen.
+
+Keyboard: `Ctrl+1`–`Ctrl+6` pages, `Ctrl+S` save, `Ctrl+Q` quit, `Tab`/`Shift+Tab`
+between fields.
 
 > **Important:** running `cargo test` or a plain `cargo build` rebuilds the bin
 > target *without* the `native` feature and overwrites `pfl-desktop.exe` with a stub

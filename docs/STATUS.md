@@ -17,7 +17,7 @@ is the honest inventory.
 | Compliance workflow | 4 checks (written description, definiteness, formalities, eligibility) using the legacy compliance prompts. |
 | Application workflow | 5 sections plus a non-LLM IDS/assembly step using the legacy application prompts. |
 | Exports | Markdown, HTML and real `.docx`, all from the same saved run identity. |
-| Desktop | Native GPUI interface: projects, intake with nine context fields, workflow selection, live progress, cancel/resume, history, reports, three export formats, Word export, setup-profile selection, single-owner lock, app-wide quit guard. |
+| Desktop | Native GPUI interface with a layered dark design system: icon rail, elevated cards with real box shadows, workflow tabs, outcome pills, checkpoint progress bars, stage ledger, document pane, hover states, and Ctrl+1–6 page navigation. Projects, intake with nine context fields, live progress, cancel/resume, history, reports, three export formats, setup-profile selection, single-owner lock, app-wide quit guard. |
 | CLI | `replay`, `import-replay`, `pause-fixture`, `resume`, `pipeline` (all four workflows), `serve`. |
 | API | Compatibility auth (Bearer, legacy 401 messages, tokenless mode, single-use 5-minute download tokens, long-lived query tokens), health shape, project/run/event/report/export routes. |
 | Providers | Recorded replay, Ollama over NDJSON streaming, Anthropic Messages over SSE. Each fails closed without its exact snapshot and explicit authorization. |
@@ -33,7 +33,7 @@ verified against local mock servers.
 
 | Gap | Why it is open |
 | --- | --- |
-| Native window never launched | Requires an authorized isolated interactive session; nothing about keyboard, IME, GPU rendering or dialogs has been observed. |
+| Native window never launched | **No longer true**: the window has been launched and every page rendered (Projects, Intake, Analysis, Report, History, Setup). What remains unverified is OS input behaviour — typing, IME, clipboard, the native save dialog, and GPU behaviour on other drivers. Automated click injection does not reach the GPUI window from this session, so interactive checks still need a human. |
 | Only one live model tested | `phi4-mini:latest` on this machine. Larger models and output quality across a wider sample are unmeasured. The live run also invented prior-art reference numbers, which is expected without a research source. |
 | Paid Cloud call never executed | Deliberately fail-closed; a real call needs an API key and explicit cost approval. |
 | Live research provider | Requires an external prior-art API and its terms; only the seam and fixture exist. |

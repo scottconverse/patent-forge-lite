@@ -1,5 +1,40 @@
 # Native desktop
 
+## Visual design
+
+The interface is a layered dark theme built entirely from GPUI primitives — no
+HTML, no CSS, no webview. The design language lives in
+`crates/pfl-desktop/src/native/theme.rs`:
+
+- **Surfaces**: four elevation levels (`BG` → `RAIL` → `SURFACE` → `SURFACE_2`) with
+  1px borders and real box shadows (`BoxShadow` with blur and negative spread), so
+  cards lift off the background instead of sitting flat.
+- **Type scale**: `text_2xl` page titles, `text_lg` section titles, `text_sm` body,
+  `text_xs` metadata, with `SEMIBOLD`/`MEDIUM` weights and muted colour tiers
+  (`TEXT` / `MUTED` / `FAINT`).
+- **Components**: an 84px icon rail with hand-drawn geometric icons (no icon font
+  or SVG asset pipeline), segmented workflow tabs, status pills coloured by run
+  outcome, a segmented checkpoint progress bar, label/value metadata rows, and
+  primary/secondary/ghost button variants — each with hover state styling via
+  GPUI's `hover()` helper.
+- **Layout**: fixed top bar (identity + live mode + provider), scrolling content
+  column, fixed status bar. Pages use flex rows/columns and wrap grids.
+
+Keyboard reachability: `Ctrl+1`–`Ctrl+6` select Projects, Intake, Analysis, History,
+Report and Setup; `Ctrl+S` saves; `Ctrl+Q` quits; `Tab`/`Shift+Tab` traverse fields.
+
+## Launch options
+
+```
+pfl-desktop --replay             select synthetic recorded responses (starts nothing)
+pfl-desktop --page analysis      open directly to projects|intake|analysis|history|report|setup
+pfl-desktop --select-latest      open the most recent project and its latest run
+pfl-desktop --help
+```
+
+`--select-latest` together with `--page report` is the fastest way to inspect real
+seeded content without clicking.
+
 ## Implementation and evidence boundary
 
 The desktop is a GPUI application, not a browser shell. Rust 1.98.1 and official GPUI/platform revision `2f808b3c2de049ecfdbad0fdb26763cebfcaa3b4` are pinned centrally. The workspace retains Windows x86_64, macOS arm64 and Linux x86_64 targets. A target declaration is not a successful native build, available runner or installed result.

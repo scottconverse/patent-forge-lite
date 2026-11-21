@@ -6,7 +6,8 @@
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$exe = Join-Path $root 'target\debug\pfl-desktop.exe'
+$exe = Join-Path $root 'target\session\debug\pfl-desktop.exe'
+$exeDefault = Join-Path $root 'target\debug\pfl-desktop.exe'
 $release = Join-Path $root 'target\release\pfl-desktop.exe'
 $data = Join-Path $env:LOCALAPPDATA 'patent-forge-lite'
 $db = Join-Path $data 'projects.sqlite3'
@@ -20,7 +21,7 @@ Write-Host "`nPatent Forge Lite — interactive session preflight" -ForegroundCo
 Write-Host ("=" * 60)
 
 Write-Host "`n[1] Binary"
-$binary = if (Test-Path $exe) { $exe } elseif (Test-Path $release) { $release } else { $null }
+$binary = if (Test-Path $exe) { $exe } elseif (Test-Path $exeDefault) { $exeDefault } elseif (Test-Path $release) { $release } else { $null }
 if ($binary) {
     $info = Get-Item $binary
     $mib = $info.Length / 1MB
@@ -75,7 +76,7 @@ Write-Host ("`n" + ("=" * 60))
 if ($problems -eq 0) {
     Write-Host "VERDICT: READY — see docs/INTERACTIVE-CHECKLIST.md" -ForegroundColor Green
     Write-Host "`nLaunch with:"
-    Write-Host ("  & '{0}' --replay" -f $binary) -ForegroundColor Yellow
+    Write-Host ("  & '{0}' --replay --select-latest" -f $binary) -ForegroundColor Yellow
     Write-Host "`n(The --replay flag only preselects recorded mode; it does not create or start anything.)"
 } else {
     Write-Host "VERDICT: NOT READY — resolve the FAIL lines above first" -ForegroundColor Red
