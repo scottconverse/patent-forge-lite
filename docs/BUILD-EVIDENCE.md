@@ -52,6 +52,7 @@ harness was written, the following was measured on this machine with the pinned
 | `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | Passed. |
 | `cargo clippy -p pfl-desktop --features native --all-targets ...` | Passed. |
 | `cargo check -p pfl-desktop --features native --locked --offline` | Passed. First real compile of the native app source, not a dependency stub. It found one real GPUI API mismatch (`FocusHandle::focus` now takes `cx`), which is fixed. |
+| `cargo build -p pfl-desktop --features native --locked --offline` | Passed and linked `target/debug/pfl-desktop.exe` (32.76 MiB) from the merged tree in 1m49s. The binary was not launched. |
 | Desktop portable + actor suite | 23 passed: 8 editor, 8 state, 7 session. This includes the headless actor tests that were previously gated behind `--features native`, and a new app-wide active-job count the quit guard uses. |
 | CLI hard-kill recovery | Passed in a genuinely fresh process: killed before the first checkpoint and after the third, then resumed with no completed stage repeated and exactly `7 - stage` provider calls in the resuming process. |
 | CLI shared-profile lock | Passed: while the paused child still owned the profile, a second CLI on the same workspace was refused with a lock conflict; the OS lock released on hard kill and recovery then succeeded. |
@@ -61,7 +62,8 @@ harness was written, the following was measured on this machine with the pinned
 Still not established by this evidence:
 
 - No native window was launched; keyboard, IME, GPU rendering, dialogs and
-  installed behavior remain unverified interactive acceptance.
+  installed behavior remain unverified interactive acceptance. A linked binary is
+  a build result, not usability evidence.
 - No live Ollama or Cloud inference ran. Every result above is recorded replay;
   inference orchestration is proven, model quality is not.
 - macOS and Linux native builds remain unattempted on this machine.
