@@ -52,8 +52,19 @@ if ($Source) {
 
 New-Item -ItemType Directory -Force -Path $data | Out-Null
 if (Test-Path $db) { Remove-Item $db -Force }
-# Copy only the database: never copy the CLI's workspace lock file.
+# Copy the database *and* its WAL sidecars. Copying only the main file loses
+# committed pages that still live in the write-ahead log and leaves a database
+# that opens as "disk image is malformed".
 Copy-Item $sourceDb $db -Force
+foreach ($suffix in @('-wal', '-shm')) {
+    $side = "$sourceDb$suffix"
+    if (Test-Path $side) {
+        Copy-Item $side "$db$suffix" -Force
+    } else {
+        Remove-Item "$db$suffix" -Force -ErrorAction SilentlyContinue
+    }
+}
+# Never copy the CLI's workspace lock file; the app takes its own.
 if (Test-Path (Join-Path $data 'projects.lock')) { Remove-Item (Join-Path $data 'projects.lock') -Force }
 
 Write-Host "`nVerifying the seeded profile with pfl-cli inspect ..." -ForegroundColor Cyan

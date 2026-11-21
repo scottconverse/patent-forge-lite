@@ -23,6 +23,36 @@ HTML, no CSS, no webview. The design language lives in
 Keyboard reachability: `Ctrl+1`–`Ctrl+6` select Projects, Intake, Analysis, History,
 Report and Setup; `Ctrl+S` saves; `Ctrl+Q` quits; `Tab`/`Shift+Tab` traverse fields.
 
+## Accessibility and automated acceptance
+
+The interface publishes a real AccessKit tree, so Windows UI Automation (and any
+screen reader) sees the app as structure rather than one opaque window:
+
+- Navigation, action buttons, project cards and history rows expose
+  `Role::Button` with accessible names and stable `AutomationId`s (`nav-analysis`,
+  `input-Invention title`, `run-summary`, `status-notice`).
+- The nine optional fields and the three core fields are `Role::TextInput` with
+  labels; the workflow selector is a `Role::TabList` of four `Role::Tab` items
+  with `aria_selected`.
+- Page titles are `Role::Heading`. Run state is a `Role::Status` region that
+  announces outcome, checkpoint progress, version and stages remaining. The
+  status-bar notice is a second `Role::Status`.
+
+Consequence: `scripts/ui-acceptance.ps1` drives the real window through the
+accessibility tree — navigation, disclosure of the nine optional fields, recorded
+execution mode, starting a run, waiting for completion, history selection and the
+report pane — and asserts the results. It is a regression test for the UI, not a
+mock: it clicks real controls and reads real durable state.
+
+Two notes for anyone extending this:
+
+1. GPUI publishes the tree on the first repaint *after* a client attaches. A UIA
+   client that enumerates immediately after launch may see an empty tree once;
+   the script warms up and re-queries.
+2. Only elements with an explicit role appear. Plain text is invisible to
+   assistive technology unless it sits inside a role'd element, which is why run
+   state and notices carry explicit `Role::Status` labels.
+
 ## Launch options
 
 ```

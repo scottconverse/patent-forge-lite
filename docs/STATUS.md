@@ -17,7 +17,8 @@ is the honest inventory.
 | Compliance workflow | 4 checks (written description, definiteness, formalities, eligibility) using the legacy compliance prompts. |
 | Application workflow | 5 sections plus a non-LLM IDS/assembly step using the legacy application prompts. |
 | Exports | Markdown, HTML and real `.docx`, all from the same saved run identity. |
-| Desktop | Native GPUI interface with a layered dark design system: icon rail, elevated cards with real box shadows, workflow tabs, outcome pills, checkpoint progress bars, stage ledger, document pane, hover states, and Ctrl+1–6 page navigation. Projects, intake with nine context fields, live progress, cancel/resume, history, reports, three export formats, setup-profile selection, single-owner lock, app-wide quit guard. |
+| Desktop | Native GPUI interface with a layered dark design system: icon rail, elevated cards with real box shadows, workflow tabs, outcome pills, checkpoint progress bars, stage ledger, document pane, hover states, Ctrl+1–6 page navigation. Projects, intake with nine context fields, live progress, cancel/resume, history, reports, three export formats, setup-profile selection, single-owner lock, app-wide quit guard. |
+| Accessibility | A real AccessKit tree is published: labelled buttons, text inputs, tabs, headings, and status regions with stable AutomationIds. Screen readers get structure, and `scripts/ui-acceptance.ps1` drives the window through UI Automation (20 checks, all passing). |
 | CLI | `replay`, `import-replay`, `pause-fixture`, `resume`, `pipeline` (all four workflows), `serve`. |
 | API | Compatibility auth (Bearer, legacy 401 messages, tokenless mode, single-use 5-minute download tokens, long-lived query tokens), health shape, project/run/event/report/export routes. |
 | Providers | Recorded replay, Ollama over NDJSON streaming, Anthropic Messages over SSE. Each fails closed without its exact snapshot and explicit authorization. |
@@ -27,7 +28,8 @@ is the honest inventory.
 
 Test suite: **96 passing tests** across the workspace, plus `cargo fmt --check`
 and `cargo clippy --all-targets -D warnings` clean. Provider wire formats are
-verified against local mock servers.
+verified against local mock servers, and `scripts/ui-acceptance.ps1` adds 20
+automated UI checks against the real native window.
 
 ## Not done, and not claimed
 

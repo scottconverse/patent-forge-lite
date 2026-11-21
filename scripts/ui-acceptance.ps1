@@ -1,0 +1,207 @@
+# Automated UI acceptance for Patent Forge Lite (Windows, UI Automation).
+#
+# Drives the real native window through the accessibility tree: navigation,
+# disclosure of optional fields, execution mode, a recorded-replay run, history
+# selection and the report pane. No mouse or keyboard injection is used, so it
+# works even when the window cannot be focused.
+#
+#   pwsh -File scripts/ui-acceptance.ps1
+#   pwsh -File scripts/ui-acceptance.ps1 -Exe .\target\session\debug\pfl-desktop.exe
+#
+# It never launches live inference and never touches another application.
+
+param(
+    [string]$Exe = "",
+    [int]$TimeoutSeconds = 25,
+    [switch]$NoSeed
+)
+
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms
+
+$root = Split-Path -Parent $PSScriptRoot
+if (-not $Exe) {
+    $candidates = @(
+        (Join-Path $root 'target\session\debug\pfl-desktop.exe'),
+        (Join-Path $root 'target\debug\pfl-desktop.exe'),
+        (Join-Path $root 'target\release\pfl-desktop.exe')
+    )
+    $Exe = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+if (-not $Exe -or -not (Test-Path $Exe)) { throw "no pfl-desktop.exe found; build with: cargo build -p pfl-desktop --features native" }
+if ((Get-Item $Exe).Length -lt 5MB) { throw "$Exe is the non-native stub; rebuild with --features native" }
+
+$script:pass = 0
+$script:fail = 0
+function Check([string]$name, [bool]$ok, [string]$detail = "") {
+    if ($ok) { $script:pass++; Write-Host ("  PASS  {0}" -f $name) -ForegroundColor Green }
+    else { $script:fail++; Write-Host ("  FAIL  {0} {1}" -f $name, $detail) -ForegroundColor Red }
+}
+
+function Get-Window {
+    $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Patent Forge Lite')
+    [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
+}
+
+function Wait-Window {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $w = Get-Window
+        if ($w) { return $w }
+        Start-Sleep -Milliseconds 150
+    }
+    throw "the application window never appeared"
+}
+
+function Find-ByName([string]$name) {
+    $w = Get-Window
+    if (-not $w) { return $null }
+    $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $name)
+    $w.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+}
+
+function Find-Contains([string]$fragment) {
+    $w = Get-Window
+    if (-not $w) { return $null }
+    $all = $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($e in $all) {
+        if ($e.Current.Name -and $e.Current.Name.Contains($fragment)) { return $e }
+    }
+    return $null
+}
+
+function Find-All-ByName([string]$name) {
+    $w = Get-Window
+    $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $name)
+    $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)
+}
+
+function Find-ByType([string]$controlType) {
+    $w = Get-Window
+    $cond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::$controlType)
+    $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)
+}
+
+function Find-ById([string]$id) {
+    $w = Get-Window
+    $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, $id)
+    $w.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+}
+
+# Activate an element the way assistive technology would: use the Invoke pattern
+# when the node exposes it, otherwise focus it and press Enter (the keyboard path
+# every focusable control supports).
+function Invoke-Element([string]$name) {
+    $el = Find-ByName $name
+    if (-not $el) { $el = Find-Contains $name }
+    if (-not $el) { throw "element not found: $name" }
+    $patterns = @($el.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })
+    if ($patterns -contains 'InvokePatternIdentifiers.Pattern') {
+        $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    } else {
+        $el.SetFocus()
+        Start-Sleep -Milliseconds 250
+        [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    }
+    Start-Sleep -Milliseconds 800
+}
+
+# The a11y tree is published on the first repaint after a client attaches; give
+# the window a moment and one navigation round-trip before asserting.
+function Warm-Up {
+    $w = Wait-Window
+    Start-Sleep -Milliseconds 900
+    $null = $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+}
+
+Write-Host "`nPatent Forge Lite — automated UI acceptance" -ForegroundColor White
+Write-Host ("=" * 60)
+Write-Host ("binary: {0}" -f $Exe)
+
+# Start from a deterministic, known profile so assertions cannot depend on
+# whatever a previous session left behind.
+if (-not $NoSeed) {
+    Write-Host "`n[0] Seeding a deterministic profile" -ForegroundColor White
+    Get-Process -Name 'pfl-desktop' -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
+    Start-Sleep -Milliseconds 400
+    & (Join-Path $PSScriptRoot 'seed-profile.ps1') -Force | Out-Null
+    Check "profile seeded with four completed runs" ($LASTEXITCODE -eq 0)
+}
+
+Get-Process -Name 'pfl-desktop' -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
+Start-Sleep -Milliseconds 600
+$proc = Start-Process -FilePath $Exe -ArgumentList '--replay', '--select-latest' -PassThru
+Warm-Up
+Check "window opens" ([bool](Get-Window))
+Check "accessibility tree is published" ((Find-ByType 'Button').Count -ge 6) ("(buttons: {0})" -f (Find-ByType 'Button').Count)
+Check "nav exposes stable AutomationIds" ([bool](Find-ById 'nav-analysis'))
+
+Write-Host "`n[1] Navigation"
+Invoke-Element 'Projects page'
+Check "Projects heading" ([bool](Find-ByName 'Projects'))
+Invoke-Element 'Analysis page'
+Check "Analysis heading is the workflow" ([bool](Find-ByName 'Feasibility analysis') -or [bool](Find-ByName 'Application drafting') -or [bool](Find-ByName 'Claims drafting') -or [bool](Find-ByName 'Compliance review'))
+$tabs = (Find-ByType 'Tab').Count + (Find-ByType 'TabItem').Count
+Check "workflow tabs are exposed as selectable tabs" ($tabs -ge 4) ("(tabs: $tabs)")
+Invoke-Element 'History page'
+Check "History heading" ([bool](Find-ByName 'History'))
+$historyButtons = @(Find-All-ByName 'Open version 4 (Application drafting)')
+Check "history rows are named buttons" ($historyButtons.Count -ge 1)
+
+Write-Host "`n[2] Intake fields and disclosure"
+Invoke-Element 'Intake page'
+$baseline = (Find-ByType 'Edit').Count
+Check "three core fields are labelled text inputs" ($baseline -ge 3) ("(edits: $baseline)")
+Check "title field carries its AutomationId" ([bool](Find-ById 'input-Invention title'))
+Invoke-Element 'Edit optional fields'
+$expanded = (Find-ByType 'Edit').Count
+Check "nine optional context fields appear" ($expanded -ge ($baseline + 9)) ("(edits: $expanded)")
+Invoke-Element 'Hide optional fields'
+$collapsed = (Find-ByType 'Edit').Count
+Check "optional fields hide again without losing values" ($collapsed -eq $baseline) ("(edits: $collapsed)")
+
+Write-Host "`n[3] Recorded replay run through the real actor"
+Invoke-Element 'Setup page'
+Invoke-Element 'Use synthetic recorded replay'
+Invoke-Element 'Synthetic test data'
+Invoke-Element 'Analysis page'
+Invoke-Element 'Start new version'
+$deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+$summary = ""
+while ((Get-Date) -lt $deadline) {
+    $node = Find-ById 'run-summary'
+    if ($node) { $summary = $node.Current.Name; if ($summary -match 'Completed') { break } }
+    Start-Sleep -Milliseconds 400
+}
+Check "the run announces Completed" ($summary -match 'Completed') ("(summary: '$summary')")
+Check "the run announces full checkpoints" ($summary -match '(\d+) of \1 checkpoints') ("(summary: '$summary')")
+Check "cancel/resume is absent on a completed run" (-not [bool](Find-ByName 'Cancel run'))
+
+Write-Host "`n[4] Report pane and export actions"
+Invoke-Element 'History page'
+$win = Get-Window
+$all = $win.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+$rows = @()
+foreach ($e in $all) {
+    if ($e.Current.Name -and $e.Current.Name.StartsWith('Open version ')) { $rows += $e }
+}
+Check "history lists saved versions" ($rows.Count -ge 1) ("(rows: {0})" -f $rows.Count)
+if ($rows.Count -ge 1) {
+    $rows[0].SetFocus()
+    Start-Sleep -Milliseconds 200
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    Start-Sleep -Milliseconds 900
+}
+Check "report pane has the saved document" ([bool](Find-ById 'input-Saved report'))
+Check "export actions exist" ([bool](Find-ByName 'Export Word') -and [bool](Find-ByName 'HTML'))
+
+Write-Host "`n[5] Shutdown"
+Stop-Process -Id $proc.Id -Force
+Start-Sleep -Milliseconds 700
+Check "process exits cleanly" (-not [bool](Get-Process -Id $proc.Id -ErrorAction SilentlyContinue))
+
+Write-Host "`n" ("=" * 60)
+Write-Host ("RESULT: {0} passed, {1} failed" -f $script:pass, $script:fail) -ForegroundColor $(if ($script:fail -eq 0) { 'Green' } else { 'Red' })
+if ($script:fail -ne 0) { exit 1 }

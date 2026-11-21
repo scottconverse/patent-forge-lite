@@ -11,8 +11,8 @@ use crate::{
     state::{DesktopState, EventApplied, Page, context_from_values},
 };
 use gpui::{
-    App, Bounds, BoxShadow, Context, Div, Entity, FontWeight, KeyBinding, SharedString, Window,
-    WindowBounds, WindowOptions, actions, div, prelude::*, px, rgb, rgba, size,
+    App, Bounds, BoxShadow, Context, Div, Entity, FontWeight, KeyBinding, Role, SharedString,
+    Window, WindowBounds, WindowOptions, actions, div, prelude::*, px, rgb, rgba, size,
 };
 use input::TextInput;
 use pfl_domain::*;
@@ -195,19 +195,35 @@ impl Desktop {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let title = cx.new(|cx| TextInput::new(TextBuffer::new("", false), 42., cx));
-        let description = cx.new(|cx| TextInput::new(TextBuffer::new("", true), 250., cx));
-        let field = cx.new(|cx| TextInput::new(TextBuffer::new("", false), 42., cx));
-        let context = std::array::from_fn(|_| {
-            cx.new(|cx| TextInput::new(TextBuffer::new("", true), 110., cx))
+        let title = cx.new(|cx| {
+            TextInput::new(TextBuffer::new("", false), 42., cx).labelled("Invention title")
         });
-        let report =
-            cx.new(|cx| TextInput::new(TextBuffer::read_only("Select a saved report."), 500., cx));
-        let stream =
-            cx.new(|cx| TextInput::new(TextBuffer::read_only("No analysis running."), 390., cx));
-        let endpoint =
-            cx.new(|cx| TextInput::new(TextBuffer::new("http://127.0.0.1:11434", false), 42., cx));
-        let model = cx.new(|cx| TextInput::new(TextBuffer::new("", false), 42., cx));
+        let description = cx
+            .new(|cx| TextInput::new(TextBuffer::new("", true), 250., cx).labelled("Description"));
+        let field = cx.new(|cx| {
+            TextInput::new(TextBuffer::new("", false), 42., cx).labelled("Technical field")
+        });
+        let context = std::array::from_fn(|_| {
+            cx.new(|cx| {
+                TextInput::new(TextBuffer::new("", true), 110., cx)
+                    .labelled("Optional context field")
+            })
+        });
+        let report = cx.new(|cx| {
+            TextInput::new(TextBuffer::read_only("Select a saved report."), 500., cx)
+                .labelled("Saved report")
+        });
+        let stream = cx.new(|cx| {
+            TextInput::new(TextBuffer::read_only("No analysis running."), 390., cx)
+                .labelled("Stage output")
+        });
+        let endpoint = cx.new(|cx| {
+            TextInput::new(TextBuffer::new("http://127.0.0.1:11434", false), 42., cx)
+                .labelled("Local endpoint")
+        });
+        let model = cx.new(|cx| {
+            TextInput::new(TextBuffer::new("", false), 42., cx).labelled("Local model name")
+        });
         let view = cx.weak_entity();
         window.on_window_should_close(cx, move |_, cx| {
             view.update(cx, |view, cx| view.can_close(cx))
@@ -556,10 +572,13 @@ impl Desktop {
     ) -> gpui::Stateful<gpui::Div> {
         let action = Rc::new(action);
         let keyboard_action = action.clone();
+        let text: SharedString = label.into();
         div()
             .id(id)
             .focusable()
             .tab_stop(true)
+            .role(Role::Button)
+            .aria_label(text.clone())
             .cursor_pointer()
             .px_4()
             .py_2()
@@ -571,7 +590,7 @@ impl Desktop {
             .text_sm()
             .font_weight(FontWeight::MEDIUM)
             .hover(|s| s.bg(rgb(0x1f2c3c)).border_color(rgb(0x36506e)))
-            .child(label.into())
+            .child(text)
             .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
             .on_key_down(
                 cx.listener(move |this, event: &gpui::KeyDownEvent, window, cx| {
@@ -593,10 +612,13 @@ impl Desktop {
     ) -> gpui::Stateful<gpui::Div> {
         let action = Rc::new(action);
         let keyboard_action = action.clone();
+        let text: SharedString = label.into();
         div()
             .id(id)
             .focusable()
             .tab_stop(true)
+            .role(Role::Button)
+            .aria_label(text.clone())
             .cursor_pointer()
             .px_4()
             .py_2()
@@ -611,7 +633,7 @@ impl Desktop {
                     .spread_radius(px(-6.)),
             ])
             .hover(|s| s.bg(rgb(0x6ba0ff)))
-            .child(label.into())
+            .child(text)
             .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
             .on_key_down(
                 cx.listener(move |this, event: &gpui::KeyDownEvent, window, cx| {
@@ -633,10 +655,13 @@ impl Desktop {
     ) -> gpui::Stateful<gpui::Div> {
         let action = Rc::new(action);
         let keyboard_action = action.clone();
+        let text: SharedString = label.into();
         div()
             .id(id)
             .focusable()
             .tab_stop(true)
+            .role(Role::Button)
+            .aria_label(text.clone())
             .cursor_pointer()
             .px_3()
             .py_2()
@@ -644,7 +669,7 @@ impl Desktop {
             .text_color(rgb(theme::MUTED))
             .text_sm()
             .hover(|s| s.bg(rgb(theme::SURFACE_2)).text_color(rgb(theme::TEXT)))
-            .child(label.into())
+            .child(text)
             .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
             .on_key_down(
                 cx.listener(move |this, event: &gpui::KeyDownEvent, window, cx| {
@@ -665,6 +690,11 @@ impl Desktop {
     ) -> gpui::Stateful<gpui::Div> {
         div()
             .id(SharedString::from(format!("workflow-{}", kind.slug())))
+            .role(Role::Tab)
+            .aria_label(kind.label())
+            .aria_selected(selected)
+            .focusable()
+            .tab_stop(true)
             .cursor_pointer()
             .px_4()
             .py_2()
@@ -716,6 +746,12 @@ impl Desktop {
         };
         div()
             .id(id)
+            .accessibility_id(id)
+            .focusable()
+            .tab_stop(true)
+            .role(Role::Button)
+            .aria_label(format!("{label} page"))
+            .aria_selected(selected)
             .cursor_pointer()
             .w(px(60.))
             .py_3()
@@ -747,6 +783,13 @@ impl Desktop {
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.state.navigate(page);
                 cx.notify();
+            }))
+            .on_key_down(cx.listener(move |this, event: &gpui::KeyDownEvent, _, cx| {
+                if event.keystroke.key == "enter" || event.keystroke.key == "space" {
+                    this.state.navigate(page);
+                    cx.notify();
+                    cx.stop_propagation();
+                }
             }))
     }
 
@@ -783,6 +826,9 @@ impl Desktop {
             .flex_1()
             .child(
                 div()
+                    .id(SharedString::from(format!("page-title-{title}")))
+                    .role(Role::Heading)
+                    .aria_label(title)
                     .text_2xl()
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(rgb(theme::TEXT))
@@ -954,6 +1000,10 @@ impl Render for Desktop {
                         grid = grid.child(
                             div()
                                 .id(SharedString::from(format!("project-{}", project.id)))
+                                .role(Role::Button)
+                                .aria_label(format!("Open project: {}", project.intake.title))
+                                .focusable()
+                                .tab_stop(true)
                                 .cursor_pointer()
                                 .w(px(330.))
                                 .p_5()
@@ -1166,7 +1216,14 @@ impl Render for Desktop {
                     ),
                 ));
 
-                let mut tabs = div().flex().flex_row().flex_wrap().gap_2().w_full();
+                let mut tabs = div()
+                    .id("workflow-tabs")
+                    .role(Role::TabList)
+                    .flex()
+                    .flex_row()
+                    .flex_wrap()
+                    .gap_2()
+                    .w_full();
                 for kind in WorkflowKind::ALL {
                     tabs = tabs.child(self.workflow_tab(kind, kind == self.workflow, cx));
                 }
@@ -1178,6 +1235,17 @@ impl Render for Desktop {
                     let (fg, _) = theme::outcome_colors(&format!("{:?}", view.snapshot.outcome));
 
                     let mut summary = theme::panel()
+                        .id("run-summary")
+                        .accessibility_id("run-summary")
+                        .role(Role::Status)
+                        .aria_label(format!(
+                            "Run status: {:?}, {} of {} checkpoints, version {}, {} stages left",
+                            view.snapshot.outcome,
+                            done,
+                            total,
+                            view.snapshot.version,
+                            total.saturating_sub(done)
+                        ))
                         .p_6()
                         .flex()
                         .flex_col()
@@ -1534,6 +1602,14 @@ impl Render for Desktop {
                         list = list.child(
                             div()
                                 .id(SharedString::from(format!("history-{id}")))
+                                .role(Role::Button)
+                                .aria_label(format!(
+                                    "Open version {} ({})",
+                                    snapshot.version,
+                                    snapshot.input.kind.label()
+                                ))
+                                .focusable()
+                                .tab_stop(true)
                                 .cursor_pointer()
                                 .flex()
                                 .flex_row()
@@ -1899,6 +1975,10 @@ impl Render for Desktop {
             .border_color(rgb(theme::BORDER))
             .child(
                 div()
+                    .id("status-notice")
+                    .accessibility_id("status-notice")
+                    .role(Role::Status)
+                    .aria_label(notice.clone())
                     .flex()
                     .flex_row()
                     .items_center()

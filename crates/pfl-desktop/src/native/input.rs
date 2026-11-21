@@ -5,9 +5,9 @@ use crate::editor::TextBuffer;
 use gpui::{
     App, AvailableSpace, Bounds, ClipboardItem, Context, CursorStyle, ElementId,
     ElementInputHandler, Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId,
-    KeyBinding, LayoutId, MouseButton, Pixels, Point, ScrollHandle, SharedString, Style, TextAlign,
-    TextRun, UTF16Selection, UnderlineStyle, Window, WrappedLine, actions, div, fill, point,
-    prelude::*, px, relative, rgb, rgba, size,
+    KeyBinding, LayoutId, MouseButton, Pixels, Point, Role, ScrollHandle, SharedString, Style,
+    TextAlign, TextRun, UTF16Selection, UnderlineStyle, Window, WrappedLine, actions, div, fill,
+    point, prelude::*, px, relative, rgb, rgba, size,
 };
 use std::{cell::RefCell, ops::Range, rc::Rc};
 
@@ -148,6 +148,8 @@ impl TextLayout {
 
 pub struct TextInput {
     pub buffer: TextBuffer,
+    /// Accessible name for this field, also used as its stable element id.
+    label: SharedString,
     focus: FocusHandle,
     height: Pixels,
     selecting: bool,
@@ -161,6 +163,7 @@ impl TextInput {
     pub fn new(buffer: TextBuffer, height: f32, cx: &mut Context<Self>) -> Self {
         Self {
             buffer,
+            label: "Text field".into(),
             focus: cx.focus_handle().tab_stop(true),
             height: px(height),
             selecting: false,
@@ -169,6 +172,13 @@ impl TextInput {
             scroll: ScrollHandle::new(),
             reveal: false,
         }
+    }
+
+    /// Names the field for assistive technology and gives it a unique
+    /// accessibility identifier (UIA AutomationId on Windows).
+    pub fn labelled(mut self, label: impl Into<SharedString>) -> Self {
+        self.label = label.into();
+        self
     }
 
     pub fn load(&mut self, text: impl Into<String>, cx: &mut Context<Self>) {
@@ -294,7 +304,10 @@ impl EntityInputHandler for TextInput {
 impl Render for TextInput {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
-            .id("text-input")
+            .id(SharedString::from(format!("input-{}", self.label)))
+            .accessibility_id(SharedString::from(format!("input-{}", self.label)))
+            .role(Role::TextInput)
+            .aria_label(self.label.clone())
             .key_context("PflText")
             .track_focus(&self.focus)
             .cursor(CursorStyle::IBeam)

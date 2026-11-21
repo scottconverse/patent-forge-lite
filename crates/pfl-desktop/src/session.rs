@@ -105,7 +105,10 @@ impl ApplicationSession {
     }
 
     pub fn with_store(store: Arc<dyn Store>) -> Result<Self> {
-        Self::with_replay_provider(store, Arc::new(ReplayProvider::synthetic()))
+        // Recorded replay must cover every workflow's stages, not only
+        // feasibility, or starting a claims/compliance/application run in replay
+        // mode would fail with "recorded stage missing".
+        Self::with_replay_provider(store, Arc::new(ReplayProvider::all_workflows()))
     }
 
     /// Dependency injection for deterministic replay acceptance. Live providers
