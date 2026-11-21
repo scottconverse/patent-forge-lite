@@ -99,6 +99,7 @@ struct Desktop {
     model: Entity<TextInput>,
     saved_intake: Intake,
     mode: Option<Mode>,
+    workflow: WorkflowKind,
     synthetic: bool,
     authorized_local: bool,
     pending: bool,
@@ -161,6 +162,7 @@ impl Desktop {
             model,
             saved_intake: Intake::default(),
             mode: None,
+            workflow: WorkflowKind::Feasibility,
             synthetic: false,
             authorized_local: false,
             pending: false,
@@ -311,13 +313,13 @@ impl Desktop {
                 self.report.update(cx, |input, cx| input.load(markdown, cx));
             }
             let mut output = String::new();
-            for stage in Stage::ALL {
-                let text = view.stage_text(stage);
+            for stage in view.snapshot.input.kind.stages() {
+                let text = view.stage_text(*stage);
                 if !text.is_empty() {
                     output.push_str(&format!(
                         "Stage {} · {}\n{}\n\n",
                         stage.number(),
-                        stage_label(stage),
+                        stage.label(),
                         text
                     ));
                 }
@@ -391,6 +393,7 @@ impl Desktop {
             .clone();
         let request = Request::Start {
             project: project.id.clone(),
+            kind: self.workflow,
             idempotency_key: key,
             authorization: Authorization {
                 synthetic_data: self.synthetic,
@@ -416,6 +419,7 @@ impl Desktop {
         let extension = match format {
             ExportFormat::Markdown => "md",
             ExportFormat::Html => "html",
+            ExportFormat::Word => "docx",
         };
         let directory = data_directory().unwrap_or_default();
         let suggested = format!("patent-forge-lite-report-v{version}.{extension}");
@@ -470,17 +474,6 @@ impl Desktop {
                     }
                 }),
             )
-    }
-}
-
-fn stage_label(stage: Stage) -> &'static str {
-    match stage {
-        Stage::TechnicalRestatement => "Technical restatement",
-        Stage::PriorArt => "Prior-art analysis",
-        Stage::Patentability => "Patentability",
-        Stage::Landscape => "Landscape",
-        Stage::IpStrategy => "IP strategy",
-        Stage::FinalReport => "Final report",
     }
 }
 
@@ -571,14 +564,38 @@ impl Render for Desktop {
                 );
             }
             Page::Workflow => {
-                content = content.child(div().text_2xl().child("Feasibility analysis"));
+                content = content.child(div().text_2xl().child(self.workflow.label()));
+                content =
+                    content.child(div().flex().gap_3().children(WorkflowKind::ALL.map(|kind| {
+                        let id = SharedString::from(format!("workflow-{}", kind.slug()));
+                        let selected = kind == self.workflow;
+                        self.button(
+                            id,
+                            if selected {
+                                format!("• {}", kind.label())
+                            } else {
+                                kind.label().to_string()
+                            },
+                            move |this, _, cx| {
+                                this.workflow = kind;
+                                this.start_key = None;
+                                cx.notify();
+                            },
+                            cx,
+                        )
+                    })));
+                content = content.child(format!(
+                    "{} stages. A workflow that consumes another one needs that analysis complete first.",
+                    self.workflow.stage_count()
+                ));
                 if let Some(view) = &self.state.run {
                     content = content
                         .child(format!(
-                            "Version {} · {:?} · {} / 6 checkpoints · event {}",
+                            "Version {} · {:?} · {} / {} checkpoints · event {}",
                             view.snapshot.version,
                             view.snapshot.outcome,
                             view.snapshot.checkpoints.len(),
+                            view.snapshot.input.kind.stage_count(),
                             view.sequence
                         ))
                         .child(format!(
@@ -650,6 +667,12 @@ impl Render for Desktop {
                             "export-html",
                             "Export HTML",
                             |this, _, cx| this.export(ExportFormat::Html, cx),
+                            cx,
+                        ))
+                        .child(self.button(
+                            "export-word",
+                            "Export Word",
+                            |this, _, cx| this.export(ExportFormat::Word, cx),
                             cx,
                         )),
                 );

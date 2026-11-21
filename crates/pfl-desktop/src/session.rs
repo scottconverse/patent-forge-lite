@@ -29,6 +29,7 @@ pub enum Mode {
 pub enum ExportFormat {
     Markdown,
     Html,
+    Word,
 }
 
 #[derive(Debug)]
@@ -41,6 +42,7 @@ pub enum Request {
     Configure(Mode),
     Start {
         project: ProjectId,
+        kind: WorkflowKind,
         idempotency_key: String,
         authorization: Authorization,
     },
@@ -291,6 +293,7 @@ impl Actor {
             }
             Request::Start {
                 project,
+                kind,
                 idempotency_key,
                 authorization,
             } => {
@@ -314,7 +317,7 @@ impl Actor {
                 }
                 let snapshot = self
                     .service
-                    .start_project(project, idempotency_key, authorization)
+                    .start_workflow(project, kind, idempotency_key, authorization)
                     .await?;
                 self.started_runs.insert(snapshot.id.clone());
                 self.selected(snapshot).await;
@@ -349,8 +352,9 @@ impl Actor {
             Request::Export { run, path, format } => {
                 let snapshot = self.service.run(run).await?;
                 let contents = match format {
-                    ExportFormat::Markdown => export_markdown(&snapshot)?,
-                    ExportFormat::Html => export_html(&snapshot)?,
+                    ExportFormat::Markdown => export_markdown(&snapshot)?.into_bytes(),
+                    ExportFormat::Html => export_html(&snapshot)?.into_bytes(),
+                    ExportFormat::Word => pfl_workflow::export_docx(&snapshot)?,
                 };
                 let destination = path.clone();
                 tokio::task::spawn_blocking(move || -> Result<()> {
@@ -361,7 +365,7 @@ impl Actor {
                         .create_new(true)
                         .open(&destination)
                         .map_err(|e| Error::Io(e.to_string()))?;
-                    file.write_all(contents.as_bytes())
+                    file.write_all(&contents)
                         .and_then(|_| file.sync_all())
                         .map_err(|e| Error::Io(e.to_string()))?;
                     Ok(())

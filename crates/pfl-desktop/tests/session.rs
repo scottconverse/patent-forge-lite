@@ -133,6 +133,7 @@ fn construction_open_configure_and_repeated_reads_send_zero_inference_calls() {
     session
         .request(Request::Start {
             project: project.id.clone(),
+            kind: WorkflowKind::Feasibility,
             idempotency_key: "no-mode".into(),
             authorization: Authorization {
                 synthetic_data: true,
@@ -146,6 +147,7 @@ fn construction_open_configure_and_repeated_reads_send_zero_inference_calls() {
     session
         .request(Request::Start {
             project: project.id.clone(),
+            kind: WorkflowKind::Feasibility,
             idempotency_key: "no-consent".into(),
             authorization: Authorization::default(),
         })
@@ -173,6 +175,7 @@ fn serialized_duplicate_start_navigation_cancel_and_resume_keep_one_owned_run() 
         session
             .request(Request::Start {
                 project: project.id.clone(),
+                kind: WorkflowKind::Feasibility,
                 idempotency_key: "same-start".into(),
                 authorization: Authorization {
                     synthetic_data: true,
@@ -246,6 +249,7 @@ fn imported_history_selection_exports_that_version_while_newer_run_completes() {
     session
         .request(Request::Start {
             project: project.clone(),
+            kind: WorkflowKind::Feasibility,
             idempotency_key: "new-version".into(),
             authorization: Authorization {
                 synthetic_data: true,
@@ -360,6 +364,89 @@ fn process_death_releases_only_the_lite_profile_lock_and_allows_recovery() {
 }
 
 #[test]
+fn actor_runs_a_dependent_workflow_and_reports_unmet_prerequisites() {
+    let store = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ControlledReplay::new(false));
+    let session =
+        ApplicationSession::with_replay_provider(store.clone(), provider.clone()).unwrap();
+    until(&session, |r| matches!(r, Reply::Projects(_)));
+    let project = create(&session);
+    session.request(Request::Configure(Mode::Replay)).unwrap();
+    until(&session, |r| matches!(r, Reply::Configured(_)));
+    session
+        .request(Request::Start {
+            project: project.id.clone(),
+            kind: WorkflowKind::Feasibility,
+            idempotency_key: "multi-feasibility".into(),
+            authorization: Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    let feasibility = match until(&session, |r| matches!(r, Reply::Run(_))) {
+        Reply::Run(run) => run,
+        _ => unreachable!(),
+    };
+    wait_store(|| store.run(&feasibility.id).unwrap().outcome.is_terminal());
+    let feasibility = store.run(&feasibility.id).unwrap();
+    assert_eq!(feasibility.outcome, RunOutcome::Completed);
+    assert_eq!(feasibility.checkpoints.len(), 6);
+
+    // A second workflow over the same project, driven through the same actor.
+    session
+        .request(Request::Start {
+            project: project.id.clone(),
+            kind: WorkflowKind::Claims,
+            idempotency_key: "multi-claims".into(),
+            authorization: Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    let claims = match until(&session, |r| matches!(r, Reply::Run(_))) {
+        Reply::Run(run) => run,
+        _ => unreachable!(),
+    };
+    wait_store(|| store.run(&claims.id).unwrap().outcome.is_terminal());
+    let saved = store.run(&claims.id).unwrap();
+    assert_eq!(saved.outcome, RunOutcome::Completed);
+    assert_eq!(saved.input.kind, WorkflowKind::Claims);
+    assert_eq!(saved.checkpoints.len(), 4);
+    assert!(
+        saved
+            .report
+            .clone()
+            .unwrap()
+            .markdown
+            .contains("Synthetic stage 4"),
+        "the revision pass is the saved claims report"
+    );
+
+    // A fresh project cannot start compliance with no claims to review.
+    let fresh = create(&session);
+    session
+        .request(Request::Start {
+            project: fresh.id.clone(),
+            kind: WorkflowKind::Compliance,
+            idempotency_key: "multi-compliance".into(),
+            authorization: Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    let error = match until(&session, |r| matches!(r, Reply::Error(_))) {
+        Reply::Error(error) => error,
+        _ => unreachable!(),
+    };
+    assert!(error.contains("must complete"), "unexpected error: {error}");
+    assert_eq!(session.active_jobs(), 0);
+    stop(&session);
+}
+
+#[test]
 fn quit_guard_counts_jobs_owned_by_another_project_or_historical_run() {
     let store = Arc::new(SqliteStore::in_memory().unwrap());
     let provider = Arc::new(ControlledReplay::new(true));
@@ -372,6 +459,7 @@ fn quit_guard_counts_jobs_owned_by_another_project_or_historical_run() {
     session
         .request(Request::Start {
             project: owner.id.clone(),
+            kind: WorkflowKind::Feasibility,
             idempotency_key: "owned-elsewhere".into(),
             authorization: Authorization {
                 synthetic_data: true,
