@@ -3691,6 +3691,7 @@ dependencies = [
  "pfl-domain",
  "pfl-storage",
  "reqwest",
+ "rusqlite",
  "serde",
  "serde_json",
  "sha2",
