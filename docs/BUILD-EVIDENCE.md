@@ -39,6 +39,34 @@ A successful dependency/stub check
 does not validate the later real application binary, window behavior, renderer
 availability, model quality, packages or installed use.
 
+## Integrated evidence, 2026-11-21 (Windows x86_64 only)
+
+After the storage, workflow and desktop lanes were actually merged, and the CLI
+harness was written, the following was measured on this machine with the pinned
+`1.98.1` toolchain, `--locked --offline`, and `jobs = 2`:
+
+| Check | Result |
+| --- | --- |
+| `cargo fmt --all -- --check` | Passed (all crates). |
+| `cargo test --workspace --locked --offline` | Passed: domain 4, storage 9 migration + 15 persistence, workflow 3 unit + 9 workflow + 1 lifecycle + 1 imported-report, CLI 4 end-to-end. |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | Passed. |
+| `cargo clippy -p pfl-desktop --features native --all-targets ...` | Passed. |
+| `cargo check -p pfl-desktop --features native --locked --offline` | Passed. First real compile of the native app source, not a dependency stub. It found one real GPUI API mismatch (`FocusHandle::focus` now takes `cx`), which is fixed. |
+| Desktop portable + actor suite | 23 passed: 8 editor, 8 state, 7 session. This includes the headless actor tests that were previously gated behind `--features native`, and a new app-wide active-job count the quit guard uses. |
+| CLI hard-kill recovery | Passed in a genuinely fresh process: killed before the first checkpoint and after the third, then resumed with no completed stage repeated and exactly `7 - stage` provider calls in the resuming process. |
+| CLI shared-profile lock | Passed: while the paused child still owned the profile, a second CLI on the same workspace was refused with a lock conflict; the OS lock released on hard kill and recovery then succeeded. |
+| Imported edited report | Passed: the import journey exports the original `Edited café report` before any provider exists, then creates version 3 without regenerating it, and the stored history still has 3 versions. |
+| Prompt identity | The seven feasibility prompt files are byte-identical (SHA-256) to the frozen legacy `services/feasibility/src/prompts` sources. |
+
+Still not established by this evidence:
+
+- No native window was launched; keyboard, IME, GPU rendering, dialogs and
+  installed behavior remain unverified interactive acceptance.
+- No live Ollama or Cloud inference ran. Every result above is recorded replay;
+  inference orchestration is proven, model quality is not.
+- macOS and Linux native builds remain unattempted on this machine.
+- Packaging, signing, release and the manual CI workflow remain unrun.
+
 ## Reproduction
 
 ```powershell

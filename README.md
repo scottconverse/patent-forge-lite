@@ -6,9 +6,24 @@ The intended architecture is a standalone Rust application core with a GPUI desk
 
 ## Current status
 
-The staged delivery approach and product identity have been approved. This repository bootstrap contains documentation only. Coding scopes, shared contracts and toolchain versions have not yet been activated or selected. There is no runnable application, Cargo workspace, build result or installed acceptance result here.
+The staged delivery approach and product identity have been approved. The Rust workspace
+now contains the application core, not a stub: typed domain contracts, transactional SQLite
+storage with a synthetic legacy importer, the six-stage feasibility workflow with recorded
+replay and Ollama adapters, a GPUI desktop interface, and a `pfl-cli` harness that drives the
+real core end to end.
 
-The selected hosting destination is the private [scottconverse/patent-forge-lite repository](https://github.com/scottconverse/patent-forge-lite), separate from PatentForge. Repository creation and Git initialization are assigned separately; this bootstrap does not establish their completion. No source license has been selected.
+On Windows x86_64 with the pinned `1.98.1` toolchain, the workspace formats, compiles, passes
+`clippy -D warnings`, and passes its full test suite, and the native desktop feature compiles
+against the pinned GPUI revision. `pfl-cli` demonstrates the complete deterministic journey:
+import a synthetic legacy project, export its preserved edited report, run and recover an
+interruption in a fresh process, and reopen the saved result without regenerating it.
+
+Not yet established, and not claimed: a launched native window and interactive keyboard, IME,
+GPU, dialog or installed behavior; live local inference or Cloud; macOS and Linux native
+builds; packaging, signing and release. `docs/BUILD-EVIDENCE.md` records exactly which checks
+ran, and `docs/FIRST-SLICE-ACCEPTANCE.md` keeps the unexercised items open.
+
+The product remains the private [scottconverse/patent-forge-lite repository](https://github.com/scottconverse/patent-forge-lite), separate from PatentForge. No source license has been selected; upstream prompt and legal notices are preserved as described in `docs/BUILD-EVIDENCE.md` and `THIRD_PARTY_NOTICES.md`.
 
 ## Delivery approach
 
@@ -25,7 +40,7 @@ Native usability comes early: text editing, selection, clipboard, focus, keyboar
 ## Coexistence with PatentForge
 
 - Keep the existing PatentForge repository, installation, services, projects and models untouched.
-- Use a distinct application identity and separate writable data, configuration, log and installation locations. Exact identifiers and paths are not selected yet.
+- Use a distinct application identity and separate writable data, configuration, log and installation locations. The application identity is `com.scottconverse.patentforgelite` with the per-user `patent-forge-lite` data namespace; no legacy location is opened.
 - Do not claim existing ports, alter old launchers, stop independently owned Ollama/DSH processes or redirect current integrations automatically.
 - Migration is a later, opt-in, copy-first operation using authorized consistent backups. Do not open production data as a bootstrap shortcut.
 - Future deprecation or cutover requires an explicit decision. Shipping this application does not deprecate PatentForge.
@@ -42,7 +57,7 @@ Cross-platform builds, native interaction, package creation and installed accept
 
 The functional reference remains [PatentForge v0.5.0](https://github.com/scottconverse/patentforge/releases/tag/v0.5.0), with applicable fixes at [the pinned source baseline](https://github.com/scottconverse/patentforge/tree/7a3200c8d861c2d291e07d8c8bc6c6e44417f623). This is a behavior reference, not a directive to copy its source or installation.
 
-Before importing any source, prompt or asset, review its applicable license, attribution and notice requirements, including the legacy `LICENSE`, `LICENSE-PROMPTS` and legal notices. Preserve required prompt text, provenance, attribution, license notices and product disclaimers. A Rust rewrite does not remove those obligations or grant permission to relicense material. No legacy source, prompts or assets are included in this bootstrap.
+Before importing any source, prompt or asset, review its applicable license, attribution and notice requirements, including the legacy `LICENSE`, `LICENSE-PROMPTS` and legal notices. Preserve required prompt text, provenance, attribution, license notices and product disclaimers. A Rust rewrite does not remove those obligations or grant permission to relicense material. The only legacy material imported so far is the seven feasibility prompt files, byte-identical to the pinned source and accompanied by `prompts/feasibility/LICENSE-PROMPTS`, `LEGAL_NOTICE.md` and `PROVENANCE.md`; no legacy application source or assets have been copied.
 
 ## Documents
 

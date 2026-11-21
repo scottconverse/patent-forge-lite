@@ -4,7 +4,7 @@
 
 Demonstrate one usable native Patent Forge Lite journey on Windows, macOS and Linux, while keeping PatentForge in place. Establish native builds on all three from the start, rather than completing one platform before considering the others.
 
-This is a planned acceptance checklist. No item is marked passed by documentation, a build declaration or a fixture alone. The current repository bootstrap has no implementation or test results.
+This is a planned acceptance checklist. No item is marked passed by documentation, a build declaration or a fixture alone. Implementation, headless tests and a real native compile now exist and are recorded in `docs/BUILD-EVIDENCE.md`; the checklist items below still require their own observable, platform-specific evidence, and none of the native interaction items has been exercised yet.
 
 ## Stage 1: deterministic native vertical slice
 
