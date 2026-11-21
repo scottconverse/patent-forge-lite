@@ -14,9 +14,11 @@ real core end to end.
 
 On Windows x86_64 with the pinned `1.98.1` toolchain, the workspace formats, compiles, passes
 `clippy -D warnings`, and passes its full test suite, and the native desktop feature compiles
-against the pinned GPUI revision. `pfl-cli` demonstrates the complete deterministic journey:
-import a synthetic legacy project, export its preserved edited report, run and recover an
-interruption in a fresh process, and reopen the saved result without regenerating it.
+and links against the pinned GPUI revision. `pfl-cli` demonstrates the complete deterministic
+journey: import a synthetic legacy project, export its preserved edited report, run and
+recover an interruption in a fresh process, and reopen the saved result without regenerating
+it. [Native UI notes](docs/native-ui.md) separate implemented source, headless evidence and
+still-required interactive acceptance.
 
 Not yet established, and not claimed: a launched native window and interactive keyboard, IME,
 GPU, dialog or installed behavior; live local inference or Cloud; macOS and Linux native
@@ -33,14 +35,14 @@ The product remains the private [scottconverse/patent-forge-lite repository](htt
 4. Expand through research, claims, compliance, application drafting, data compatibility, authenticated API compatibility and full export/lifecycle coverage.
 5. Prepare and validate Full and Lean packages on each platform. Signing and publication have separate authorization gates.
 
-Full and Lean are planned setup/distribution profiles of **one product**, sharing the same Rust core and GPUI interface. "Lite" is the product name, not permission to drop the Full profile or existing functional scope. Lean reaches Cloud setup without acquiring Ollama; Full supports Local/Cloud setup and reuses an existing model where available.
+Full and Lean are later setup/distribution profiles of **one product**, sharing the same Rust core and GPUI interface. "Lite" is the product name, not permission to drop Full or existing functional scope. The first slice exposes explicitly selected synthetic replay and existing local inference; Cloud/paid providers are fail-closed. Later Lean setup will reach Cloud without acquiring Ollama; Full will support Local/Cloud setup and existing-model reuse.
 
 Native usability comes early: text editing, selection, clipboard, focus, keyboard conventions and long-document navigation. Framework comparisons and a GPU benchmark project are outside scope.
 
 ## Coexistence with PatentForge
 
 - Keep the existing PatentForge repository, installation, services, projects and models untouched.
-- Use a distinct application identity and separate writable data, configuration, log and installation locations. The application identity is `com.scottconverse.patentforgelite` with the per-user `patent-forge-lite` data namespace; no legacy location is opened.
+- The desktop uses application ID `com.scottconverse.patentforgelite`, a dedicated per-user `patent-forge-lite` data directory and an OS-backed profile lock that the CLI honours too; no legacy location is opened. Packaging/configuration identities must remain distinct as later distribution work lands.
 - Do not claim existing ports, alter old launchers, stop independently owned Ollama/DSH processes or redirect current integrations automatically.
 - Migration is a later, opt-in, copy-first operation using authorized consistent backups. Do not open production data as a bootstrap shortcut.
 - Future deprecation or cutover requires an explicit decision. Shipping this application does not deprecate PatentForge.
@@ -63,3 +65,4 @@ Before importing any source, prompt or asset, review its applicable license, att
 
 - [Architecture and boundaries](docs/ARCHITECTURE.md)
 - [First-slice acceptance](docs/FIRST-SLICE-ACCEPTANCE.md)
+- [Native desktop source, controls and acceptance limits](docs/native-ui.md)
