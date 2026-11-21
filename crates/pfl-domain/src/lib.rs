@@ -131,17 +131,36 @@ pub struct Settings {
     pub local_model: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Stage {
+    // Feasibility analysis (the original six, kept byte-compatible with persisted JSON).
     TechnicalRestatement,
     PriorArt,
     Patentability,
     Landscape,
     IpStrategy,
     FinalReport,
+    // Claims drafting.
+    ClaimsPlan,
+    ClaimsDraft,
+    ClaimsExamine,
+    ClaimsRevise,
+    // Compliance review.
+    ComplianceWrittenDescription,
+    ComplianceDefiniteness,
+    ComplianceFormalities,
+    ComplianceEligibility,
+    // Application drafting.
+    ApplicationBackground,
+    ApplicationSummary,
+    ApplicationDetailedDescription,
+    ApplicationAbstract,
+    ApplicationFigures,
 }
 impl Stage {
+    /// The feasibility sequence. Retained under its original name so persisted
+    /// feasibility databases, fixtures and tests keep their exact meaning.
     pub const ALL: [Self; 6] = [
         Self::TechnicalRestatement,
         Self::PriorArt,
@@ -150,8 +169,249 @@ impl Stage {
         Self::IpStrategy,
         Self::FinalReport,
     ];
+    pub const CLAIMS: [Self; 4] = [
+        Self::ClaimsPlan,
+        Self::ClaimsDraft,
+        Self::ClaimsExamine,
+        Self::ClaimsRevise,
+    ];
+    pub const COMPLIANCE: [Self; 4] = [
+        Self::ComplianceWrittenDescription,
+        Self::ComplianceDefiniteness,
+        Self::ComplianceFormalities,
+        Self::ComplianceEligibility,
+    ];
+    pub const APPLICATION: [Self; 5] = [
+        Self::ApplicationBackground,
+        Self::ApplicationSummary,
+        Self::ApplicationDetailedDescription,
+        Self::ApplicationAbstract,
+        Self::ApplicationFigures,
+    ];
+    pub const EVERY_STAGE: [Self; 19] = [
+        Self::TechnicalRestatement,
+        Self::PriorArt,
+        Self::Patentability,
+        Self::Landscape,
+        Self::IpStrategy,
+        Self::FinalReport,
+        Self::ClaimsPlan,
+        Self::ClaimsDraft,
+        Self::ClaimsExamine,
+        Self::ClaimsRevise,
+        Self::ComplianceWrittenDescription,
+        Self::ComplianceDefiniteness,
+        Self::ComplianceFormalities,
+        Self::ComplianceEligibility,
+        Self::ApplicationBackground,
+        Self::ApplicationSummary,
+        Self::ApplicationDetailedDescription,
+        Self::ApplicationAbstract,
+        Self::ApplicationFigures,
+    ];
+
+    pub fn kind(self) -> WorkflowKind {
+        match self {
+            Self::TechnicalRestatement
+            | Self::PriorArt
+            | Self::Patentability
+            | Self::Landscape
+            | Self::IpStrategy
+            | Self::FinalReport => WorkflowKind::Feasibility,
+            Self::ClaimsPlan | Self::ClaimsDraft | Self::ClaimsExamine | Self::ClaimsRevise => {
+                WorkflowKind::Claims
+            }
+            Self::ComplianceWrittenDescription
+            | Self::ComplianceDefiniteness
+            | Self::ComplianceFormalities
+            | Self::ComplianceEligibility => WorkflowKind::Compliance,
+            Self::ApplicationBackground
+            | Self::ApplicationSummary
+            | Self::ApplicationDetailedDescription
+            | Self::ApplicationAbstract
+            | Self::ApplicationFigures => WorkflowKind::Application,
+        }
+    }
+
+    /// One-based position inside this stage's own workflow.
     pub fn number(self) -> usize {
-        Self::ALL.iter().position(|s| *s == self).unwrap() + 1
+        self.kind()
+            .stages()
+            .iter()
+            .position(|stage| *stage == self)
+            .unwrap_or(0)
+            + 1
+    }
+
+    /// Stable machine key, unique across every workflow.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::TechnicalRestatement => "technical_restatement",
+            Self::PriorArt => "prior_art",
+            Self::Patentability => "patentability",
+            Self::Landscape => "landscape",
+            Self::IpStrategy => "ip_strategy",
+            Self::FinalReport => "final_report",
+            Self::ClaimsPlan => "claims_plan",
+            Self::ClaimsDraft => "claims_draft",
+            Self::ClaimsExamine => "claims_examine",
+            Self::ClaimsRevise => "claims_revise",
+            Self::ComplianceWrittenDescription => "compliance_written_description",
+            Self::ComplianceDefiniteness => "compliance_definiteness",
+            Self::ComplianceFormalities => "compliance_formalities",
+            Self::ComplianceEligibility => "compliance_eligibility",
+            Self::ApplicationBackground => "application_background",
+            Self::ApplicationSummary => "application_summary",
+            Self::ApplicationDetailedDescription => "application_detailed_description",
+            Self::ApplicationAbstract => "application_abstract",
+            Self::ApplicationFigures => "application_figures",
+        }
+    }
+
+    /// Human-facing name, matching the legacy stage titles.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::TechnicalRestatement => "Technical restatement",
+            Self::PriorArt => "Prior art",
+            Self::Patentability => "Patentability",
+            Self::Landscape => "Landscape",
+            Self::IpStrategy => "IP strategy",
+            Self::FinalReport => "Final report",
+            Self::ClaimsPlan => "Claims strategy",
+            Self::ClaimsDraft => "Claim drafting",
+            Self::ClaimsExamine => "Examiner review",
+            Self::ClaimsRevise => "Claim revision",
+            Self::ComplianceWrittenDescription => "Written description",
+            Self::ComplianceDefiniteness => "Definiteness",
+            Self::ComplianceFormalities => "Formalities",
+            Self::ComplianceEligibility => "Eligibility",
+            Self::ApplicationBackground => "Background",
+            Self::ApplicationSummary => "Summary",
+            Self::ApplicationDetailedDescription => "Detailed description",
+            Self::ApplicationAbstract => "Abstract",
+            Self::ApplicationFigures => "Figures",
+        }
+    }
+}
+
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkflowKind {
+    #[default]
+    Feasibility,
+    Claims,
+    Compliance,
+    Application,
+}
+
+impl WorkflowKind {
+    pub const ALL: [Self; 4] = [
+        Self::Feasibility,
+        Self::Claims,
+        Self::Compliance,
+        Self::Application,
+    ];
+
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::Feasibility => "feasibility",
+            Self::Claims => "claims",
+            Self::Compliance => "compliance",
+            Self::Application => "application",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Feasibility => "Feasibility analysis",
+            Self::Claims => "Claims drafting",
+            Self::Compliance => "Compliance review",
+            Self::Application => "Application drafting",
+        }
+    }
+
+    pub fn stages(self) -> &'static [Stage] {
+        match self {
+            Self::Feasibility => &Stage::ALL,
+            Self::Claims => &Stage::CLAIMS,
+            Self::Compliance => &Stage::COMPLIANCE,
+            Self::Application => &Stage::APPLICATION,
+        }
+    }
+
+    pub fn stage_count(self) -> usize {
+        self.stages().len()
+    }
+
+    /// A workflow is only startable once the workflows it consumes are complete.
+    pub fn requires(self) -> &'static [WorkflowKind] {
+        match self {
+            Self::Feasibility => &[],
+            Self::Claims => &[Self::Feasibility],
+            Self::Compliance => &[Self::Feasibility, Self::Claims],
+            Self::Application => &[Self::Feasibility, Self::Claims],
+        }
+    }
+
+    /// Which upstream stages are snapshotted into a new run's input.
+    pub fn upstream_stages(self) -> &'static [Stage] {
+        match self {
+            Self::Feasibility => &[],
+            Self::Claims => &[Stage::IpStrategy, Stage::FinalReport],
+            Self::Compliance => &[
+                Stage::TechnicalRestatement,
+                Stage::IpStrategy,
+                Stage::FinalReport,
+            ],
+            Self::Application => &[
+                Stage::TechnicalRestatement,
+                Stage::IpStrategy,
+                Stage::FinalReport,
+            ],
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        let normalized = value.trim().to_ascii_lowercase();
+        Self::ALL.into_iter().find(|kind| {
+            kind.slug() == normalized || kind.label().to_ascii_lowercase() == normalized
+        })
+    }
+}
+
+/// One prior-art reference carried into claim and application runs.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PriorArtItem {
+    #[serde(default)]
+    pub reference: String,
+    #[serde(default)]
+    pub relevance: String,
+}
+
+/// Immutable upstream text a dependent workflow reads. Snapshotted at run
+/// creation so a resume can never silently consume a newer analysis.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Upstream {
+    /// Feasibility checkpoint text, in workflow order.
+    #[serde(default)]
+    pub stage_texts: Vec<(Stage, String)>,
+    #[serde(default)]
+    pub claims_text: String,
+    #[serde(default)]
+    pub specification_text: String,
+    #[serde(default)]
+    pub prior_art: Vec<PriorArtItem>,
+}
+
+impl Upstream {
+    pub fn stage(&self, stage: Stage) -> &str {
+        self.stage_texts
+            .iter()
+            .find(|(candidate, _)| *candidate == stage)
+            .map(|(_, text)| text.as_str())
+            .unwrap_or_default()
     }
 }
 
@@ -187,10 +447,14 @@ pub struct Authorization {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunInput {
+    #[serde(default)]
+    pub kind: WorkflowKind,
     pub intake: Intake,
     pub provider: ProviderSnapshot,
     pub prompts: PromptSnapshot,
     pub authorization: Authorization,
+    #[serde(default)]
+    pub upstream: Upstream,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -455,6 +719,75 @@ mod tests {
             id,
             serde_json::from_str(&serde_json::to_string(&id).unwrap()).unwrap()
         );
+    }
+
+    #[test]
+    fn every_workflow_numbers_its_own_stages_from_one() {
+        for kind in WorkflowKind::ALL {
+            let stages = kind.stages();
+            assert_eq!(stages.len(), kind.stage_count());
+            for (index, stage) in stages.iter().enumerate() {
+                assert_eq!(stage.kind(), kind);
+                assert_eq!(stage.number(), index + 1);
+            }
+        }
+        assert_eq!(Stage::EVERY_STAGE.len(), 19);
+        assert_eq!(
+            WorkflowKind::ALL.map(WorkflowKind::stage_count),
+            [6, 4, 4, 5]
+        );
+    }
+
+    #[test]
+    fn dependent_workflows_declare_the_upstream_they_snapshot() {
+        assert!(WorkflowKind::Feasibility.requires().is_empty());
+        assert_eq!(WorkflowKind::Claims.requires(), [WorkflowKind::Feasibility]);
+        assert_eq!(
+            WorkflowKind::Compliance.requires(),
+            [WorkflowKind::Feasibility, WorkflowKind::Claims]
+        );
+        assert_eq!(
+            WorkflowKind::Application.requires(),
+            [WorkflowKind::Feasibility, WorkflowKind::Claims]
+        );
+        assert_eq!(
+            WorkflowKind::Claims.upstream_stages(),
+            [Stage::IpStrategy, Stage::FinalReport]
+        );
+        assert!(WorkflowKind::Feasibility.upstream_stages().is_empty());
+    }
+
+    #[test]
+    fn persisted_feasibility_runs_keep_their_original_shape() {
+        // A pre-workflow database stores bare stage names and no workflow fields.
+        let old: Stage = serde_json::from_str(r#""final_report""#).unwrap();
+        assert_eq!(old, Stage::FinalReport);
+        assert_eq!(old.kind(), WorkflowKind::Feasibility);
+        let input: RunInput = serde_json::from_value(serde_json::json!({
+            "intake": {"title":"t","description":"d","technical_field":"f"},
+            "provider": {"kind":"replay","model":"m","endpoint":null},
+            "prompts": {"version":"v1","sha256":"00"},
+            "authorization": {
+                "synthetic_data": true, "local_inference": false,
+                "paid_provider": false, "research": false
+            }
+        }))
+        .unwrap();
+        assert_eq!(input.kind, WorkflowKind::Feasibility);
+        assert_eq!(input.upstream, Upstream::default());
+        let encoded = serde_json::to_value(&input).unwrap();
+        assert_eq!(encoded["kind"], "feasibility");
+        assert_eq!(encoded["upstream"]["claims_text"], "");
+    }
+
+    #[test]
+    fn workflow_kinds_parse_from_slug_and_label() {
+        assert_eq!(WorkflowKind::parse("claims"), Some(WorkflowKind::Claims));
+        assert_eq!(
+            WorkflowKind::parse(" Compliance Review "),
+            Some(WorkflowKind::Compliance)
+        );
+        assert_eq!(WorkflowKind::parse("nonsense"), None);
     }
     #[test]
     fn usage_unknown_is_not_zero_and_subscribe_is_only_a_cursor() {

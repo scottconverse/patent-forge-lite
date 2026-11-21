@@ -20,6 +20,26 @@ impl ReplayProvider {
         .expect("bundled synthetic records must be valid JSON");
         Self::new(Stage::ALL.into_iter().zip(records).collect())
     }
+
+    /// Deterministic synthetic responses for every stage of every workflow.
+    /// Never a model output and never real invention data.
+    pub fn all_workflows() -> Self {
+        Self::new(
+            Stage::EVERY_STAGE
+                .into_iter()
+                .map(|stage| {
+                    (
+                        stage,
+                        format!(
+                            "SYNTHETIC RECORDED OUTPUT — {} ({}) — not a model response.",
+                            stage.label(),
+                            stage.key()
+                        ),
+                    )
+                })
+                .collect(),
+        )
+    }
     pub fn new(outputs: BTreeMap<Stage, String>) -> Self {
         Self {
             outputs,

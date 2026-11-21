@@ -33,6 +33,7 @@ fn request() -> NewRun {
         project_id: project().id,
         idempotency_key: "start-1".into(),
         input: RunInput {
+            kind: WorkflowKind::Feasibility,
             intake: project().intake,
             provider: ProviderSnapshot {
                 kind: ProviderKind::Replay,
@@ -47,6 +48,7 @@ fn request() -> NewRun {
                 synthetic_data: true,
                 ..Default::default()
             },
+            upstream: Upstream::default(),
         },
         rerun_of: None,
         created_at_ms: 2,

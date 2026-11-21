@@ -598,7 +598,7 @@ impl Store for SqliteStore {
                     .ok_or_else(|| Error::Invalid("completed run requires a report".into()))?;
                 if report.run_id != run.id
                     || report.version != run.version
-                    || run.checkpoints.len() != Stage::ALL.len()
+                    || run.checkpoints.len() != run.input.kind.stage_count()
                 {
                     return Err(Error::Invalid(
                         "report identity/version or completed stages do not match".into(),

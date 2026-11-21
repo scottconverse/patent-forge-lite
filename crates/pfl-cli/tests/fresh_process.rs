@@ -116,6 +116,45 @@ fn hard_interruption_after_third_checkpoint_does_not_repeat_completed_stages() {
 }
 
 #[test]
+fn full_pipeline_runs_all_four_workflows_in_dependency_order() {
+    let temp = tempfile::tempdir().unwrap();
+    let workspace = temp.path().join("pipeline");
+    let output = cli()
+        .arg("pipeline")
+        .arg("--workspace")
+        .arg(&workspace)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let evidence: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(evidence["total_stages"], 19);
+    assert_eq!(evidence["provider_calls_this_process"], 19);
+    assert_eq!(evidence["reopened_without_generation"], true);
+    let workflows = evidence["workflows"].as_array().unwrap();
+    let names: Vec<&str> = workflows
+        .iter()
+        .map(|w| w["workflow"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        names,
+        ["feasibility", "claims", "compliance", "application"]
+    );
+    let stages: Vec<u64> = workflows
+        .iter()
+        .map(|w| w["stages"].as_u64().unwrap())
+        .collect();
+    assert_eq!(stages, [6, 4, 4, 5]);
+    for name in names {
+        assert!(workspace.join(format!("{name}-report.md")).is_file());
+        assert!(workspace.join(format!("{name}-report.html")).is_file());
+    }
+}
+
+#[test]
 fn replay_persists_exports_and_refuses_nonempty_or_unmarked_workspaces() {
     let temp = tempfile::tempdir().unwrap();
     let workspace = temp.path().join("synthetic");

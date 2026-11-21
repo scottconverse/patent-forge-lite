@@ -86,13 +86,15 @@ fn request(project: &Project, provider: &ReplayProvider, key: &str) -> NewRun {
         project_id: project.id.clone(),
         idempotency_key: key.into(),
         input: RunInput {
+            kind: WorkflowKind::Feasibility,
             intake: project.intake.clone(),
             provider: provider.snapshot(),
-            prompts: prompts::snapshot(),
+            prompts: prompts::snapshot(WorkflowKind::Feasibility),
             authorization: Authorization {
                 synthetic_data: true,
                 ..Default::default()
             },
+            upstream: Upstream::default(),
         },
         rerun_of: None,
         created_at_ms: 1,

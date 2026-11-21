@@ -6,6 +6,7 @@ mod context;
 mod export;
 pub mod prompts;
 pub mod providers;
+mod report;
 mod service;
 
 pub use export::{export_html, export_markdown};

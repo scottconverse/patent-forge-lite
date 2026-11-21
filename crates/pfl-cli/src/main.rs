@@ -431,14 +431,121 @@ async fn journey(command: &str, workspace: PathBuf, pause_stage: Option<usize>) 
     Ok(())
 }
 
+/// Runs every workflow in dependency order on one synthetic project, then
+/// reopens the profile and proves nothing regenerated. Recorded responses only.
+async fn pipeline(workspace: PathBuf) -> Result<()> {
+    let mut marker = create_workspace(&workspace)?;
+    let database = workspace.join(&marker.database);
+    let _profile_lock = take_profile_lock(&database)?;
+    let open = database.clone();
+    let store = Arc::new(
+        tokio::task::spawn_blocking(move || SqliteStore::open(open))
+            .await
+            .map_err(|e| Error::Storage(e.to_string()))??,
+    );
+    let provider = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new(
+        store.clone(),
+        provider.clone(),
+        tokio::runtime::Handle::current(),
+    );
+    let project = service.create_project(synthetic_intake()).await?;
+    marker.project_id = Some(project.id.clone());
+    write_marker(&workspace, &marker)?;
+    let mut runs = Vec::new();
+    for kind in WorkflowKind::ALL {
+        let run = service
+            .start_workflow(
+                project.id.clone(),
+                kind,
+                format!("pipeline-{}", kind.slug()),
+                Authorization {
+                    synthetic_data: true,
+                    ..Authorization::default()
+                },
+            )
+            .await?;
+        let completed = wait_terminal(&service, &run.id).await?;
+        if completed.outcome != RunOutcome::Completed
+            || completed
+                .checkpoints
+                .iter()
+                .map(|c| c.stage)
+                .collect::<Vec<_>>()
+                != kind.stages()
+        {
+            return Err(Error::Conflict(format!(
+                "{} did not complete its exact ordered stages",
+                kind.slug()
+            )));
+        }
+        let report = completed
+            .report
+            .clone()
+            .ok_or_else(|| invalid("completed workflow has no saved report"))?;
+        let markdown = export_markdown(&completed)?;
+        let html = export_html(&completed)?;
+        std::fs::write(
+            workspace.join(format!("{}-report.md", kind.slug())),
+            &markdown,
+        )
+        .map_err(|e| Error::Io(e.to_string()))?;
+        std::fs::write(
+            workspace.join(format!("{}-report.html", kind.slug())),
+            &html,
+        )
+        .map_err(|e| Error::Io(e.to_string()))?;
+        runs.push(serde_json::json!({
+            "workflow": kind.slug(),
+            "run_id": completed.id,
+            "version": completed.version,
+            "stages": kind.stage_count(),
+            "checkpoints": completed.checkpoints.len(),
+            "report_bytes": report.markdown.len(),
+        }));
+    }
+    let calls = provider.request_count();
+    service.shutdown().await?;
+    // Reopen the profile: every workflow's saved result must survive unchanged
+    // and no provider work may happen on read.
+    let reopen = database.clone();
+    let reopened = tokio::task::spawn_blocking(move || SqliteStore::open(reopen))
+        .await
+        .map_err(|e| Error::Storage(e.to_string()))??;
+    let history = reopened.history(&project.id)?;
+    if history.len() != WorkflowKind::ALL.len() || history.iter().any(|r| r.report.is_none()) {
+        return Err(Error::Conflict(
+            "reopen lost a workflow result or its saved report".into(),
+        ));
+    }
+    if provider.request_count() != calls {
+        return Err(Error::Conflict(
+            "reading the profile generated provider work".into(),
+        ));
+    }
+    println!(
+        "{}",
+        serde_json::json!({
+            "mode": "synthetic_recorded_replay",
+            "outcome": "completed",
+            "workflows": runs,
+            "total_stages": 19,
+            "provider_calls_this_process": calls,
+            "history_versions": history.len(),
+            "reopened_without_generation": true,
+        })
+    );
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = async {
         let command = args.first().map(String::as_str).ok_or_else(|| invalid(
-            "usage: pfl-cli <replay|import-replay|pause-fixture|resume> --workspace <directory> [--stage <1..6>]"
+            "usage: pfl-cli <replay|import-replay|pause-fixture|resume|pipeline> --workspace <directory> [--stage <1..6>]"
         ))?;
-        if !matches!(command, "replay" | "import-replay" | "pause-fixture" | "resume") {
+        if !matches!(command, "replay" | "import-replay" | "pause-fixture" | "resume" | "pipeline") {
             return Err(invalid("unknown command; this harness never starts live inference"));
         }
         let mut workspace = None;
@@ -459,7 +566,11 @@ async fn main() {
         {
             return Err(invalid("only pause-fixture accepts and requires --stage 1..6"));
         }
-        journey(command, workspace.ok_or_else(|| invalid("--workspace is required"))?, stage).await
+        let workspace = workspace.ok_or_else(|| invalid("--workspace is required"))?;
+        if command == "pipeline" {
+            return pipeline(workspace).await;
+        }
+        journey(command, workspace, stage).await
     }.await;
     if let Err(error) = result {
         eprintln!("{error}");

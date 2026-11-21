@@ -113,7 +113,7 @@ impl WorkflowService {
                     .into(),
             ));
         }
-        if input.prompts != prompts::snapshot() {
+        if input.prompts != prompts::snapshot(input.kind) {
             return Err(Error::Conflict(
                 "prompt snapshot differs; restore the exact prompt version before resume".into(),
             ));
@@ -142,16 +142,125 @@ impl WorkflowService {
         idempotency_key: String,
         authorization: Authorization,
     ) -> Result<RunSnapshot> {
+        self.start_workflow(
+            project_id,
+            WorkflowKind::Feasibility,
+            idempotency_key,
+            authorization,
+        )
+        .await
+    }
+
+    /// Starts one workflow. A dependent workflow snapshots the exact upstream
+    /// text it consumes, so a later upstream edit cannot change this run.
+    pub async fn start_workflow(
+        self: &Arc<Self>,
+        project_id: ProjectId,
+        kind: WorkflowKind,
+        idempotency_key: String,
+        authorization: Authorization,
+    ) -> Result<RunSnapshot> {
         let project = self.project(project_id.clone()).await?;
+        let upstream = self.upstream(&project_id, kind).await?;
+        if !authorization.research && kind == WorkflowKind::Feasibility {
+            // Research remains disabled; the snapshot simply has no live sources.
+        }
         self.start(NewRun {
             id: RunId::new(),
             project_id,
             idempotency_key,
             input: RunInput {
+                kind,
                 intake: project.intake,
                 provider: self.provider.snapshot(),
-                prompts: prompts::snapshot(),
+                prompts: prompts::snapshot(kind),
                 authorization,
+                upstream,
+            },
+            rerun_of: None,
+            created_at_ms: now_ms(),
+        })
+        .await
+    }
+
+    /// Resolves and snapshots the upstream text a workflow consumes. Requires a
+    /// completed run of every declared prerequisite workflow.
+    pub async fn upstream(&self, project: &ProjectId, kind: WorkflowKind) -> Result<Upstream> {
+        let history = self.history(project.clone()).await?;
+        let mut upstream = Upstream::default();
+        for required in kind.requires() {
+            let run = history
+                .iter()
+                .filter(|run| run.input.kind == *required && run.outcome == RunOutcome::Completed)
+                .max_by_key(|run| run.version)
+                .ok_or_else(|| {
+                    Error::Invalid(format!(
+                        "{} must complete a {} run before this workflow can start",
+                        required.label(),
+                        required.slug()
+                    ))
+                })?;
+            for stage in kind.upstream_stages() {
+                if stage.kind() != *required {
+                    continue;
+                }
+                let text = run
+                    .checkpoints
+                    .iter()
+                    .find(|checkpoint| checkpoint.stage == *stage)
+                    .map(|checkpoint| checkpoint.text.clone())
+                    .unwrap_or_default();
+                upstream.stage_texts.push((*stage, text));
+            }
+            if *required == WorkflowKind::Claims {
+                upstream.claims_text = run
+                    .checkpoints
+                    .iter()
+                    .filter(|checkpoint| checkpoint.stage.kind() == WorkflowKind::Claims)
+                    .max_by_key(|checkpoint| checkpoint.stage.number())
+                    .map(|checkpoint| checkpoint.text.clone())
+                    .unwrap_or_default();
+            }
+            if *required == WorkflowKind::Feasibility {
+                upstream.specification_text = run
+                    .report
+                    .as_ref()
+                    .map(|r| r.markdown.clone())
+                    .unwrap_or_default();
+            }
+        }
+        upstream.prior_art = self.prior_art(&history);
+        Ok(upstream)
+    }
+
+    /// Live research is not implemented in this product yet, so a project run
+    /// records no prior-art sources of its own. Callers can still supply explicit
+    /// references when starting a dependent workflow.
+    fn prior_art(&self, _history: &[RunSnapshot]) -> Vec<PriorArtItem> {
+        Vec::new()
+    }
+    pub async fn start_workflow_with_prior_art(
+        self: &Arc<Self>,
+        project_id: ProjectId,
+        kind: WorkflowKind,
+        idempotency_key: String,
+        authorization: Authorization,
+        prior_art: Vec<PriorArtItem>,
+    ) -> Result<RunSnapshot> {
+        let project = self.project(project_id.clone()).await?;
+        let mut upstream = self.upstream(&project_id, kind).await?;
+        upstream.prior_art = prior_art;
+        self.start(NewRun {
+            id: RunId::new(),
+            project_id,
+            idempotency_key,
+            input: RunInput {
+                kind,
+                intake: project.intake,
+                provider: self.provider.snapshot(),
+                prompts: prompts::snapshot(kind),
+                authorization,
+                upstream,
             },
             rerun_of: None,
             created_at_ms: now_ms(),
@@ -358,14 +467,18 @@ impl WorkflowService {
     ) -> Result<SavedReport> {
         let mut checkpoints = run.checkpoints.clone();
         checkpoints.sort_by_key(|cp| cp.stage);
+        let stages = run.input.kind.stages();
         for (index, cp) in checkpoints.iter().enumerate() {
-            if cp.stage != Stage::ALL[index.min(5)] || index >= 6 {
+            if cp.stage != stages[index.min(stages.len() - 1)]
+                || index >= stages.len()
+                || cp.stage.kind() != run.input.kind
+            {
                 return Err(Error::Conflict(
                     "checkpoints must form a contiguous completed prefix".into(),
                 ));
             }
         }
-        for stage in Stage::ALL.into_iter().skip(checkpoints.len()) {
+        for stage in stages.iter().copied().skip(checkpoints.len()) {
             if cancellation.is_cancelled() {
                 return Err(Error::Cancelled);
             }
@@ -383,7 +496,7 @@ impl WorkflowService {
                 stage,
                 input: run.input.clone(),
                 system_prompt: prompts::system(stage),
-                user_prompt: prompts::user(stage, &run.input.intake, &context),
+                user_prompt: prompts::user(stage, &run.input, &context),
                 prior_outputs: checkpoints.clone(),
             };
             let (tx, mut rx) = mpsc::unbounded_channel();
@@ -430,12 +543,12 @@ impl WorkflowService {
                 .await?;
             checkpoints.push(checkpoint);
         }
-        let markdown = checkpoints
-            .last()
-            .filter(|cp| cp.stage == Stage::FinalReport)
-            .ok_or_else(|| Error::Conflict("final-stage checkpoint is missing".into()))?
-            .text
-            .clone();
+        let markdown = crate::report::compose(
+            run.input.kind,
+            &run.input.intake.title,
+            &checkpoints,
+            &run.input.upstream,
+        )?;
         Ok(SavedReport {
             run_id: run.id.clone(),
             version: run.version,

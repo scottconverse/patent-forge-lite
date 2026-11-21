@@ -78,13 +78,31 @@ fn request(project: &Project, provider: &dyn Provider, key: &str) -> NewRun {
         project_id: project.id.clone(),
         idempotency_key: key.into(),
         input: RunInput {
+            kind: WorkflowKind::Feasibility,
             intake: project.intake.clone(),
             provider: provider.snapshot(),
-            prompts: prompts::snapshot(),
+            prompts: prompts::snapshot(WorkflowKind::Feasibility),
             authorization: authorization(),
+            upstream: Upstream::default(),
         },
         rerun_of: None,
         created_at_ms: now_ms(),
+    }
+}
+
+/// A minimal run input for message-composition assertions.
+fn run_input(intake: Intake) -> RunInput {
+    RunInput {
+        kind: WorkflowKind::Feasibility,
+        intake,
+        provider: ProviderSnapshot {
+            kind: ProviderKind::Replay,
+            model: "synthetic".into(),
+            endpoint: None,
+        },
+        prompts: prompts::snapshot(WorkflowKind::Feasibility),
+        authorization: authorization(),
+        upstream: Upstream::default(),
     }
 }
 async fn terminal(service: &WorkflowService, id: &RunId) -> RunSnapshot {
@@ -530,7 +548,7 @@ fn upstream_input_composition_and_prompt_disclaimers_are_retained() {
         "**Invention Title:** Tray\n\n**Description:** Description"
     );
     assert_eq!(
-        prompts::user(Stage::PriorArt, &input, &outputs),
+        prompts::user(Stage::PriorArt, &run_input(input.clone()), &outputs),
         "## Invention (Technical Restatement from Stage 1)\n\ntechnical restatement\n\n## Original Inventor Description\n\n**Invention Title:** Tray\n\n**Description:** Description"
     );
     for stage in Stage::ALL {
@@ -538,7 +556,10 @@ fn upstream_input_composition_and_prompt_disclaimers_are_retained() {
         assert!(system.contains("does not constitute legal advice"));
         assert!(system.contains("registered patent attorney"));
     }
-    assert_eq!(prompts::snapshot().sha256.len(), 64);
+    assert_eq!(
+        prompts::snapshot(WorkflowKind::Feasibility).sha256.len(),
+        64
+    );
 }
 
 #[test]
@@ -555,7 +576,7 @@ fn all_nine_legacy_fields_are_trimmed_in_original_order_in_every_stage_input() {
     }
     assert_eq!(prompts::narrative(&input), expected);
     for stage in Stage::ALL {
-        let message = prompts::user(stage, &input, &BTreeMap::new());
+        let message = prompts::user(stage, &run_input(input.clone()), &BTreeMap::new());
         assert!(message.contains(&expected));
         assert_legacy_context(&message);
     }

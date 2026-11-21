@@ -456,6 +456,7 @@ impl SqliteStore {
                     version,
                     idempotency_key: format!("legacy:{id}:{}", text(record, "id")),
                     input: RunInput {
+                        kind: WorkflowKind::Feasibility,
                         intake: project.intake,
                         provider: ProviderSnapshot {
                             kind: ProviderKind::Replay,
@@ -467,6 +468,7 @@ impl SqliteStore {
                             sha256: String::new(),
                         },
                         authorization: Authorization::default(),
+                        upstream: Upstream::default(),
                     },
                     rerun_of: None,
                     created_at_ms: timestamp(record, "startedAt"),

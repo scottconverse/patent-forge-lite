@@ -22,6 +22,7 @@ fn snapshot() -> RunSnapshot {
         version: 3,
         idempotency_key: "synthetic-key".into(),
         input: RunInput {
+            kind: WorkflowKind::Feasibility,
             intake: project().intake,
             provider: ProviderSnapshot {
                 kind: ProviderKind::Replay,
@@ -36,6 +37,7 @@ fn snapshot() -> RunSnapshot {
                 synthetic_data: true,
                 ..Default::default()
             },
+            upstream: Upstream::default(),
         },
         rerun_of: None,
         created_at_ms: 1,
