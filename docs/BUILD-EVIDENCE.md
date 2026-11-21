@@ -139,3 +139,39 @@ That is a GitHub billing condition on the account, not a workflow or code failur
 `workflow_dispatch` triggered (run 44949798709), so the definition itself is
 reachable; no runner ever executed a compile. macOS and Linux therefore remain
 **never compiled**, and the platform row stays open until billing is resolved.
+## Cross-platform CI, 2026-11-21
+
+The repository was made public (unblocking GitHub's billing restriction on private
+Actions minutes) and the manual native workflow was dispatched:
+run [`44950601970`](https://github.com/scottconverse/patent-forge-lite/actions/runs/44950601970).
+
+| Runner | Target | Result | Time |
+| --- | --- | --- | --- |
+| `windows-latest` | `x86_64-pc-windows-msvc` | passed | 8m51s |
+| `macos-15` | `aarch64-apple-darwin` | passed | 6m02s |
+| `ubuntu-24.04` | `x86_64-unknown-linux-gnu` | passed | 4m59s |
+
+Each job ran `cargo fmt --all -- --check`, `cargo test --workspace --locked`,
+`cargo clippy --workspace --all-targets --locked -- -D warnings`, and
+`cargo build -p pfl-desktop --features native --locked` for its own target. All
+three passed on the first attempt, so the code compiles and its tests pass on
+macOS arm64 and Linux x86_64 — previously never compiled at all.
+
+What this still does not establish: no installed package, no launched window and no
+interactive behaviour on macOS or Linux. Those remain separate acceptance steps.
+
+### History scrub and a residual exposure
+
+The public repository history was rewritten before publishing to remove the
+screenshots committed by mistake on 2026-11-21 (including a full-desktop capture
+showing unrelated windows and personal folder names). `filter-branch` plus a full
+`gc --prune=now` removed them from every ref; a fresh clone of the public remote
+contains only `assets/brand/app-256.png`.
+
+Residual and unresolved: GitHub still serves the pre-rewrite commit
+`423c2ead695099ba96807a5ec697a960cdde4cd4` by its ID, and that tree still contains
+`session-screen.png` and the early `shots/*.png`. Unreachable objects are not
+immediately garbage-collected and no API is exposed for forcing it. The SHA was
+never published or linked, so the practical exposure is low, but it is not zero.
+Options: ask GitHub Support to purge unreachable objects, or delete and recreate
+the repository (same name and URL, clean object store, empty Actions history).
