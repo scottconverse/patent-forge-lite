@@ -7,7 +7,7 @@ publish.workspace = true
 
 [features]
 default = []
-native = []
+native = ["dep:gpui", "dep:gpui_platform"]
 
 [dependencies]
 pfl-domain.workspace = true
@@ -17,6 +17,9 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 unicode-segmentation.workspace = true
+gpui = { workspace = true, optional = true }
+gpui_platform = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true
+async-trait.workspace = true

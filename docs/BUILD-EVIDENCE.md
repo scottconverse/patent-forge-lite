@@ -20,10 +20,11 @@ On 2026-11-21, Windows x86_64 with MSVC C++ Build Tools and Windows SDK:
 | Check | Result |
 | --- | --- |
 | `cargo fmt --all` | Passed at foundation. |
-| `cargo test -p pfl-domain` | Passed: 2 unit tests, 0 failures; compilation 16.31 seconds. |
+| `cargo test -p pfl-domain` | Foundation: 2 passed, compilation 16.31 seconds. Context delta `beba232`: 4 passed, 3.29 seconds. |
+| Portable desktop input/state | 14 passed (8 editor, 6 state) before the nine-field context delta; compilation 1m46s. Cached `--locked --offline` rerun confirmed exit 0. |
 | Staged whitespace check | Passed. |
 | Original root source/prompt license and legal notice retention | SHA-256 byte identity verified against the pinned original. |
-| Initial native GPUI dependency/stub check | In progress at this evidence checkpoint, not acceptance. |
+| Initial native GPUI dependency/stub check | Completed in 5m06s; cached `--locked` confirmation exited 0 in 2.88 seconds. Prerequisite only, not real-app acceptance. |
 | Real integrated native desktop build | Not run yet. |
 | GPUI native interaction | Not run, interactive session not authorized. |
 | macOS/Linux native builds | Blocked: no native runner activated; no cloud job dispatched. |
@@ -32,7 +33,9 @@ On 2026-11-21, Windows x86_64 with MSVC C++ Build Tools and Windows SDK:
 
 The initial dependency build is integration-owned, started at
 2026-11-21T13:21:34.741Z, and limited to two compiler jobs. Its managed job tree
-can be cancelled by the build owner only. A successful dependency/stub check
+reached its terminal result. The initial managed notification did not supply an
+exit code; a cached foreground check supplied the explicit exit-0 confirmation.
+A successful dependency/stub check
 does not validate the later real application binary, window behavior, renderer
 availability, model quality, packages or installed use.
 

@@ -9,6 +9,11 @@ revision: `164670a5921032d145bc3ff2e05fe6aaceee8cda`.
 - Projects save an editable `Intake`. A `NewRun` captures an immutable
   `RunInput`: intake, provider/model/destination, prompt version/hash and explicit
   authorization. There are no credential values in these contracts.
+- Context delta `beba232b64dae60508dc9a941674d71cb920aef6` preserves the nine
+  legacy optional invention fields in `Intake.context: InventionContext`.
+  Missing/partial context defaults safely; camelCase legacy keys are accepted.
+  `labeled_fields()` supplies the exact legacy narrative labels/order. All six
+  provider stages receive the captured input, not later project edits.
 - A per-project idempotency key identifies a start request; a changed request
   must not silently replace its original snapshot. Storage assigns the next
   project version atomically. Rerun creates another version; resume creates
