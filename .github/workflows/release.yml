@@ -176,4 +176,11 @@ jobs:
               echo "for this run, and an unsigned Windows installer is not published."
             } >> release-notes.md
           fi
-          gh release create "$TAG" dist/* --title "PatentForge Lite ${TAG#v}" --notes-file release-notes.md --verify-tag
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Idempotent re-run: add or replace assets on an existing release, so a
+            # later signing run can attach the Windows installer to the same tag.
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --notes-file release-notes.md
+          else
+            gh release create "$TAG" dist/* --title "PatentForge Lite ${TAG#v}" --notes-file release-notes.md --verify-tag
+          fi

@@ -175,3 +175,25 @@ immediately garbage-collected and no API is exposed for forcing it. The SHA was
 never published or linked, so the practical exposure is low, but it is not zero.
 Options: ask GitHub Support to purge unreachable objects, or delete and recreate
 the repository (same name and URL, clean object store, empty Actions history).
+## Release v0.1.0, 2026-11-21
+
+Tags and publishes through `.github/workflows/release.yml` (run 44953930049).
+
+| Asset | Size | State |
+| --- | --- | --- |
+| `patent-forge-lite-v0.1.0-linux-x64.tar.gz` | 16.44 MB | Published, unsigned; sha256 sidecar verified against the download |
+| `patent-forge-lite-v0.1.0-macos-arm64.zip` | 7.74 MB | Published, unsigned; contains a real Mach-O arm64 `pfl-desktop` (magic `cf fa ed fe`) |
+| Windows installer | — | **Not published**: the repository has no Azure secrets yet, and the pipeline refuses to publish an unsigned Windows installer |
+
+Both artifacts were downloaded again from the public release and inspected: the Linux tarball
+carries the binary, docs, all prompt files, Barlow fonts, the `.desktop` entry and notices; the
+macOS zip is a well-formed `.app` bundle. CI: fmt, tests, clippy and the native build pass on all
+three runners; the macOS and Linux jobs each produced their package in CI.
+
+Landing page: https://scottconverse.github.io/patent-forge-lite/ (GitHub Pages, `main:/docs`).
+
+Remaining gate: signing the Windows installer requires `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and
+`AZURE_CLIENT_SECRET` in this repository, mirroring the CivicCast pipeline (account
+`scottconverse-signing`, profile `ScottConversePublic`, endpoint `wcus.codesigning.azure.net`).
+With those present the Windows job builds, signs, verifies and the publish step attaches the
+installer to the existing v0.1.0 release.
