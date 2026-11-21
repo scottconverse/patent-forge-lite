@@ -1,0 +1,59 @@
+use crate::*;
+
+fn saved(run: &RunSnapshot) -> Result<&SavedReport> {
+    let report = run
+        .report
+        .as_ref()
+        .ok_or_else(|| Error::NotFound("saved report".into()))?;
+    if report.run_id != run.id
+        || report.version != run.version
+        || run.outcome != RunOutcome::Completed
+    {
+        return Err(Error::Conflict(
+            "report identity/outcome does not match selected saved run".into(),
+        ));
+    }
+    Ok(report)
+}
+
+pub fn export_markdown(run: &RunSnapshot) -> Result<String> {
+    let report = saved(run)?;
+    let provenance = if run.input.prompts.version == "legacy-unavailable" {
+        "Imported historical report: input reconstructed from intake available at import; historical per-run intake and prompt/provider settings are unavailable."
+    } else {
+        "Input and provider/prompt policy captured when this run was created."
+    };
+    // Text fields are a fenced metadata appendix, not interpreted HTML.
+    let metadata = serde_json::to_string_pretty(&serde_json::json!({
+        "application": "Patent Forge Lite", "run_id": run.id, "project_id": run.project_id,
+        "version": run.version, "rerun_of": run.rerun_of, "input": run.input,
+        "input_snapshot_provenance": provenance,
+    }))
+    .map_err(|e| Error::Invalid(e.to_string()))?;
+    let fence = if metadata.contains("```") {
+        "````````````````"
+    } else {
+        "```"
+    };
+    Ok(format!(
+        "# Patent Forge Lite · saved analysis v{}\n\n{}\n\n---\n\n## Saved run identity and input snapshot\n\n{fence}json\n{metadata}\n{fence}\n",
+        run.version, report.markdown
+    ))
+}
+
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
+pub fn export_html(run: &RunSnapshot) -> Result<String> {
+    let text = export_markdown(run)?;
+    Ok(format!(
+        "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\"><title>Patent Forge Lite · version {}</title><style>body{{font:16px system-ui;max-width:80ch;margin:2rem auto;padding:1rem}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}}</style></head><body><pre>{}</pre></body></html>\n",
+        run.version,
+        escape(&text)
+    ))
+}
