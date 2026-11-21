@@ -104,8 +104,11 @@ impl WorkflowService {
     }
 
     fn authorize(&self, input: &RunInput) -> Result<()> {
-        if input.provider.kind == ProviderKind::Cloud {
-            return Err(Error::Invalid("paid/cloud providers are disabled in this acceptance slice, regardless of approval flag".into()));
+        if input.provider.kind == ProviderKind::Cloud && !input.authorization.paid_provider {
+            return Err(Error::Invalid(
+                "paid/cloud providers require explicit paid-provider authorization for this run"
+                    .into(),
+            ));
         }
         if input.provider != self.provider.snapshot() {
             return Err(Error::Conflict(
@@ -162,8 +165,13 @@ impl WorkflowService {
     ) -> Result<RunSnapshot> {
         let project = self.project(project_id.clone()).await?;
         let upstream = self.upstream(&project_id, kind).await?;
-        if !authorization.research && kind == WorkflowKind::Feasibility {
-            // Research remains disabled; the snapshot simply has no live sources.
+        // Setup profiles decide which provider families an installation may use.
+        if self.settings().await?.profile == SetupProfile::Lean
+            && self.provider.snapshot().kind == ProviderKind::Local
+        {
+            return Err(Error::Invalid(
+                "Lean setup is Cloud-only: it never acquires or uses a local runtime".into(),
+            ));
         }
         self.start(NewRun {
             id: RunId::new(),
@@ -249,6 +257,13 @@ impl WorkflowService {
     ) -> Result<RunSnapshot> {
         let project = self.project(project_id.clone()).await?;
         let mut upstream = self.upstream(&project_id, kind).await?;
+        if self.settings().await?.profile == SetupProfile::Lean
+            && self.provider.snapshot().kind == ProviderKind::Local
+        {
+            return Err(Error::Invalid(
+                "Lean setup is Cloud-only: it never acquires or uses a local runtime".into(),
+            ));
+        }
         upstream.prior_art = prior_art;
         self.start(NewRun {
             id: RunId::new(),

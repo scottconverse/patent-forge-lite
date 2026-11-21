@@ -10,5 +10,5 @@ mod report;
 mod service;
 
 pub use export::{export_docx, export_html, export_markdown};
-pub use providers::{OllamaProvider, ReplayProvider};
+pub use providers::{CloudProvider, OllamaProvider, ReplayProvider};
 pub use service::WorkflowService;

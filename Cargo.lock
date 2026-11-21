@@ -3814,6 +3814,7 @@ name = "pfl-workflow"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "axum",
  "docx-rs",
  "futures-util",
  "pfl-domain",

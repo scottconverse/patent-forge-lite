@@ -130,6 +130,187 @@ impl Provider for ReplayProvider {
     }
 }
 
+/// Anthropic Messages API over SSE. Fail-closed: construction alone never
+/// contacts the network, and every call additionally requires an explicit paid
+/// authorization flag on the run input.
+pub struct CloudProvider {
+    snapshot: ProviderSnapshot,
+    client: reqwest::Client,
+    api_key: String,
+    endpoint: String,
+}
+
+impl CloudProvider {
+    pub fn new(api_key: impl Into<String>, model: impl Into<String>) -> Result<Self> {
+        Self::with_endpoint(api_key, model, "https://api.anthropic.com")
+    }
+
+    /// Endpoint override exists for deterministic local fixtures and never
+    /// silently redirects a configured default.
+    pub fn with_endpoint(
+        api_key: impl Into<String>,
+        model: impl Into<String>,
+        endpoint: impl Into<String>,
+    ) -> Result<Self> {
+        let api_key = api_key.into();
+        if api_key.trim().is_empty() {
+            return Err(Error::Invalid("cloud provider requires an API key".into()));
+        }
+        let model = model.into();
+        if model.trim().is_empty() {
+            return Err(Error::Invalid("cloud provider requires a model".into()));
+        }
+        let endpoint = endpoint.into().trim_end_matches('/').to_string();
+        let url = reqwest::Url::parse(&endpoint)
+            .map_err(|_| Error::Invalid("invalid cloud endpoint URL".into()))?;
+        if !matches!(url.scheme(), "http" | "https")
+            || url.host_str().is_none()
+            || url.username() != ""
+            || url.password().is_some()
+            || url.query().is_some()
+            || url.fragment().is_some()
+        {
+            return Err(Error::Invalid(
+                "cloud endpoint must be HTTP(S), with a host and no credentials, query or fragment"
+                    .into(),
+            ));
+        }
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(15))
+            .timeout(Duration::from_secs(1800))
+            .build()
+            .map_err(|_| Error::Provider("cannot initialize cloud HTTP client".into()))?;
+        Ok(Self {
+            snapshot: ProviderSnapshot {
+                kind: ProviderKind::Cloud,
+                // The key is never part of a snapshot.
+                endpoint: Some(endpoint.clone()),
+                model,
+            },
+            client,
+            api_key,
+            endpoint,
+        })
+    }
+}
+
+#[async_trait]
+impl Provider for CloudProvider {
+    fn snapshot(&self) -> ProviderSnapshot {
+        self.snapshot.clone()
+    }
+    async fn generate(
+        &self,
+        request: ProviderRequest,
+        cancellation: CancellationToken,
+        deltas: UnboundedSender<String>,
+    ) -> Result<ProviderResponse> {
+        if request.input.provider != self.snapshot
+            || !request.input.authorization.synthetic_data
+            || !request.input.authorization.paid_provider
+        {
+            return Err(Error::Invalid(
+                "cloud inference requires the exact endpoint/model, synthetic input and explicit paid authorization"
+                    .into(),
+            ));
+        }
+        if cancellation.is_cancelled() {
+            return Err(Error::Cancelled);
+        }
+        let send = self
+            .client
+            .post(format!("{}/v1/messages", self.endpoint))
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .json(&serde_json::json!({
+                "model": self.snapshot.model,
+                "max_tokens": 4096,
+                "stream": true,
+                "system": request.system_prompt,
+                "messages": [{ "role": "user", "content": request.user_prompt }]
+            }))
+            .send();
+        let response = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(Error::Cancelled),
+            r = send => r.map_err(|_| Error::Provider("cloud request failed; no alternate destination attempted".into()))?
+        };
+        if !response.status().is_success() {
+            return Err(Error::Provider(format!(
+                "cloud HTTP {}; no fallback attempted",
+                response.status().as_u16()
+            )));
+        }
+        let mut stream = response.bytes_stream();
+        let mut pending = String::new();
+        let mut text = String::new();
+        let mut input_tokens = None;
+        let mut output_tokens = None;
+        loop {
+            let item = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => return Err(Error::Cancelled),
+                item = stream.next() => item
+            };
+            match item {
+                Some(Ok(bytes)) => pending.push_str(&String::from_utf8_lossy(&bytes)),
+                Some(Err(_)) => {
+                    return Err(Error::Provider(
+                        "cloud stream interrupted; partial stage not committed".into(),
+                    ));
+                }
+                None => break,
+            }
+            while let Some(index) = pending.find('\n') {
+                let line: String = pending.drain(..=index).collect();
+                let line = line.trim_end();
+                let Some(data) = line.strip_prefix("data:") else {
+                    continue;
+                };
+                let data = data.trim();
+                if data == "[DONE]" {
+                    continue;
+                }
+                let Ok(frame) = serde_json::from_str::<serde_json::Value>(data) else {
+                    continue;
+                };
+                match frame["type"].as_str() {
+                    Some("content_block_delta") => {
+                        if let Some(chunk) = frame["delta"]["text"].as_str() {
+                            text.push_str(chunk);
+                            if deltas.send(chunk.to_string()).is_err() {
+                                return Err(Error::Cancelled);
+                            }
+                        }
+                    }
+                    Some("message_start") => {
+                        input_tokens = frame["message"]["usage"]["input_tokens"].as_u64();
+                    }
+                    Some("message_delta") => {
+                        output_tokens = frame["usage"]["output_tokens"].as_u64();
+                    }
+                    Some("error") => {
+                        return Err(Error::Provider("cloud provider reported an error".into()));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if text.trim().is_empty() {
+            return Err(Error::Provider("empty cloud response".into()));
+        }
+        Ok(ProviderResponse {
+            text,
+            usage: Usage {
+                input_tokens,
+                output_tokens,
+            },
+        })
+    }
+}
+
 /// Direct Ollama NDJSON streaming. Construction validates configuration only,
 /// and does not inspect an installation, contact an endpoint, or acquire a model.
 pub struct OllamaProvider {
