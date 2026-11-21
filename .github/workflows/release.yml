@@ -1,0 +1,172 @@
+name: Release
+
+# Builds and publishes signed/unsigned platform artifacts.
+#   - Windows: installer signed with Azure Trusted Signing (same account, profile
+#     and action as the CivicCast release pipeline), then fail-closed verified.
+#   - macOS: unsigned .app bundle in a zip.
+#   - Linux: unsigned x86_64 tarball.
+# Signing secrets are optional to the workflow but required for a Windows asset:
+# if AZURE_CLIENT_ID is absent the Windows job is skipped and no installer is
+# published, rather than publishing an unsigned one.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    outputs:
+      azure: ${{ steps.check.outputs.azure }}
+    steps:
+      - id: check
+        env:
+          CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          if [ -n "$CLIENT_ID" ]; then
+            echo "azure=true" >> "$GITHUB_OUTPUT"
+            echo "Azure signing credentials present."
+          else
+            echo "azure=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::AZURE_CLIENT_ID is not set; the Windows installer will not be built or published."
+          fi
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang cmake pkg-config libssl-dev \
+            libfontconfig1-dev libfreetype6-dev libx11-xcb-dev libxkbcommon-x11-dev \
+            libxkbcommon-dev libwayland-dev libvulkan-dev
+      - name: Install repository-pinned Rust
+        run: rustup show
+      - name: Build desktop
+        run: cargo build -p pfl-desktop --features native --release --locked
+      - name: Package
+        run: |
+          set -euo pipefail
+          name="patent-forge-lite-${{ github.ref_name }}-linux-x64"
+          stage="dist/$name"
+          mkdir -p "$stage/fonts"
+          cp target/release/pfl-desktop "$stage/"
+          cp README.md LICENSE LICENSE-PROMPTS LEGAL_NOTICE.md THIRD_PARTY_NOTICES.md "$stage/"
+          cp -R docs prompts "$stage/"
+          cp packaging/linux/pfl-desktop.desktop "$stage/"
+          cp assets/brand/app-256.png "$stage/patent-forge-lite.png"
+          cp -R assets/fonts/. "$stage/fonts/"
+          tar -czf "dist/$name.tar.gz" -C dist "$name"
+          ( cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256" )
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*.tar.gz*
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install repository-pinned Rust
+        run: rustup show
+      - name: Build desktop
+        run: cargo build -p pfl-desktop --features native --release --locked
+      - name: Assemble app bundle
+        run: packaging/macos/bundle.sh
+      - name: Package
+        run: |
+          set -euo pipefail
+          name="patent-forge-lite-${{ github.ref_name }}-macos-arm64"
+          cd packaging/macos
+          ditto -c -k --sequesterRsrc --keepParent "Patent Forge Lite.app" "../../dist/$name.zip"
+          cd ../..
+          ( cd dist && shasum -a 256 "$name.zip" > "$name.zip.sha256" )
+          echo "unsigned build: no Apple Developer ID, no notarization" > "dist/$name.UNSIGNED.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*.zip*
+          if-no-files-found: error
+
+  windows:
+    needs: preflight
+    if: needs.preflight.outputs.azure == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install repository-pinned Rust
+        shell: bash
+        run: rustup show
+      - name: Build desktop
+        run: cargo build -p pfl-desktop --features native --release --locked
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found" }
+          & $iscc packaging\windows\patent-forge-lite.iss
+          if ($LASTEXITCODE -ne 0) { throw "installer compile failed" }
+      - name: Azure Trusted Signing
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: https://wcus.codesigning.azure.net
+          signing-account-name: scottconverse-signing
+          certificate-profile-name: ScottConversePublic
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          files-folder: dist
+          files-folder-filter: exe
+      - name: Fail closed unless the signature verifies
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem dist\*.exe | Select-Object -First 1
+          $sig = Get-AuthenticodeSignature $exe.FullName
+          $sig | Format-List Status, StatusMessage, SignerCertificate
+          if ($sig.Status -ne 'Valid') { throw "installer signature is not Valid: $($sig.Status)" }
+          $name = "${{ github.ref_name }}-$($exe.Name)"
+          $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
+          "$hash  $($exe.Name)" | Out-File -Encoding ascii "dist\$name.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.exe*
+          if-no-files-found: error
+
+  publish:
+    needs: [preflight, linux, macos, windows]
+    if: ${{ !cancelled() && needs.linux.result == 'success' && needs.macos.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: List assets
+        run: ls -lh dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          SIGNED: ${{ needs.preflight.outputs.azure }}
+        run: |
+          set -euo pipefail
+          notes="docs/RELEASE-NOTES-${TAG#v}.md"
+          if [ ! -f "$notes" ]; then notes="docs/RELEASE-NOTES.md"; fi
+          args=(--title "PatentForge Lite ${TAG#v}" --notes-file "$notes")
+          if [ "${SIGNED}" != "true" ]; then
+            args+=(--notes "Windows installer withheld: Azure signing credentials were not configured for this run.")
+          fi
+          gh release create "$TAG" dist/* "${args[@]}" --verify-tag

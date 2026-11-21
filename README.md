@@ -1,74 +1,165 @@
-# Patent Forge Lite
+# PatentForge Lite
 
-Patent Forge Lite is a new, separate native patent research and drafting application. It is not an in-place upgrade, rename of the existing repository, or replacement installation of PatentForge.
+**A standalone, native patent research and drafting workspace.** Point it at an invention,
+and it walks four analyses in order — feasibility, claims, compliance and a full application
+draft — keeping every stage, every prompt and every report on your own machine.
 
-The intended architecture is a standalone Rust application core with a GPUI desktop on Windows, macOS and Linux. The installed product will not require the legacy React, Node/NestJS, Python or Go application services. Ollama remains an independently managed inference runtime; authorized Cloud and research providers remain external services.
+Rust core · GPUI desktop · Windows, macOS and Linux · no browser, no account, no legacy services.
 
-## Current status
+---
 
-The staged delivery approach and product identity have been approved. The Rust workspace
-contains the application core: typed domain contracts, transactional SQLite storage with a
-synthetic legacy importer, **four analysis workflows** (feasibility, claims drafting,
-compliance review, application drafting — 19 stages with the upstream prompts ported
-verbatim), recorded-replay, Ollama and Anthropic Cloud adapters, a compatibility HTTP API,
-a GPUI desktop interface, and a `pfl-cli` harness that drives the real core end to end.
+## What it does
 
-On Windows x86_64 with the pinned `1.98.1` toolchain, the workspace formats, compiles, passes
-`clippy -D warnings`, and passes 96 tests, and the native desktop feature compiles and links
-against the pinned GPUI revision. `pfl-cli pipeline` runs all four workflows in dependency
-order on one project, exports Markdown, HTML and Word for each, and reopens the profile
-without regenerating anything. `pfl-cli serve` exposes the legacy-compatible HTTP surface.
+PatentForge Lite runs **four analyses**, each building on the last:
 
-Not yet established, and not claimed: a launched native window and interactive keyboard, IME,
-GPU, dialog or installed behavior; live local or Cloud inference; live research; macOS and
-Linux native builds; packaging, signing and release. `docs/STATUS.md` is the honest inventory,
-`docs/BUILD-EVIDENCE.md` records exactly which checks ran, and
-`docs/FIRST-SLICE-ACCEPTANCE.md` keeps the unexercised items open.
+| Analysis | Stages | What you get |
+| --- | --- | --- |
+| **Feasibility** | 6 | Technical restatement, prior-art landscape, patentability (§102/§103/§112), deep dive, IP strategy, consolidated report |
+| **Claims drafting** | 4 | A claim strategy, up to 20 claims (broad/medium/narrow independents plus dependents), an examiner pass, and a revision |
+| **Compliance review** | 4 | Written description, definiteness, formalities and eligibility findings |
+| **Application drafting** | 5 | Abstract, background, summary, detailed description, drawings list — assembled with claim set and an information-disclosure statement |
 
-The product remains the private [scottconverse/patent-forge-lite repository](https://github.com/scottconverse/patent-forge-lite), separate from PatentForge. No source license has been selected; upstream prompt and legal notices are preserved as described in `docs/BUILD-EVIDENCE.md` and `THIRD_PARTY_NOTICES.md`.
+Dependent analyses refuse to start until the ones they consume have finished, and each run
+snapshots the exact upstream text it read. Re-running feasibility later never changes a claims
+run you already have.
 
-## Delivery approach
+Everything ends in a saved report you can export as **Markdown, HTML or Word (.docx)**.
 
-1. Establish native Rust/GPUI builds for all three platforms from the start, with explicit runner access and platform evidence.
-2. Deliver an early usable vertical slice: project and invention intake, a fixture-backed analysis, streaming, navigation away and back, interruption/recovery, saved report and export.
-3. Replace recorded responses with real, explicitly authorized local inference through the same application entry point. Keep replay and live results separate.
-4. Expand through research, claims, compliance, application drafting, data compatibility, authenticated API compatibility and full export/lifecycle coverage.
-5. Prepare and validate Full and Lean packages on each platform. Signing and publication have separate authorization gates.
+## What it looks like
 
-Full and Lean are later setup/distribution profiles of **one product**, sharing the same Rust core and GPUI interface. "Lite" is the product name, not permission to drop Full or existing functional scope. The first slice exposes explicitly selected synthetic replay and existing local inference; Cloud/paid providers are fail-closed. Later Lean setup will reach Cloud without acquiring Ollama; Full will support Local/Cloud setup and existing-model reuse.
+![Projects](https://raw.githubusercontent.com/scottconverse/patent-forge-lite/main/docs/images/projects.png)
 
-Native usability comes early: text editing, selection, clipboard, focus, keyboard conventions and long-document navigation. Framework comparisons and a GPU benchmark project are outside scope.
+The interface follows the PatentForge identity: ink surfaces, paper documents, copper actions,
+Barlow type. Reports open as a document — not raw markdown.
+
+## Requirements
+
+- **Windows 10/11 x64**, **macOS 13+ (arm64)** or **Linux x64** with a working GPU for the desktop.
+- **An inference runtime or recorded fixtures:**
+  - *Recorded replay* — bundled synthetic outputs. No model, no network, instant. Best for
+    learning the interface and for verifying behaviour deterministically.
+  - *Local* — an existing [Ollama](https://ollama.com) installation. You choose the endpoint and
+    model; Lite never downloads or starts one for you.
+  - *Cloud* — an Anthropic API key, only if you explicitly authorize a paid call per run.
+
+## Install
+
+**Windows** — download `patent-forge-lite-<version>-x64.exe` from
+[Releases](https://github.com/scottconverse/patent-forge-lite/releases), run it, done. Per-user
+install, no administrator rights. Uninstalling does **not** delete your projects.
+
+**macOS / Linux** — download the archive for your platform from Releases and see
+[the user manual](docs/USER-MANUAL.md#macos-and-linux) for the two commands it takes. These
+builds are **unsigned**, so macOS Gatekeeper needs a right-click → Open the first time.
+
+```bash
+# macOS (arm64)
+unzip patent-forge-lite-<version>-macos-arm64.zip
+open "Patent Forge Lite.app"
+
+# Linux (x86_64)
+tar xzf patent-forge-lite-<version>-linux-x64.tar.gz
+./patent-forge-lite/pfl-desktop
+```
+
+## First five minutes
+
+1. Launch. You land on **Projects**.
+2. **New project** → fill in the title and a description of at least 50 words (the counter turns
+   green when you meet it) → **Save intake**.
+3. Open **Execution setup** → *Use synthetic recorded replay* → tick *This invention is synthetic
+   test data*.
+4. Back to **Analysis** → pick a workflow → **Start new version**. In replay this is instant.
+5. Open **Report** → read it → **Export Word**.
+
+That whole path works offline with no model. When you want real analysis, point it at your local
+Ollama in Execution setup and choose **Full** setup profile.
+
+The complete walkthrough — every screen, every control, every troubleshooting step — is the
+**[user manual](docs/USER-MANUAL.md)**.
+
+## Keyboard
+
+| Keys | Action |
+| --- | --- |
+| `Ctrl+1` … `Ctrl+6` | Projects · Intake · Analysis · History · Report · Setup |
+| `Ctrl+S` | Save intake |
+| `Ctrl+Q` | Quit (warns about unsaved edits and running analyses) |
+| `Tab` / `Shift+Tab` | Move between fields and controls (every control shows a focus ring) |
+
+## Where your data lives
+
+One SQLite file per user, never shared with the old PatentForge:
+
+- Windows: `%LOCALAPPDATA%\patent-forge-lite\projects.sqlite3`
+- macOS: `~/Library/Application Support/patent-forge-lite/projects.sqlite3`
+- Linux: `${XDG_DATA_HOME:-~/.local/share}/patent-forge-lite/projects.sqlite3`
+
+A sibling `.lock` file guarantees a single owner: two copies cannot run against one profile.
+Back up by copying that directory. See [coexistence](#coexistence-with-patentforge).
 
 ## Coexistence with PatentForge
 
-- Keep the existing PatentForge repository, installation, services, projects and models untouched.
-- The desktop uses application ID `com.scottconverse.patentforgelite`, a dedicated per-user `patent-forge-lite` data directory and an OS-backed profile lock that the CLI honours too; no legacy location is opened. Packaging/configuration identities must remain distinct as later distribution work lands.
-- Do not claim existing ports, alter old launchers, stop independently owned Ollama/DSH processes or redirect current integrations automatically.
-- Migration is a later, opt-in, copy-first operation using authorized consistent backups. Do not open production data as a bootstrap shortcut.
-- Future deprecation or cutover requires an explicit decision. Shipping this application does not deprecate PatentForge.
+Lite is a **separate application with its own identity, data directory and lock**. It never opens,
+modifies or migrates an existing PatentForge installation, and shipping it does not retire anything.
+Real-data migration is a later, opt-in, copy-first operation.
 
-## Testing and permissions
+## Development
 
-Start with synthetic inventions, synthetic migration fixtures and deterministic recorded responses. Do not commit real inventions, customer records, credentials, machine-specific configuration or private paths. Provider credentials alone do not authorize inference, research, spending or disclosure.
+```bash
+cargo test --workspace            # 104 tests
+cargo clippy --workspace --all-targets -- -D warnings
+cargo build -p pfl-desktop --features native
+cargo run   -p pfl-cli -- pipeline --workspace ./synthetic
+```
 
-Real local inference follows replay acceptance and requires explicit authorization for the runtime, model, endpoint and test data. A remote Ollama endpoint is not on-machine inference. No silent Cloud fallback is permitted. Paid Cloud calls, private-data import, interactive desktop trials, signing and external publication retain their applicable approval gates.
+Crates: `pfl-domain` (contracts), `pfl-storage` (SQLite), `pfl-workflow` (four workflows, providers,
+research seam), `pfl-api` (compatibility HTTP surface), `pfl-desktop` (GPUI), `pfl-cli` (harness:
+`replay`, `import-replay`, `pause-fixture`, `resume`, `pipeline`, `serve`, `live`, `inspect`).
 
-Cross-platform builds, native interaction, package creation and installed acceptance are separate claims. Runner labels or successful cross-compilation do not prove installed behavior.
+Toolchain is pinned to Rust 1.98.1 and GPUI to a single Zed revision; both are recorded in
+`Cargo.toml` and `docs/BUILD-EVIDENCE.md`. CI compiles, tests and lints on Windows x64, macOS arm64
+and Linux x86_64.
 
-## Compatibility and legal obligations
+### Automation and testing
 
-The functional reference remains [PatentForge v0.5.0](https://github.com/scottconverse/patentforge/releases/tag/v0.5.0), with applicable fixes at [the pinned source baseline](https://github.com/scottconverse/patentforge/tree/7a3200c8d861c2d291e07d8c8bc6c6e44417f623). This is a behavior reference, not a directive to copy its source or installation.
+`scripts/ui-acceptance.ps1` drives the real native window through Windows UI Automation — 26 checks
+covering navigation, field disclosure, execution mode, a recorded run to completion, history,
+report rendering and shortcuts. `scripts/preflight.ps1` verifies a build before you trust it.
 
-Before importing any source, prompt or asset, review its applicable license, attribution and notice requirements, including the legacy `LICENSE`, `LICENSE-PROMPTS` and legal notices. Preserve required prompt text, provenance, attribution, license notices and product disclaimers. A Rust rewrite does not remove those obligations or grant permission to relicense material. The only legacy material imported so far is the seven feasibility prompt files, byte-identical to the pinned source and accompanied by `prompts/feasibility/LICENSE-PROMPTS`, `LEGAL_NOTICE.md` and `PROVENANCE.md`; no legacy application source or assets have been copied.
+## Honest status
+
+| Area | State |
+| --- | --- |
+| Core, four workflows, storage, exports, CLI, API | Implemented and tested |
+| Windows desktop | Built, launched, driven by hand and by automation |
+| macOS / Linux desktop | **Compile + test green in CI**; no installed or interactive acceptance yet |
+| Windows installer | Built, installed, uninstalled and verified — **signed with Azure Trusted Signing** |
+| macOS / Linux packages | Built and published **unsigned** |
+| Live local inference | Verified on one model (`phi4-mini`), all four workflows |
+| Live Cloud inference | Fail-closed; verified against a mock only |
+| Live prior-art research | Seam and fixture source only — no external provider |
+
+The full inventory is [docs/STATUS.md](docs/STATUS.md); every check and its evidence is
+[docs/BUILD-EVIDENCE.md](docs/BUILD-EVIDENCE.md).
+
+## Legal
+
+Patent analysis output from this tool is **research assistance, not legal advice**, and the
+generated drafts are **not for filing**. Models can invent prior-art references; verify everything
+before relying on it, and have a registered patent attorney review any filing.
+
+Licensing: see [LICENSE](LICENSE) for the source, [LICENSE-PROMPTS](LICENSE-PROMPTS) for the
+prompt text (upstream prompts are CC-BY-SA 4.0), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+for Barlow (SIL OFL) and the GPUI dependency. Product disclaimers are reproduced in
+[LEGAL_NOTICE.md](LEGAL_NOTICE.md).
 
 ## Documents
 
-- [Product status: what works and what does not](docs/STATUS.md)
-- [Architecture and boundaries](docs/ARCHITECTURE.md)
-- [Compatibility API](docs/API.md)
-- [First-slice acceptance](docs/FIRST-SLICE-ACCEPTANCE.md)
-- [Native desktop source, controls and acceptance limits](docs/native-ui.md)
-- [Build and acceptance evidence](docs/BUILD-EVIDENCE.md)
-- [Packaging sources and open decisions](docs/PACKAGING.md)
-- [Storage and migration](docs/storage-and-migration.md)
-- [Workflow execution](docs/workflow.md)
+- **[User manual](docs/USER-MANUAL.md)** — how to actually use it
+- [Product status](docs/STATUS.md) · [Build evidence](docs/BUILD-EVIDENCE.md)
+- [Architecture](docs/ARCHITECTURE.md) · [Workflow execution](docs/workflow.md) ·
+  [Storage and migration](docs/storage-and-migration.md)
+- [Compatibility API](docs/API.md) · [Native desktop notes](docs/native-ui.md)
+- [Packaging](docs/PACKAGING.md) · [Interactive checklist](docs/INTERACTIVE-CHECKLIST.md) ·
+  [First-slice acceptance](docs/FIRST-SLICE-ACCEPTANCE.md)
