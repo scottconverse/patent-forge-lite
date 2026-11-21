@@ -678,14 +678,58 @@ async fn live(workspace: PathBuf, endpoint: String, model: String) -> Result<()>
     Ok(())
 }
 
+/// Read-only inventory of one profile database, using the same store the desktop
+/// opens. Never creates a project, starts a run or touches another profile.
+async fn inspect(database: PathBuf) -> Result<()> {
+    let path = database.clone();
+    let store = tokio::task::spawn_blocking(move || SqliteStore::open(path))
+        .await
+        .map_err(|e| Error::Storage(e.to_string()))??;
+    let projects = store.list_projects()?;
+    let mut summary = Vec::new();
+    for project in &projects {
+        let history = store.history(&project.id)?;
+        let runs: Vec<serde_json::Value> = history
+            .iter()
+            .map(|run| {
+                serde_json::json!({
+                    "run_id": run.id,
+                    "workflow": run.input.kind.slug(),
+                    "version": run.version,
+                    "outcome": run.outcome,
+                    "checkpoints": run.checkpoints.len(),
+                    "expected_stages": run.input.kind.stage_count(),
+                    "report_chars": run.report.as_ref().map(|r| r.markdown.chars().count()),
+                    "provider": run.input.provider.kind,
+                    "model": run.input.provider.model,
+                })
+            })
+            .collect();
+        summary.push(serde_json::json!({
+            "project_id": project.id,
+            "title": project.intake.title,
+            "runs": runs,
+        }));
+    }
+    println!(
+        "{}",
+        serde_json::json!({
+            "database": database,
+            "projects": summary,
+            "project_count": projects.len(),
+        })
+    );
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = async {
         let command = args.first().map(String::as_str).ok_or_else(|| invalid(
-            "usage: pfl-cli <replay|import-replay|pause-fixture|resume|pipeline|serve|live> --workspace <directory> [--stage <1..6>] [--addr <host:port>] [--endpoint <url> --model <name>]"
+            "usage: pfl-cli <replay|import-replay|pause-fixture|resume|pipeline|serve|live|inspect> --workspace <directory> [--stage <1..6>] [--addr <host:port>] [--endpoint <url> --model <name>] [--database <path>]"
         ))?;
-        if !matches!(command, "replay" | "import-replay" | "pause-fixture" | "resume" | "pipeline" | "serve" | "live") {
+        if !matches!(command, "replay" | "import-replay" | "pause-fixture" | "resume" | "pipeline" | "serve" | "live" | "inspect") {
             return Err(invalid("unknown command; only live performs real inference"));
         }
         let mut workspace = None;
@@ -693,10 +737,12 @@ async fn main() {
         let mut addr = None;
         let mut endpoint = None;
         let mut model = None;
+        let mut database = None;
         let mut i = 1;
         while i < args.len() {
             match (args[i].as_str(), args.get(i + 1)) {
                 ("--workspace", Some(value)) if workspace.is_none() => workspace = Some(PathBuf::from(value)),
+                ("--database", Some(value)) if database.is_none() => database = Some(PathBuf::from(value)),
                 ("--addr", Some(value)) if addr.is_none() => addr = Some(value.to_string()),
                 ("--endpoint", Some(value)) if endpoint.is_none() => endpoint = Some(value.to_string()),
                 ("--model", Some(value)) if model.is_none() => model = Some(value.to_string()),
@@ -717,6 +763,12 @@ async fn main() {
         }
         if (endpoint.is_some() || model.is_some()) && command != "live" {
             return Err(invalid("only live accepts --endpoint and --model"));
+        }
+        if command == "inspect" {
+            return inspect(
+                database.ok_or_else(|| invalid("inspect requires --database"))?,
+            )
+            .await;
         }
         let workspace = workspace.ok_or_else(|| invalid("--workspace is required"))?;
         if command == "pipeline" {
