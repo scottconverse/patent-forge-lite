@@ -194,7 +194,11 @@ if ($rows.Count -ge 1) {
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
     Start-Sleep -Milliseconds 900
 }
-Check "report pane has the saved document" ([bool](Find-ById 'input-Saved report'))
+Check "report renders as a document" ([bool](Find-ById 'report-document'))
+Invoke-Element 'View source'
+Check "source view exposes the selectable text" ([bool](Find-ById 'input-Saved report'))
+Invoke-Element 'Rendered view'
+Check "rendered view returns" ([bool](Find-ById 'report-document'))
 Check "export actions exist" ([bool](Find-ByName 'Export Word') -and [bool](Find-ByName 'HTML'))
 
 Write-Host "`n[5] Shutdown"

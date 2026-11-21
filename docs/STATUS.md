@@ -17,6 +17,7 @@ is the honest inventory.
 | Compliance workflow | 4 checks (written description, definiteness, formalities, eligibility) using the legacy compliance prompts. |
 | Application workflow | 5 sections plus a non-LLM IDS/assembly step using the legacy application prompts. |
 | Exports | Markdown, HTML and real `.docx`, all from the same saved run identity. |
+| Report reading | Reports render as documents (heading hierarchy, emphasised labels, bordered tables, monospaced code) with a source view for selection and copying. Parser is unit-tested. |
 | Desktop | Native GPUI interface with a layered dark design system: icon rail, elevated cards with real box shadows, workflow tabs, outcome pills, checkpoint progress bars, stage ledger, document pane, hover states, Ctrl+1–6 page navigation. Projects, intake with nine context fields, live progress, cancel/resume, history, reports, three export formats, setup-profile selection, single-owner lock, app-wide quit guard. |
 | Accessibility | A real AccessKit tree is published: labelled buttons, text inputs, tabs, headings, and status regions with stable AutomationIds. Screen readers get structure, and `scripts/ui-acceptance.ps1` drives the window through UI Automation (20 checks, all passing). |
 | CLI | `replay`, `import-replay`, `pause-fixture`, `resume`, `pipeline` (all four workflows), `serve`. |

@@ -53,7 +53,21 @@ Two notes for anyone extending this:
    assistive technology unless it sits inside a role'd element, which is why run
    state and notices carry explicit `Role::Status` labels.
 
-## Launch options
+'## Report rendering
+
+Saved reports render as a document, not raw Markdown: headings keep their
+hierarchy, `**Label:** body` pairs keep the bold lead-in while the body wraps
+inside the column, pipe tables become bordered header/row layouts, fenced blocks
+stay monospaced, and rules become dividers. `**View source**` switches to the
+selectable text editor, so copy/select behaviour is preserved.
+
+The reader is `crates/pfl-desktop/src/markdown.rs` — a small, dependency-free
+parser with no GPUI in it, unit-tested headlessly (headings, wrapped paragraphs,
+bullets, numbered items, fenced code, pipe tables, rules, emphasis runs, unknown
+syntax preserved). Rendering lives in `report_document()` and is deliberately
+block-level: layout risk stays low and text always wraps.
+
+## Launch options'
 
 ```
 pfl-desktop --replay             select synthetic recorded responses (starts nothing)

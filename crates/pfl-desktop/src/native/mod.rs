@@ -184,6 +184,8 @@ struct Desktop {
     auto_open_latest: bool,
     /// Applied once a run is selected, so `--page report` lands on real content.
     auto_page: Option<Page>,
+    /// Rendered document vs raw Markdown source for the report pane.
+    report_rendered: bool,
 }
 
 impl Desktop {
@@ -268,6 +270,7 @@ impl Desktop {
             allow_close: false,
             auto_open_latest: select_latest,
             auto_page: initial_page,
+            report_rendered: true,
         }
     }
 
@@ -1507,6 +1510,19 @@ impl Render for Desktop {
                                 "Export Word",
                                 |this, _, cx| this.export(ExportFormat::Word, cx),
                                 cx,
+                            ))
+                            .child(self.button(
+                                "toggle-report-view",
+                                if self.report_rendered {
+                                    "View source"
+                                } else {
+                                    "Rendered view"
+                                },
+                                |this, _, cx| {
+                                    this.report_rendered = !this.report_rendered;
+                                    cx.notify();
+                                },
+                                cx,
                             )),
                     ),
                 ));
@@ -1535,15 +1551,38 @@ impl Render for Desktop {
                                 None => theme::pill("no saved report", theme::WARN, 0x33280f),
                             }),
                     );
-                    content = content.child(
-                        theme::panel()
-                            .p_8()
-                            .flex()
-                            .flex_col()
-                            .gap_4()
-                            .w_full()
-                            .child(self.report.clone()),
-                    );
+                    if self.report_rendered {
+                        let markdown = self
+                            .state
+                            .run
+                            .as_ref()
+                            .and_then(|view| view.snapshot.report.as_ref())
+                            .map(|report| report.markdown.clone())
+                            .unwrap_or_default();
+                        content = content.child(
+                            theme::panel()
+                                .id("report-document")
+                                .accessibility_id("report-document")
+                                .role(Role::Document)
+                                .aria_label("Rendered saved report")
+                                .p_8()
+                                .flex()
+                                .flex_col()
+                                .gap_3()
+                                .w_full()
+                                .child(report_document(&markdown)),
+                        );
+                    } else {
+                        content = content.child(
+                            theme::panel()
+                                .p_8()
+                                .flex()
+                                .flex_col()
+                                .gap_4()
+                                .w_full()
+                                .child(self.report.clone()),
+                        );
+                    }
                 } else {
                     content = content.child(
                         theme::panel()
@@ -1952,6 +1991,11 @@ impl Render for Desktop {
 
         let main = div()
             .id("main-content")
+            .accessibility_id("main-content")
+            .role(Role::Group)
+            .aria_label("Page content")
+            .focusable()
+            .tab_stop(false)
             .flex_1()
             .min_w_0()
             .h_full()
@@ -2043,4 +2087,157 @@ impl Render for Desktop {
             )
             .child(status_bar)
     }
+}
+
+/// Inline runs for one paragraph, preserving bold emphasis without wrapping
+/// markers in the visible text.
+fn report_runs(text: &str) -> Div {
+    let runs = crate::markdown::runs(text);
+    // The common report shape is "**Label:** body". Render that as a bold run
+    // followed by a width-constrained run so the body wraps inside the column.
+    if runs.len() == 2 && runs[0].bold && runs[0].text.chars().count() <= 48 {
+        return div()
+            .flex()
+            .flex_row()
+            .gap_1()
+            .w_full()
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .text_sm()
+                    .line_height(px(24.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(rgb(theme::TEXT))
+                    .child(runs[0].text.clone()),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .text_sm()
+                    .line_height(px(24.))
+                    .text_color(rgb(theme::TEXT))
+                    .child(runs[1].text.clone()),
+            );
+    }
+    let plain: String = runs.iter().map(|run| run.text.as_str()).collect();
+    div()
+        .w_full()
+        .text_sm()
+        .line_height(px(24.))
+        .text_color(rgb(theme::TEXT))
+        .child(plain)
+}
+
+fn report_table(header: Vec<String>, rows: Vec<Vec<String>>) -> Div {
+    let mut table = div()
+        .flex()
+        .flex_col()
+        .w_full()
+        .rounded_md()
+        .border_1()
+        .border_color(rgb(theme::BORDER))
+        .overflow_hidden();
+    if !header.is_empty() {
+        table = table.child(
+            div()
+                .flex()
+                .flex_row()
+                .gap_3()
+                .px_3()
+                .py_2()
+                .bg(rgb(theme::SURFACE_2))
+                .children(header.into_iter().map(|cell| {
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .text_xs()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(rgb(theme::MUTED))
+                        .child(cell)
+                })),
+        );
+    }
+    for row in rows {
+        table = table.child(
+            div()
+                .flex()
+                .flex_row()
+                .gap_3()
+                .px_3()
+                .py_2()
+                .border_t_1()
+                .border_color(rgb(theme::BORDER_SOFT))
+                .children(row.into_iter().map(|cell| {
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .text_sm()
+                        .text_color(rgb(theme::TEXT))
+                        .child(cell)
+                })),
+        );
+    }
+    table
+}
+
+/// Renders the saved report as a document: real heading hierarchy, emphasised
+/// labels, tables and monospaced code instead of raw Markdown.
+fn report_document(markdown_text: &str) -> Div {
+    let mut column = div().flex().flex_col().gap_3().w_full();
+    for block in crate::markdown::parse(markdown_text) {
+        column = column.child(match block {
+            crate::markdown::Block::Heading { level, text } => {
+                let element = match level {
+                    1 => div()
+                        .text_2xl()
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(rgb(theme::TEXT)),
+                    2 => div()
+                        .mt_2()
+                        .text_xl()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(rgb(theme::TEXT)),
+                    _ => div()
+                        .mt_2()
+                        .text_lg()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(rgb(theme::MUTED)),
+                };
+                element.child(text)
+            }
+            crate::markdown::Block::Paragraph(text) => report_runs(&text),
+            crate::markdown::Block::Bullet(text) => div()
+                .flex()
+                .flex_row()
+                .gap_2()
+                .child(
+                    div()
+                        .mt(px(9.))
+                        .w(px(5.))
+                        .h(px(5.))
+                        .rounded_full()
+                        .bg(rgb(theme::ACCENT)),
+                )
+                .child(report_runs(&text)),
+            crate::markdown::Block::Numbered(text) => report_runs(&text),
+            crate::markdown::Block::Rule => theme::divider(),
+            crate::markdown::Block::Table { header, rows } => report_table(header, rows),
+            crate::markdown::Block::Code(code) => div()
+                .p_4()
+                .rounded_md()
+                .bg(rgb(theme::RAIL))
+                .border_1()
+                .border_color(rgb(theme::BORDER))
+                .child(
+                    div()
+                        .text_xs()
+                        .font_family("Consolas")
+                        .line_height(px(18.))
+                        .text_color(rgb(theme::MUTED))
+                        .child(code),
+                ),
+        });
+    }
+    column
 }
