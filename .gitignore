@@ -1,0 +1,43 @@
+# Rust build output. Commit the future application's Cargo.lock.
+**/target/
+
+# Generated artifacts and test output.
+/artifacts/
+/dist/
+/coverage/
+/test-results/
+/playwright-report/
+
+# Local runtime state, models and private material.
+/.local/
+/local-data/
+/private-data/
+/models/
+/logs/
+*.log
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Real environment files and signing/private keys never belong in the repo.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.p8
+
+# OS/editor transient files.
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*~
+
+# Ignore rules are not a secret scanner. Review every staged change.
+# Synthetic fixtures must be deliberately reviewed, not copied from user data.
