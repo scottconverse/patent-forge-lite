@@ -1913,9 +1913,29 @@ impl Render for Desktop {
                     .items_center()
                     .justify_center()
                     .child(
-                        // The guide's framed application icon: the symbol on its
-                        // ink tile, which reads correctly against the dark rail.
-                        gpui::img(assets::APP_ICON).w(px(30.)).h(px(30.)),
+                        // The symbol itself, paper body with the hot-copper fold,
+                        // as two tinted layers: GPUI rasterizes SVG with the
+                        // element's text colour, so each layer gets its own.
+                        div()
+                            .w(px(30.))
+                            .h(px(30.))
+                            .relative()
+                            .child(
+                                div().absolute().top(px(0.)).left(px(0.)).child(
+                                    gpui::svg()
+                                        .path(assets::SYMBOL_BODY)
+                                        .size(px(30.))
+                                        .text_color(rgb(theme::PAPER)),
+                                ),
+                            )
+                            .child(
+                                div().absolute().top(px(0.)).left(px(0.)).child(
+                                    gpui::svg()
+                                        .path(assets::SYMBOL_FOLD)
+                                        .size(px(30.))
+                                        .text_color(rgb(theme::HOT_COPPER)),
+                                ),
+                            ),
                     ),
             )
             .child(div().h(px(10.)).w(px(1.)).bg(rgb(theme::BORDER)))

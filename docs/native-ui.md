@@ -11,11 +11,17 @@ The desktop follows the PatentForge visual identity guide:
 | Copper `#B65A32` | Primary actions, active navigation, links, and the symbol's fold. |
 | Hot copper `#F08F56` | Highlights, hover states, and the LITE wordmark accent. |
 | Barlow | All type. Bold for headings, Regular for body and captions, loaded from `assets/fonts` at start-up. |
-| Framed app icon | Anchors the left rail; the wordmark pairs PatentForge with a hot-copper LITE. |
+| Symbol | Anchors the left rail: paper body with the hot-copper fold, drawn as two tinted SVG layers. The wordmark pairs PatentForge with a hot-copper LITE. |
 
-`assets/brand/` holds the guide's own masters (symbol reverse and primary, framed
-icon, Windows `.ico`); `assets/fonts/` holds Barlow with its OFL licence. Both are
-embedded at compile time, so there is no runtime asset directory.
+`assets/brand/` holds the guide's masters (symbol reverse and primary, the body
+and fold layers used by the rail, framed icon and Windows `.ico`); `assets/fonts/`
+holds Barlow with its OFL licence. Everything is embedded at compile time, so
+there is no runtime asset directory.
+
+Implementation note: GPUI rasterizes SVG with `usvg` and tints the result with the
+element's `text_color`, so an SVG with no text colour paints nothing. Multi-colour
+artwork is therefore split into one layer per colour — the rail composes the paper
+body and the hot-copper fold as two absolutely positioned layers.
 
 The window title keeps the descriptive product name "Patent Forge Lite" while the
 in-app wordmark is set in the brand style.

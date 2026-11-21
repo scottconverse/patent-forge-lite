@@ -9,6 +9,8 @@ use std::borrow::Cow;
 pub const SYMBOL_REVERSE: &str = "brand/symbol-reverse.svg";
 pub const SYMBOL_PRIMARY: &str = "brand/symbol-primary.svg";
 pub const APP_ICON: &str = "brand/app-256.png";
+pub const SYMBOL_BODY: &str = "brand/symbol-body.svg";
+pub const SYMBOL_FOLD: &str = "brand/symbol-fold.svg";
 
 /// Assets embedded at build time. The SVG masters are the guide's own files.
 pub struct BrandAssets;
@@ -19,6 +21,8 @@ impl AssetSource for BrandAssets {
             SYMBOL_REVERSE => include_bytes!("../../../../assets/brand/symbol-reverse.svg"),
             SYMBOL_PRIMARY => include_bytes!("../../../../assets/brand/symbol-primary.svg"),
             APP_ICON => include_bytes!("../../../../assets/brand/app-256.png"),
+            SYMBOL_BODY => include_bytes!("../../../../assets/brand/symbol-body.svg"),
+            SYMBOL_FOLD => include_bytes!("../../../../assets/brand/symbol-fold.svg"),
             _ => return Ok(None),
         };
         Ok(Some(Cow::Borrowed(bytes)))
@@ -30,6 +34,8 @@ impl AssetSource for BrandAssets {
                 SharedString::from(SYMBOL_REVERSE),
                 SharedString::from(SYMBOL_PRIMARY),
                 SharedString::from(APP_ICON),
+                SharedString::from(SYMBOL_BODY),
+                SharedString::from(SYMBOL_FOLD),
             ]);
         }
         Ok(Vec::new())
