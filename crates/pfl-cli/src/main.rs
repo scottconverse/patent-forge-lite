@@ -166,7 +166,15 @@ fn synthetic_intake() -> Intake {
 }
 
 async fn wait_terminal(service: &WorkflowService, id: &RunId) -> Result<RunSnapshot> {
-    tokio::time::timeout(Duration::from_secs(60), async {
+    wait_terminal_for(service, id, Duration::from_secs(60)).await
+}
+
+async fn wait_terminal_for(
+    service: &WorkflowService,
+    id: &RunId,
+    limit: Duration,
+) -> Result<RunSnapshot> {
+    tokio::time::timeout(limit, async {
         loop {
             let snapshot = service.run(id.clone()).await?;
             if snapshot.outcome.is_terminal() {
@@ -176,7 +184,7 @@ async fn wait_terminal(service: &WorkflowService, id: &RunId) -> Result<RunSnaps
         }
     })
     .await
-    .map_err(|_| Error::Provider("fixture timed out".into()))?
+    .map_err(|_| Error::Provider("run timed out".into()))?
 }
 
 async fn journey(command: &str, workspace: PathBuf, pause_stage: Option<usize>) -> Result<()> {
@@ -431,9 +439,63 @@ async fn journey(command: &str, workspace: PathBuf, pause_stage: Option<usize>) 
     Ok(())
 }
 
+/// Counts real provider invocations without changing the adapter's identity, so
+/// both replay and live journeys report actual calls rather than inferred ones.
+struct CountingProvider {
+    inner: Arc<dyn Provider>,
+    calls: AtomicUsize,
+}
+
+impl CountingProvider {
+    fn new(inner: Arc<dyn Provider>) -> Arc<Self> {
+        Arc::new(Self {
+            inner,
+            calls: AtomicUsize::new(0),
+        })
+    }
+    fn calls(&self) -> usize {
+        self.calls.load(Ordering::SeqCst)
+    }
+}
+
+#[async_trait]
+impl Provider for CountingProvider {
+    fn snapshot(&self) -> ProviderSnapshot {
+        self.inner.snapshot()
+    }
+    async fn generate(
+        &self,
+        request: ProviderRequest,
+        cancellation: CancellationToken,
+        deltas: tokio::sync::mpsc::UnboundedSender<String>,
+    ) -> Result<ProviderResponse> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        self.inner.generate(request, cancellation, deltas).await
+    }
+}
+
 /// Runs every workflow in dependency order on one synthetic project, then
 /// reopens the profile and proves nothing regenerated. Recorded responses only.
 async fn pipeline(workspace: PathBuf) -> Result<()> {
+    journeys(
+        workspace,
+        Arc::new(ReplayProvider::all_workflows()),
+        "synthetic_recorded_replay",
+        Duration::from_secs(120),
+        None,
+    )
+    .await
+}
+
+/// The shared four-workflow journey. `live` passes a real provider here; the
+/// only differences are the provider, the timeout and the recorded mode label.
+async fn journeys(
+    workspace: PathBuf,
+    provider: Arc<dyn Provider>,
+    mode: &str,
+    run_timeout: Duration,
+    local_setup: Option<(String, String)>,
+) -> Result<()> {
     let mut marker = create_workspace(&workspace)?;
     let database = workspace.join(&marker.database);
     let _profile_lock = take_profile_lock(&database)?;
@@ -443,12 +505,20 @@ async fn pipeline(workspace: PathBuf) -> Result<()> {
             .await
             .map_err(|e| Error::Storage(e.to_string()))??,
     );
-    let provider = Arc::new(ReplayProvider::all_workflows());
+    let counter = CountingProvider::new(provider);
     let service = WorkflowService::new(
         store.clone(),
-        provider.clone(),
+        counter.clone(),
         tokio::runtime::Handle::current(),
     );
+    if let Some((endpoint, model)) = &local_setup {
+        // Selecting a local runtime is a Full-setup choice; Lean is Cloud-only.
+        let mut settings = service.settings().await?;
+        settings.profile = SetupProfile::Full;
+        settings.local_endpoint = Some(endpoint.clone());
+        settings.local_model = Some(model.clone());
+        service.save_settings(settings).await?;
+    }
     let project = service.create_project(synthetic_intake()).await?;
     marker.project_id = Some(project.id.clone());
     write_marker(&workspace, &marker)?;
@@ -461,11 +531,12 @@ async fn pipeline(workspace: PathBuf) -> Result<()> {
                 format!("pipeline-{}", kind.slug()),
                 Authorization {
                     synthetic_data: true,
+                    local_inference: local_setup.is_some(),
                     ..Authorization::default()
                 },
             )
             .await?;
-        let completed = wait_terminal(&service, &run.id).await?;
+        let completed = wait_terminal_for(&service, &run.id, run_timeout).await?;
         if completed.outcome != RunOutcome::Completed
             || completed
                 .checkpoints
@@ -510,7 +581,7 @@ async fn pipeline(workspace: PathBuf) -> Result<()> {
             "report_bytes": report.markdown.len(),
         }));
     }
-    let calls = provider.request_count();
+    let calls = counter.calls();
     service.shutdown().await?;
     // Reopen the profile: every workflow's saved result must survive unchanged
     // and no provider work may happen on read.
@@ -524,7 +595,7 @@ async fn pipeline(workspace: PathBuf) -> Result<()> {
             "reopen lost a workflow result or its saved report".into(),
         ));
     }
-    if provider.request_count() != calls {
+    if counter.calls() != calls {
         return Err(Error::Conflict(
             "reading the profile generated provider work".into(),
         ));
@@ -532,7 +603,7 @@ async fn pipeline(workspace: PathBuf) -> Result<()> {
     println!(
         "{}",
         serde_json::json!({
-            "mode": "synthetic_recorded_replay",
+            "mode": mode,
             "outcome": "completed",
             "workflows": runs,
             "total_stages": 19,
@@ -585,100 +656,24 @@ async fn serve(workspace: PathBuf, addr: String) -> Result<()> {
     served
 }
 
-/// Runs the feasibility workflow against an explicitly selected on-machine
-/// Ollama endpoint/model, with synthetic input only. This is the only command
-/// that performs real inference; it never downloads a model and never falls back.
+/// Runs every workflow against an explicitly selected on-machine Ollama
+/// endpoint/model, with synthetic input only. This is the only command that
+/// performs real inference; it never downloads a model and never falls back.
 async fn live(workspace: PathBuf, endpoint: String, model: String) -> Result<()> {
-    let mut marker = create_workspace(&workspace)?;
-    let database = workspace.join(&marker.database);
-    let _profile_lock = take_profile_lock(&database)?;
-    let open = database.clone();
-    let store: Arc<dyn Store> = Arc::new(
-        tokio::task::spawn_blocking(move || SqliteStore::open(open))
-            .await
-            .map_err(|e| Error::Storage(e.to_string()))??,
-    );
     let provider = Arc::new(OllamaProvider::new(&endpoint, &model)?);
     let on_machine = provider.is_on_machine();
-    let service = WorkflowService::new(store, provider.clone(), tokio::runtime::Handle::current());
-    // Selecting a local runtime is a Full-setup choice; Lean is Cloud-only.
-    let mut settings = service.settings().await?;
-    settings.profile = SetupProfile::Full;
-    settings.local_endpoint = Some(endpoint.clone());
-    settings.local_model = Some(model.clone());
-    service.save_settings(settings).await?;
-    let project = service.create_project(synthetic_intake()).await?;
-    marker.project_id = Some(project.id.clone());
-    write_marker(&workspace, &marker)?;
     let started = std::time::Instant::now();
-    let run = service
-        .start_workflow(
-            project.id.clone(),
-            WorkflowKind::Feasibility,
-            "live-local-v1".into(),
-            Authorization {
-                synthetic_data: true,
-                local_inference: true,
-                ..Authorization::default()
-            },
-        )
-        .await?;
-    let completed = tokio::time::timeout(Duration::from_secs(3600), async {
-        loop {
-            let snapshot = service.run(run.id.clone()).await?;
-            if snapshot.outcome.is_terminal() {
-                return Ok::<RunSnapshot, Error>(snapshot);
-            }
-            tokio::time::sleep(Duration::from_millis(250)).await;
-        }
-    })
-    .await
-    .map_err(|_| Error::Provider("live run timed out".into()))??;
-    service.shutdown().await?;
-    let elapsed = started.elapsed().as_secs_f64();
-    if completed.outcome != RunOutcome::Completed {
-        return Err(Error::Conflict(format!(
-            "live run ended {:?}; see the durable run record",
-            completed.outcome
-        )));
-    }
-    let stages: Vec<serde_json::Value> = completed
-        .checkpoints
-        .iter()
-        .map(|checkpoint| {
-            serde_json::json!({
-                "stage": checkpoint.stage.key(),
-                "chars": checkpoint.text.chars().count(),
-                "input_tokens": checkpoint.usage.input_tokens,
-                "output_tokens": checkpoint.usage.output_tokens,
-            })
-        })
-        .collect();
-    let report = completed
-        .report
-        .clone()
-        .ok_or_else(|| invalid("live run produced no saved report"))?;
-    std::fs::write(
-        workspace.join("live-report.md"),
-        export_markdown(&completed)?,
+    journeys(
+        workspace,
+        provider,
+        "live_local_inference",
+        Duration::from_secs(3600),
+        Some((endpoint.clone(), model.clone())),
     )
-    .map_err(|e| Error::Io(e.to_string()))?;
-    std::fs::write(workspace.join("live-report.html"), export_html(&completed)?)
-        .map_err(|e| Error::Io(e.to_string()))?;
-    println!(
-        "{}",
-        serde_json::json!({
-            "mode": "live_local_inference",
-            "endpoint": endpoint,
-            "model": model,
-            "on_machine": on_machine,
-            "outcome": "completed",
-            "run_id": completed.id,
-            "stages": stages,
-            "report_chars": report.markdown.chars().count(),
-            "elapsed_seconds": elapsed,
-            "synthetic_input_only": true,
-        })
+    .await?;
+    eprintln!(
+        "live summary: endpoint={endpoint} model={model} on_machine={on_machine} elapsed_seconds={:.1}",
+        started.elapsed().as_secs_f64()
     );
     Ok(())
 }

@@ -63,15 +63,18 @@ following was measured on this machine with the pinned `1.98.1` toolchain,
 | CLI hard-kill recovery | Passed in a genuinely fresh process at stage 1 and stage 4, with no repeated checkpoints. |
 | CLI shared-profile lock | Passed: a second owner is refused while the first holds the profile; the OS lock releases on hard kill. |
 | Prompt identity | All seven feasibility prompts, plus the claims, compliance and application sets, are byte-identical (SHA-256) to the frozen legacy sources. |
-| **Live on-machine inference** | **Passed once**, 2026-11-21. `pfl-cli live` against the already-running local Ollama at `http://127.0.0.1:11434` with `phi4-mini:latest`, synthetic fixture input only. All six feasibility stages completed in 189.5 s: 4 435 / 345 / 5 418 / 14 512 / 6 870 / 7 666 characters, with real token usage reported per stage (for example 8 479 input and 1 610 output tokens on the final report). The saved report was reopened and exported. No model was downloaded and no independently owned process was started or stopped. |
+| **Live on-machine inference** | **Passed**, 2026-11-21. `pfl-cli live` against the already-running local Ollama at `http://127.0.0.1:11434` with `phi4-mini:latest`, synthetic fixture input only. All four workflows completed in dependency order: **19 stages, 19 real provider calls, 715.5 s**. Saved reports: feasibility 12 212 B, claims 34 678 B, compliance 66 904 B, application 56 040 B. The profile reopened with four versions and zero further generation. No model was downloaded and no independently owned process was started or stopped. An earlier feasibility-only live run (six stages, 189.5 s) is also recorded. |
 
-### What the live run showed
+### What the live runs showed
 
-The model produced coherent, on-topic output but **invented prior-art reference
-numbers** (for example "12345678 / Temperature Sensor in Coffee Cup"), because no
-research source was configured. That is precisely the failure mode the embedded
-disclaimers warn about, and it is why the report is labelled research output rather
-than verified prior art. Real research remains a separate integration.
+The model produced coherent, on-topic material — real numbered claims with
+broad/medium/narrow independents and dependents, and a full application with
+abstract, background, summary, drawings listing, detailed description and an IDS
+table. It also **invented prior-art reference numbers** (for example "12345678 /
+Temperature Sensor in Coffee Cup") because no research source was configured. That
+is precisely the failure mode the embedded disclaimers warn about, and it is why
+the output is labelled research material rather than verified prior art. Real
+research remains a separate integration.
 
 Still not established by this evidence:
 
