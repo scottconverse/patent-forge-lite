@@ -41,3 +41,6 @@ Desktop.ini
 
 # Ignore rules are not a secret scanner. Review every staged change.
 # Synthetic fixtures must be deliberately reviewed, not copied from user data.
+# Local interactive-session evidence (contains the real desktop; never commit)
+shots/
+session-screen.png
