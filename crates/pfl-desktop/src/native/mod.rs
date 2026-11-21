@@ -11,8 +11,9 @@ use crate::{
     state::{DesktopState, EventApplied, Page, context_from_values},
 };
 use gpui::{
-    App, Bounds, BoxShadow, Context, Div, Entity, FontWeight, KeyBinding, Role, SharedString,
-    Window, WindowBounds, WindowOptions, actions, div, prelude::*, px, rgb, rgba, size,
+    App, Bounds, BoxShadow, Context, Div, Entity, FocusHandle, FontWeight, KeyBinding, Role,
+    SharedString, Window, WindowBounds, WindowOptions, actions, div, prelude::*, px, rgb, rgba,
+    size,
 };
 use input::TextInput;
 use pfl_domain::*;
@@ -105,6 +106,13 @@ pub fn run() -> Result<()> {
         cx.bind_keys([
             KeyBinding::new("tab", FocusNext, None),
             KeyBinding::new("shift-tab", FocusPrevious, None),
+            // Direct page navigation, so every screen is reachable by keyboard.
+            KeyBinding::new("ctrl-1", NavProjects, None),
+            KeyBinding::new("ctrl-2", NavIntake, None),
+            KeyBinding::new("ctrl-3", NavAnalysis, None),
+            KeyBinding::new("ctrl-4", NavHistory, None),
+            KeyBinding::new("ctrl-5", NavReport, None),
+            KeyBinding::new("ctrl-6", NavSettings, None),
         ]);
         #[cfg(target_os = "macos")]
         cx.bind_keys([KeyBinding::new("cmd-s", SaveIntake, None), KeyBinding::new("cmd-q", Quit, None)]);
@@ -146,7 +154,19 @@ pub fn run() -> Result<()> {
             },
         );
         match result {
-            Ok(_) => cx.activate(true),
+            Ok(handle) => {
+                cx.activate(true);
+                let _ = handle.update(cx, |desktop, window, cx| {
+                    // Focus arrives after the first frame: the window is not yet
+                    // focusable while it is being created, and GPUI only routes
+                    // key bindings through a focused element.
+                    let focus = desktop.content_focus.clone();
+                    window.on_next_frame(move |window, cx| {
+                        window.focus(&focus, cx);
+                    });
+                    cx.notify();
+                });
+            }
             Err(error) => {
                 eprintln!("Patent Forge Lite could not open its native window: {error}. Check the supported graphics driver and desktop-session requirements.");
                 let _ = session.request(Request::Shutdown);
@@ -186,6 +206,10 @@ struct Desktop {
     auto_page: Option<Page>,
     /// Rendered document vs raw Markdown source for the report pane.
     report_rendered: bool,
+    /// Focus target for the page body. GPUI dispatches key bindings through the
+    /// focused element, so the window must start with real focus or global
+    /// shortcuts and Tab traversal never fire.
+    content_focus: FocusHandle,
 }
 
 impl Desktop {
@@ -271,7 +295,18 @@ impl Desktop {
             auto_open_latest: select_latest,
             auto_page: initial_page,
             report_rendered: true,
+            content_focus: cx.focus_handle(),
         }
+    }
+
+    /// Restores keyboard focus to the page body after navigation. The focus call
+    /// is deferred a frame because the previously focused element is destroyed by
+    /// the re-render, which would otherwise clear focus again.
+    fn focus_body(&self, window: &mut Window) {
+        let focus = self.content_focus.clone();
+        window.on_next_frame(move |window, cx| {
+            window.focus(&focus, cx);
+        });
     }
 
     fn send(&mut self, request: Request, cx: &mut Context<Self>) {
@@ -593,6 +628,7 @@ impl Desktop {
             .text_sm()
             .font_weight(FontWeight::MEDIUM)
             .hover(|s| s.bg(rgb(0x1f2c3c)).border_color(rgb(0x36506e)))
+            .focus_visible(|s| s.border_color(rgb(theme::ACCENT)).bg(rgb(0x1f2c3c)))
             .child(text)
             .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
             .on_key_down(
@@ -636,6 +672,7 @@ impl Desktop {
                     .spread_radius(px(-6.)),
             ])
             .hover(|s| s.bg(rgb(0x6ba0ff)))
+            .focus_visible(|s| s.border_color(rgb(theme::TEXT)).border_1())
             .child(text)
             .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
             .on_key_down(
@@ -672,6 +709,10 @@ impl Desktop {
             .text_color(rgb(theme::MUTED))
             .text_sm()
             .hover(|s| s.bg(rgb(theme::SURFACE_2)).text_color(rgb(theme::TEXT)))
+            .focus_visible(|s| {
+                s.border_color(rgb(theme::ACCENT))
+                    .text_color(rgb(theme::TEXT))
+            })
             .child(text)
             .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
             .on_key_down(
@@ -775,6 +816,7 @@ impl Desktop {
                 rgb(theme::RAIL)
             })
             .hover(|s| s.bg(rgb(theme::SURFACE_2)))
+            .focus_visible(|s| s.border_color(rgb(theme::ACCENT)))
             .child(theme::icon(kind, fg))
             .child(
                 div()
@@ -783,8 +825,9 @@ impl Desktop {
                     .font_weight(FontWeight::MEDIUM)
                     .child(label),
             )
-            .on_click(cx.listener(move |this, _, _, cx| {
+            .on_click(cx.listener(move |this, _, window, cx| {
                 this.state.navigate(page);
+                this.focus_body(window);
                 cx.notify();
             }))
             .on_key_down(cx.listener(move |this, event: &gpui::KeyDownEvent, _, cx| {
@@ -1018,6 +1061,7 @@ impl Render for Desktop {
                                 .hover(|s| {
                                     s.border_color(rgb(theme::ACCENT)).bg(rgb(theme::SURFACE_2))
                                 })
+                                .focus_visible(|s| s.border_color(rgb(theme::ACCENT)))
                                 .flex()
                                 .flex_col()
                                 .gap_3()
@@ -1663,6 +1707,7 @@ impl Render for Desktop {
                                 .hover(|s| {
                                     s.border_color(rgb(theme::ACCENT)).bg(rgb(theme::SURFACE_2))
                                 })
+                                .focus_visible(|s| s.border_color(rgb(theme::ACCENT)))
                                 .child(
                                     div()
                                         .w(px(44.))
@@ -1994,6 +2039,7 @@ impl Render for Desktop {
             .accessibility_id("main-content")
             .role(Role::Group)
             .aria_label("Page content")
+            .track_focus(&self.content_focus)
             .focusable()
             .tab_stop(false)
             .flex_1()
@@ -2048,28 +2094,34 @@ impl Render for Desktop {
             .bg(rgb(theme::BG))
             .text_color(rgb(theme::TEXT))
             .on_action(cx.listener(|this, _: &SaveIntake, _, cx| this.save(cx)))
-            .on_action(cx.listener(|this, _: &NavProjects, _, cx| {
+            .on_action(cx.listener(|this, _: &NavProjects, window, cx| {
                 this.state.navigate(Page::Projects);
+                this.focus_body(window);
                 cx.notify();
             }))
-            .on_action(cx.listener(|this, _: &NavIntake, _, cx| {
+            .on_action(cx.listener(|this, _: &NavIntake, window, cx| {
                 this.state.navigate(Page::Intake);
+                this.focus_body(window);
                 cx.notify();
             }))
-            .on_action(cx.listener(|this, _: &NavAnalysis, _, cx| {
+            .on_action(cx.listener(|this, _: &NavAnalysis, window, cx| {
                 this.state.navigate(Page::Workflow);
+                this.focus_body(window);
                 cx.notify();
             }))
-            .on_action(cx.listener(|this, _: &NavHistory, _, cx| {
+            .on_action(cx.listener(|this, _: &NavHistory, window, cx| {
                 this.state.navigate(Page::History);
+                this.focus_body(window);
                 cx.notify();
             }))
-            .on_action(cx.listener(|this, _: &NavReport, _, cx| {
+            .on_action(cx.listener(|this, _: &NavReport, window, cx| {
                 this.state.navigate(Page::Report);
+                this.focus_body(window);
                 cx.notify();
             }))
-            .on_action(cx.listener(|this, _: &NavSettings, _, cx| {
+            .on_action(cx.listener(|this, _: &NavSettings, window, cx| {
                 this.state.navigate(Page::Settings);
+                this.focus_body(window);
                 cx.notify();
             }))
             .on_action(cx.listener(|_, _: &FocusNext, window, cx| window.focus_next(cx)))

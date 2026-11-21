@@ -84,6 +84,16 @@ function Find-ByType([string]$controlType) {
     $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)
 }
 
+function Wait-ById([string]$id) {
+    $deadline = (Get-Date).AddSeconds(6)
+    while ((Get-Date) -lt $deadline) {
+        $el = Find-ById $id
+        if ($el) { return $el }
+        Start-Sleep -Milliseconds 150
+    }
+    return $null
+}
+
 function Find-ById([string]$id) {
     $w = Get-Window
     $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, $id)
@@ -201,7 +211,40 @@ Invoke-Element 'Rendered view'
 Check "rendered view returns" ([bool](Find-ById 'report-document'))
 Check "export actions exist" ([bool](Find-ByName 'Export Word') -and [bool](Find-ByName 'HTML'))
 
-Write-Host "`n[5] Shutdown"
+Write-Host "`n[5] Keyboard shortcuts"
+function Page-Marker {
+    $w = Get-Window
+    $all = $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+    $names = @(); foreach ($e in $all) { if ($e.Current.Name) { $names += $e.Current.Name } }
+    if ($names -contains 'Export Word') { 'report' }
+    elseif ($names -contains 'Start new version') { 'analysis' }
+    elseif (@($names | Where-Object { $_ -like 'Open version*' }).Count -gt 0) { 'history' }
+    elseif ($names -contains 'Save intake') { 'intake' }
+    elseif ($names -contains 'New project') { 'projects' }
+    elseif ($names -contains 'Configure existing local runtime') { 'setup' }
+    else { 'unknown' }
+}
+# GPUI routes key bindings through the focused element, so focus a field first.
+Invoke-Element 'Intake page'
+$title = Wait-ById 'input-Invention title'
+Check "intake page is reachable by keyboard shortcut test" ([bool]$title)
+if ($title) { $title.SetFocus(); Start-Sleep -Milliseconds 450 }
+$expected = @{ 3 = 'analysis'; 4 = 'history'; 5 = 'report'; 1 = 'projects' }
+foreach ($digit in 3, 4, 5, 1) {
+    [System.Windows.Forms.SendKeys]::SendWait("^$digit")
+    Start-Sleep -Milliseconds 700
+    Check "Ctrl+$digit opens $($expected[$digit])" ((Page-Marker) -eq $expected[$digit]) ("(saw {0})" -f (Page-Marker))
+}
+# Tab must move focus between labelled fields.
+Invoke-Element 'Intake page'
+$first = Wait-ById 'input-Invention title'
+if ($first) { $first.SetFocus(); Start-Sleep -Milliseconds 450 }
+[System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+Start-Sleep -Milliseconds 500
+$focused = [System.Windows.Automation.AutomationElement]::FocusedElement
+Check "Tab moves focus to the next field" ($focused.Current.AutomationId -eq 'input-Technical field') ("(focused: {0})" -f $focused.Current.AutomationId)
+
+Write-Host "`n[6] Shutdown"
 Stop-Process -Id $proc.Id -Force
 Start-Sleep -Milliseconds 700
 Check "process exits cleanly" (-not [bool](Get-Process -Id $proc.Id -ErrorAction SilentlyContinue))

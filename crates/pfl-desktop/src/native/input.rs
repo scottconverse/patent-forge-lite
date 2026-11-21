@@ -322,6 +322,7 @@ impl Render for TextInput {
             .line_height(px(22.))
             .overflow_y_scroll()
             .track_scroll(&self.scroll)
+            .focus_visible(|style| style.border_color(rgb(0x4d8dff)).bg(rgb(0x14243a)))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, event: &gpui::MouseDownEvent, window, cx| {
