@@ -40,6 +40,7 @@ pub enum Request {
     Save(ProjectId, Intake),
     SelectRun(RunId),
     Configure(Mode),
+    SetProfile(SetupProfile),
     Start {
         project: ProjectId,
         kind: WorkflowKind,
@@ -67,6 +68,7 @@ pub enum Reply {
         snapshot: RunSnapshot,
     },
     Configured(Mode),
+    Settings(Settings),
     Exported(PathBuf),
     Recovered(Vec<RunId>),
     Error(String),
@@ -207,6 +209,9 @@ impl Actor {
         if let Ok(projects) = self.service.projects().await {
             self.reply(Reply::Projects(projects));
         }
+        if let Ok(settings) = self.service.settings().await {
+            self.reply(Reply::Settings(settings));
+        }
         let mut interval = tokio::time::interval(std::time::Duration::from_millis(120));
         loop {
             tokio::select! {
@@ -268,6 +273,12 @@ impl Actor {
             Request::SelectRun(id) => {
                 let snapshot = self.service.run(id).await?;
                 self.selected(snapshot).await;
+            }
+            Request::SetProfile(profile) => {
+                let mut settings = self.service.settings().await?;
+                settings.profile = profile;
+                self.service.save_settings(settings.clone()).await?;
+                self.reply(Reply::Settings(settings));
             }
             Request::Configure(mode) => {
                 for id in &self.started_runs {

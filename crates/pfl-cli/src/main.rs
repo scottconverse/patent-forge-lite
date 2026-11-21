@@ -544,22 +544,65 @@ async fn pipeline(workspace: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Serves the compatibility API over one synthetic workspace. The token is read
+/// from `PFL_API_TOKEN`; without it the API is open, matching legacy behaviour.
+async fn serve(workspace: PathBuf, addr: String) -> Result<()> {
+    let marker = read_marker(&workspace)?;
+    let database = workspace.join(&marker.database);
+    let _profile_lock = take_profile_lock(&database)?;
+    let open = database.clone();
+    let store: Arc<dyn Store> = Arc::new(
+        tokio::task::spawn_blocking(move || SqliteStore::open(open))
+            .await
+            .map_err(|e| Error::Storage(e.to_string()))??,
+    );
+    let provider: Arc<dyn Provider> = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+    service.recover_interrupted().await?;
+    let token = std::env::var("PFL_API_TOKEN")
+        .ok()
+        .filter(|v| !v.is_empty());
+    let state = pfl_api::ApiState::new(service.clone(), token.clone());
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .map_err(|e| Error::Io(format!("cannot bind {addr}: {e}")))?;
+    let bound = listener
+        .local_addr()
+        .map_err(|e| Error::Io(e.to_string()))?
+        .to_string();
+    println!(
+        "{}",
+        serde_json::json!({
+            "mode": "synthetic_recorded_replay",
+            "listening": bound,
+            "authentication": if token.is_some() { "bearer" } else { "open" },
+        })
+    );
+    let served = pfl_api::serve_listener(listener, state)
+        .await
+        .map_err(|e| Error::Io(e.to_string()));
+    service.shutdown().await?;
+    served
+}
+
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = async {
         let command = args.first().map(String::as_str).ok_or_else(|| invalid(
-            "usage: pfl-cli <replay|import-replay|pause-fixture|resume|pipeline> --workspace <directory> [--stage <1..6>]"
+            "usage: pfl-cli <replay|import-replay|pause-fixture|resume|pipeline|serve> --workspace <directory> [--stage <1..6>] [--addr <host:port>]"
         ))?;
-        if !matches!(command, "replay" | "import-replay" | "pause-fixture" | "resume" | "pipeline") {
+        if !matches!(command, "replay" | "import-replay" | "pause-fixture" | "resume" | "pipeline" | "serve") {
             return Err(invalid("unknown command; this harness never starts live inference"));
         }
         let mut workspace = None;
         let mut stage = None;
+        let mut addr = None;
         let mut i = 1;
         while i < args.len() {
             match (args[i].as_str(), args.get(i + 1)) {
                 ("--workspace", Some(value)) if workspace.is_none() => workspace = Some(PathBuf::from(value)),
+                ("--addr", Some(value)) if addr.is_none() => addr = Some(value.to_string()),
                 ("--stage", Some(value)) if stage.is_none() => {
                     stage = Some(value.parse::<usize>().map_err(|_| invalid("invalid pause stage"))?);
                 }
@@ -572,9 +615,15 @@ async fn main() {
         {
             return Err(invalid("only pause-fixture accepts and requires --stage 1..6"));
         }
+        if addr.is_some() != (command == "serve") {
+            return Err(invalid("only serve accepts --addr"));
+        }
         let workspace = workspace.ok_or_else(|| invalid("--workspace is required"))?;
         if command == "pipeline" {
             return pipeline(workspace).await;
+        }
+        if command == "serve" {
+            return serve(workspace, addr.unwrap_or_else(|| "127.0.0.1:4330".into())).await;
         }
         journey(command, workspace, stage).await
     }.await;

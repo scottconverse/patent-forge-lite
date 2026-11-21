@@ -178,9 +178,19 @@ pub fn user(stage: Stage, input: &RunInput, outputs: &BTreeMap<Stage, String>) -
             let s4 = get(Stage::Landscape);
             match stage {
                 Stage::TechnicalRestatement => format!("Analyze this invention:\n\n{n}"),
-                Stage::PriorArt => format!(
-                    "## Invention (Technical Restatement from Stage 1)\n\n{s1}\n\n## Original Inventor Description\n\n{n}"
-                ),
+                Stage::PriorArt => {
+                    let mut text = format!(
+                        "## Invention (Technical Restatement from Stage 1)\n\n{s1}\n\n## Original Inventor Description\n\n{n}"
+                    );
+                    // Research is optional; when references were supplied they are
+                    // given verbatim, and no invented sources are ever added.
+                    if !upstream.prior_art.is_empty() {
+                        text.push_str(&format!(
+                            "\n\n## Supplied prior-art references\n\n{prior_art}"
+                        ));
+                    }
+                    text
+                }
                 Stage::Patentability => format!(
                     "## Technical Restatement\n\n{s1}\n\n## Prior Art Found\n\n{}\n\n## Original Description\n\n{n}",
                     if s2.is_empty() {

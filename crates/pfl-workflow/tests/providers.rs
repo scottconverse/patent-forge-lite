@@ -185,6 +185,127 @@ async fn local_ollama_wire_format_streams_and_reports_usage() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn supplied_research_reaches_the_prior_art_stage_and_is_snapshotted() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ReplayProvider::all_workflows());
+    let research: Arc<dyn ResearchSource> =
+        Arc::new(FixtureResearchSource::new(vec![PriorArtItem {
+            reference: "US 7654321 B2".into(),
+            relevance: "Synthetic fixture reference for the research seam.".into(),
+        }]));
+    let service = WorkflowService::new_with_research(
+        store.clone(),
+        provider.clone(),
+        tokio::runtime::Handle::current(),
+        Some(research),
+    );
+    let project = service
+        .create_project(Intake {
+            title: "Synthetic research fixture".into(),
+            description: [
+                "SYNTHETIC TEST MATERIAL ONLY, not an actual invention or patent claim. ",
+                "A fictional container carries a sensor sampled by a controller driving one ",
+                "indicator and reporting an unavailable sensor rather than inventing a ",
+                "reading, purely so this text satisfies the explicit word minimum and lets ",
+                "the prior-art research seam be exercised deterministically with recorded ",
+                "responses, no network access and no real invention data whatsoever.",
+            ]
+            .concat(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let run = service
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Feasibility,
+            "research-1".into(),
+            Authorization {
+                synthetic_data: true,
+                research: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        run.input.upstream.prior_art[0].reference, "US 7654321 B2",
+        "research is snapshotted into the run input"
+    );
+    for _ in 0..600 {
+        if service
+            .run(run.id.clone())
+            .await
+            .unwrap()
+            .outcome
+            .is_terminal()
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let prior_art_request = provider
+        .requests()
+        .into_iter()
+        .find(|request| request.stage == Stage::PriorArt)
+        .unwrap();
+    assert!(
+        prior_art_request.user_prompt.contains("US 7654321 B2"),
+        "supplied references must reach the prior-art stage"
+    );
+    assert!(
+        prior_art_request
+            .user_prompt
+            .contains("Supplied prior-art references")
+    );
+    // Unauthorized research never queries the source and yields no references.
+    let quiet: Arc<dyn ResearchSource> = Arc::new(FixtureResearchSource::new(vec![PriorArtItem {
+        reference: "US 9999999 B2".into(),
+        relevance: "must not appear".into(),
+    }]));
+    let other_store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let quiet_service = WorkflowService::new_with_research(
+        other_store,
+        Arc::new(ReplayProvider::all_workflows()),
+        tokio::runtime::Handle::current(),
+        Some(quiet),
+    );
+    let quiet_project = quiet_service
+        .create_project(Intake {
+            title: "Synthetic no-research fixture".into(),
+            description: [
+                "SYNTHETIC TEST MATERIAL ONLY, not an actual invention or patent claim. ",
+                "A fictional container carries a sensor sampled by a controller driving one ",
+                "indicator and reporting an unavailable sensor rather than inventing a ",
+                "reading, purely so this text satisfies the explicit word minimum and lets ",
+                "the no-research path be exercised deterministically with recorded ",
+                "responses, no network access and no real invention data whatsoever.",
+            ]
+            .concat(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let unauthorized = quiet_service
+        .start_workflow(
+            quiet_project.id,
+            WorkflowKind::Feasibility,
+            "research-2".into(),
+            Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert!(unauthorized.input.upstream.prior_art.is_empty());
+    let _ = quiet_service.cancel(unauthorized.id).await;
+    let _ = service.cancel(run.id).await;
+    let _ = service.shutdown().await;
+    let _ = quiet_service.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn lean_setup_refuses_a_local_runtime_but_full_setup_allows_it() {
     let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
     let project = {

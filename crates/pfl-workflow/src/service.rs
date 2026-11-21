@@ -24,6 +24,9 @@ pub struct WorkflowService {
     store: Arc<dyn Store>,
     provider: Arc<dyn Provider>,
     runtime: Handle,
+    /// Optional prior-art source. Absent means no research is performed at all;
+    /// it is only consulted for runs that explicitly authorized research.
+    research: Option<Arc<dyn ResearchSource>>,
     commands: Mutex<()>,
     jobs: StdMutex<HashMap<RunId, Job>>,
     stopping: AtomicBool,
@@ -34,10 +37,21 @@ impl WorkflowService {
     /// The application must retain the Tokio runtime until shutdown completes.
     /// This constructor has no recovery, network, filesystem or provider effects.
     pub fn new(store: Arc<dyn Store>, provider: Arc<dyn Provider>, runtime: Handle) -> Arc<Self> {
+        Self::new_with_research(store, provider, runtime, None)
+    }
+
+    /// Adds a prior-art source without changing anything else about a run.
+    pub fn new_with_research(
+        store: Arc<dyn Store>,
+        provider: Arc<dyn Provider>,
+        runtime: Handle,
+        research: Option<Arc<dyn ResearchSource>>,
+    ) -> Arc<Self> {
         Arc::new(Self {
             store,
             provider,
             runtime,
+            research,
             commands: Mutex::new(()),
             jobs: StdMutex::new(HashMap::new()),
             stopping: AtomicBool::new(false),
@@ -164,7 +178,7 @@ impl WorkflowService {
         authorization: Authorization,
     ) -> Result<RunSnapshot> {
         let project = self.project(project_id.clone()).await?;
-        let upstream = self.upstream(&project_id, kind).await?;
+        let mut upstream = self.upstream(&project_id, kind).await?;
         // Setup profiles decide which provider families an installation may use.
         if self.settings().await?.profile == SetupProfile::Lean
             && self.provider.snapshot().kind == ProviderKind::Local
@@ -172,6 +186,14 @@ impl WorkflowService {
             return Err(Error::Invalid(
                 "Lean setup is Cloud-only: it never acquires or uses a local runtime".into(),
             ));
+        }
+        if let Some(research) = &self.research
+            && authorization.research
+            && kind == WorkflowKind::Feasibility
+        {
+            upstream.prior_art = research
+                .prior_art(&project.intake, CancellationToken::new())
+                .await?;
         }
         self.start(NewRun {
             id: RunId::new(),

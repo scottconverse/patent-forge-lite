@@ -425,5 +425,11 @@ pub fn router(state: Arc<ApiState>) -> Router {
 /// Lite never claims the legacy 4320-4324 range by default.
 pub async fn serve(addr: &str, state: Arc<ApiState>) -> std::io::Result<()> {
     let listener = TcpListener::bind(addr).await?;
+    serve_listener(listener, state).await
+}
+
+/// Serves on an already-bound listener, so a caller can report the exact address
+/// it actually bound (including an ephemeral port).
+pub async fn serve_listener(listener: TcpListener, state: Arc<ApiState>) -> std::io::Result<()> {
     axum::serve(listener, router(state)).await
 }

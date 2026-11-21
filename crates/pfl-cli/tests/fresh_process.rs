@@ -157,6 +157,59 @@ fn full_pipeline_runs_all_four_workflows_in_dependency_order() {
 }
 
 #[test]
+fn serve_exposes_the_compatibility_api_on_an_ephemeral_port() {
+    use std::io::{BufRead, BufReader};
+    let temp = tempfile::tempdir().unwrap();
+    let workspace = temp.path().join("server");
+    // Create the marked workspace first with a completed pipeline.
+    let seeded = cli()
+        .arg("pipeline")
+        .arg("--workspace")
+        .arg(&workspace)
+        .output()
+        .unwrap();
+    assert!(seeded.status.success());
+    let mut child = OwnedChild(
+        cli()
+            .arg("serve")
+            .arg("--workspace")
+            .arg(&workspace)
+            .arg("--addr")
+            .arg("127.0.0.1:0")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let stdout = child.0.stdout.take().unwrap();
+    let mut line = String::new();
+    BufReader::new(stdout).read_line(&mut line).unwrap();
+    let banner: serde_json::Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(banner["authentication"], "open");
+    let addr = banner["listening"].as_str().unwrap().to_string();
+    fn http_get(addr: &str, path: &str) -> String {
+        use std::io::{Read, Write};
+        let mut stream = std::net::TcpStream::connect(addr).unwrap();
+        write!(
+            stream,
+            "GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n"
+        )
+        .unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).unwrap();
+        response
+    }
+    let health = http_get(&addr, "/api/health");
+    assert!(health.starts_with("HTTP/1.1 200"), "{health}");
+    assert!(health.contains("\"status\":\"ok\""), "{health}");
+    let projects = http_get(&addr, "/api/projects");
+    assert!(projects.starts_with("HTTP/1.1 200"), "{projects}");
+    let body = projects.split("\r\n\r\n").nth(1).unwrap_or_default();
+    let parsed: serde_json::Value = serde_json::from_str(body).unwrap();
+    assert_eq!(parsed.as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn replay_persists_exports_and_refuses_nonempty_or_unmarked_workspaces() {
     let temp = tempfile::tempdir().unwrap();
     let workspace = temp.path().join("synthetic");

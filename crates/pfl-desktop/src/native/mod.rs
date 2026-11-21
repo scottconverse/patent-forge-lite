@@ -100,6 +100,7 @@ struct Desktop {
     saved_intake: Intake,
     mode: Option<Mode>,
     workflow: WorkflowKind,
+    profile: SetupProfile,
     synthetic: bool,
     authorized_local: bool,
     pending: bool,
@@ -163,6 +164,7 @@ impl Desktop {
             saved_intake: Intake::default(),
             mode: None,
             workflow: WorkflowKind::Feasibility,
+            profile: SetupProfile::Lean,
             synthetic: false,
             authorized_local: false,
             pending: false,
@@ -298,6 +300,10 @@ impl Desktop {
                 Reply::Error(error) => {
                     self.state.notice = Some(error);
                     self.pending = false;
+                }
+                Reply::Settings(settings) => {
+                    self.profile = settings.profile;
+                    cx.notify();
                 }
                 Reply::Stopped | Reply::Recovered(_) => {}
             }
@@ -718,7 +724,38 @@ impl Render for Desktop {
                     .child(self.button("local-consent",
                         if self.authorized_local { "[x] Authorize local inference for this synthetic input" } else { "[ ] Authorize local inference for this synthetic input" },
                         |this, _, cx| { this.authorized_local = !this.authorized_local; cx.notify(); }, cx))
-                    .child("Cloud and paid providers are fail-closed in this first slice. Full/Lean distribution profiles are later parity work.");
+                    .child(
+                        "Cloud and paid providers require an explicit paid authorization per run; nothing is sent until then. Lean setup is Cloud-only and refuses a local runtime; Full setup offers both.",
+                    );
+                content = content.child(div().text_xl().child("Setup profile"));
+                content = content.child(div().flex().gap_3().children(
+                    [SetupProfile::Lean, SetupProfile::Full].map(|profile| {
+                        let selected = self.profile == profile;
+                        let label = match profile {
+                            SetupProfile::Lean => "Lean (Cloud setup, no local runtime)",
+                            SetupProfile::Full => "Full (Local and Cloud)",
+                        };
+                        self.button(
+                            SharedString::from(format!(
+                                "profile-{}",
+                                match profile {
+                                    SetupProfile::Lean => "lean",
+                                    SetupProfile::Full => "full",
+                                }
+                            )),
+                            if selected {
+                                format!("• {label}")
+                            } else {
+                                label.to_string()
+                            },
+                            move |this, _, cx| {
+                                this.send(Request::SetProfile(profile), cx);
+                                this.state.notice = Some(format!("Setup profile set to {label}."));
+                            },
+                            cx,
+                        )
+                    }),
+                ));
             }
         }
 
