@@ -878,3 +878,6 @@ scripts/acceptance-check.ps1 verifies that every matrix row carries a defined st
 
 The check was tested against a deliberately broken copy: a wrong summary count, a missing evidence path and an injected 'not implemented' row each produced a failure and exit code 1. A check that has never failed proves nothing.
 
+
+The self-check immediately earned its place: on its first CI run it failed the build because the summary still said 54 pass while the rows said 55 -- the row added in the same commit had not been counted. The number is corrected and the check passes again.
+

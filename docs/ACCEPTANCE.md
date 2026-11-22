@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 54 |
+| pass | 55 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
