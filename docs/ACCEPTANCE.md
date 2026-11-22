@@ -114,6 +114,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | macOS and Linux artifacts from this revision | — | **blocked — hardware**; runbook delivered |
 | macOS and Linux installed acceptance | — | **blocked — hardware** — `docs/PLATFORM-RUNBOOK.md` |
 | Documentation agreement at this revision | review | pass — manual, packaging, release notes and this matrix describe what the build does |
+| This matrix checks itself, in CI: counts match rows, evidence paths exist, no stale claims, no single-stage promise | run (`scripts/acceptance-check.ps1`) + CI step | pass — verified to fail on an injected bad count, a missing evidence path and a stale claim |
 
 ## Open defects
 

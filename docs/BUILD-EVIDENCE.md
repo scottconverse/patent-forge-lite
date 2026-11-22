@@ -871,3 +871,10 @@ F5: the manual no longer says Cloud is missing (the card is below the fold), no 
 
 ACCEPTANCE.md was two layered matrices, and the older one still claimed Cloud was not selectable, that the desktop had no editing surface, that revision comparison was unimplemented and that upgrade/rollback was untested. It is now one matrix: 54 pass, 1 not verified (HTTP writes), 2 blocked on hardware, 1 on a key, 1 on authorization, 1 open defect, every row naming its evidence class and artifact, followed by the open defects, the seven decisions that remain Scott's, and an explicit list of what the document does not claim. The counts were verified by counting the rows rather than by adding prose together.
 
+
+## Phase G (the matrix now checks itself, 2026-11-22)
+
+scripts/acceptance-check.ps1 verifies that every matrix row carries a defined status, that the summary counts equal the rows, that every docs/evidence path and document named in the document exists, that no row still calls a proven feature unimplemented, and that nothing promises single-stage regeneration. It runs as a CI step on all three platforms, so drift is a build failure rather than a review finding.
+
+The check was tested against a deliberately broken copy: a wrong summary count, a missing evidence path and an injected 'not implemented' row each produced a failure and exit code 1. A check that has never failed proves nothing.
+

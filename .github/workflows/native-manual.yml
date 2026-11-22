@@ -38,3 +38,8 @@ jobs:
       - run: cargo test --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo build -p pfl-desktop --features native --locked --target ${{ matrix.target }}
+      # The acceptance matrix is a document, so it can drift. This makes drift a build
+      # failure: counts must match rows, evidence paths must exist, no stale claims.
+      - name: Acceptance matrix consistency
+        shell: pwsh
+        run: ./scripts/acceptance-check.ps1
