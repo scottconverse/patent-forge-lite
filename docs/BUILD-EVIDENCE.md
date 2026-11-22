@@ -586,3 +586,8 @@ Decision 3: the application is MIT (LICENSE, commit 42fe5e9); prompt templates s
 
 The session actor gained a Cloud mode and an in-memory key. Selecting Cloud builds no provider until a key exists; configuring without one is refused with a message naming the key, and no provider call occurs. A Cloud run requires explicit paid approval; without it the start is refused before any provider work. The key is held only in the actor for the session and is never written to settings, snapshots, events or exports. Two session tests prove both refusals with a provider call count of zero.
 
+
+## Phase A (A7 Lean profile, 2026-11-21)
+
+A Lean installation refuses Local with the message naming the profile, and does not refuse Cloud: a Lean Cloud run starts, fails at the loopback provider with 503, and is recorded as Failed rather than being stopped by the profile gate. Two tests in consent.rs, using a loopback endpoint that always answers 503 so no real Cloud host is contacted.
+

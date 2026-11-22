@@ -181,3 +181,99 @@ fn remote_runtimes_cannot_be_constructed_as_on_machine_local_inference() {
     assert!(OllamaProvider::new("http://localhost:11434", "phi4-mini:latest").is_ok());
     assert!(OllamaProvider::new("http://[::1]:11434", "phi4-mini:latest").is_ok());
 }
+
+/// A loopback endpoint that always answers 503. Used to prove a profile gate was
+/// passed without contacting a real Cloud host.
+async fn unavailable_endpoint() -> String {
+    use axum::{Router, http::StatusCode, routing::post};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new().route(
+                "/v1/messages",
+                post(|| async { (StatusCode::SERVICE_UNAVAILABLE, "unavailable") }),
+            ),
+        )
+        .await
+        .unwrap();
+    });
+    format!("http://{address}")
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn lean_refuses_local_inference_with_a_clear_message() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider =
+        Arc::new(OllamaProvider::new("http://127.0.0.1:11434", "phi4-mini:latest").unwrap());
+    let service = WorkflowService::new(store, provider, Handle::current());
+    let mut settings = service.settings().await.unwrap();
+    settings.profile = SetupProfile::Lean;
+    service.save_settings(settings).await.unwrap();
+    let project = service.create_project(intake()).await.unwrap();
+
+    let error = service
+        .start_workflow(
+            project.id,
+            WorkflowKind::Feasibility,
+            "lean-local".into(),
+            Authorization {
+                synthetic_data: true,
+                local_inference: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect_err("Lean must refuse a local runtime");
+    assert!(
+        error.to_string().contains("Lean setup is Cloud-only"),
+        "unexpected error: {error}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn lean_permits_cloud_past_the_profile_gate() {
+    let base = unavailable_endpoint().await;
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(CloudProvider::with_endpoint("key", "model", &base).unwrap());
+    let service = WorkflowService::new(store, provider, Handle::current());
+    let mut settings = service.settings().await.unwrap();
+    settings.profile = SetupProfile::Lean;
+    service.save_settings(settings).await.unwrap();
+    let project = service.create_project(intake()).await.unwrap();
+
+    let run = service
+        .start_workflow(
+            project.id,
+            WorkflowKind::Feasibility,
+            "lean-cloud".into(),
+            Authorization {
+                synthetic_data: true,
+                paid_provider: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("Lean must not refuse Cloud: the profile gate lets the run start");
+    assert_eq!(run.input.provider.kind, ProviderKind::Cloud);
+
+    // The loopback endpoint answers 503, so the run must fail rather than have
+    // been stopped by the profile.
+    let finished = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+        loop {
+            let current = service.run(run.id.clone()).await.unwrap();
+            if current.outcome.is_terminal() {
+                return current;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the run reaches a terminal outcome");
+    assert_eq!(
+        finished.outcome,
+        RunOutcome::Failed,
+        "the provider's 503 must surface as a failed run, not a Lean refusal"
+    );
+}

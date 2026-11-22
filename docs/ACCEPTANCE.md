@@ -46,6 +46,8 @@ quality or legal correctness.
 | Cloud mode at the session layer; key held in memory for the session only | unit (session tests) | pass |
 | Cloud start refused without explicit paid approval, zero provider calls | unit (session tests) | pass |
 | Cloud selectable in the desktop UI | — | **not implemented** |
+| Lean refuses Local with a clear message | unit (`consent.rs`) | pass |
+| Lean permits Cloud past the profile gate (fails at the provider, not the gate) | unit, loopback 503 | pass |
 
 ## 3. Reference lineage and research
 
