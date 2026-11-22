@@ -1245,10 +1245,17 @@ impl Render for Desktop {
             Page::Workflow => {
                 content = content.child(self.page_header(
                     self.workflow.label(),
-                    format!(
-                        "{} stages. A workflow that consumes another needs that analysis complete first.",
-                        self.workflow.stage_count()
-                    ),
+                    if self.workflow == WorkflowKind::Compliance {
+                        format!(
+                            "{} checks. Reviews the claim set against the feasibility analysis — it does not review a drafted specification yet.",
+                            self.workflow.stage_count()
+                        )
+                    } else {
+                        format!(
+                            "{} stages. A workflow that consumes another needs that analysis complete first.",
+                            self.workflow.stage_count()
+                        )
+                    },
                     Some(
                         div()
                             .flex()

@@ -247,14 +247,14 @@ pub fn user(stage: Stage, input: &RunInput, outputs: &BTreeMap<Stage, String>) -
         WorkflowKind::Compliance => {
             let check = stage.label();
             format!(
-                "## Claims Under Review\n\n{}\n\n## Specification\n\n{}\n\n## Invention Narrative\n\n{n}\n\n## Prior Art Context\n\n{prior_art}\n\n---\n\nPerform the {check} compliance check and report findings with severity and citations to the supplied text.",
+                "## Claims Under Review\n\n{}\n\n## Feasibility Analysis (reference text — this is NOT a drafted application specification)\n\n{}\n\n## Invention Narrative\n\n{n}\n\n## Prior Art Context\n\n{prior_art}\n\n---\n\nPerform the {check} check against the claims above. The reference text is the feasibility analysis, not a drafted specification; say so plainly if a check cannot be made without one. Report findings with severity and citations to the supplied text.",
                 if upstream.claims_text.trim().is_empty() {
                     "No claims were supplied for this review."
                 } else {
                     upstream.claims_text.as_str()
                 },
                 if upstream.specification_text.trim().is_empty() {
-                    "No separate specification text was supplied."
+                    "No feasibility analysis text was supplied."
                 } else {
                     upstream.specification_text.as_str()
                 }
