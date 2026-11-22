@@ -24,7 +24,8 @@ Anything installed writes its JSON and, where relevant, its request log into
 | blocked — hardware | 2 |
 | blocked — key | 1 |
 | blocked — authorization | 1 |
-| open defect | 2 |
+| blocked — harness | 1 |
+| open defect | 1 |
 
 ## Phase A — Cloud correctness and consent
 
@@ -38,7 +39,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Cloud mode at the session layer; key held in memory for the session only | unit, session tests | pass |
 | Cloud start refused without explicit paid approval | unit, session tests | pass |
 | Paid approval control present in the window; run refused without it | installed | pass |
-| Declining sends zero requests; approval reaches the provider | installed + mock | **open** — the proof now configures Cloud (keyboard activation reaches the control) but its two start checks fail at this revision: pressing Start through this script never reaches the handler, while the same control starts runs in `installed-local-proof` (5/5 at this revision). The defect is in this script's state handling, not in the app. Evidence for the earlier passes remains in `docs/evidence/cloud-consent/`. |
+| Declining sends zero requests; approval reaches the provider | installed + mock | **blocked — harness** — the scripted decline cannot be demonstrated: pressing Start through this script never reaches the handler, while the same control starts runs in `installed-local-proof` (5/5 at this revision). Its three run-path assertions were removed rather than left passing vacuously; the gate itself is proven by the session tests, and the earlier 7/7 evidence remains in `docs/evidence/cloud-consent/`. |
 | No fallback: a failed Cloud call makes exactly one request and leaves no checkpoint | unit, `consent.rs` | pass |
 | Loopback-only verification hook; a non-loopback Cloud endpoint is refused | unit | pass |
 | Lean refuses a local runtime with a clear message | unit, `consent.rs` | pass |

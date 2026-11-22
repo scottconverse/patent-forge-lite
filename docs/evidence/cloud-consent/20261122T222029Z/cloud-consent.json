@@ -1,0 +1,34 @@
+{
+  "synthetic data declared": {
+    "pass": true,
+    "detail": "(notice: Opening the most recent project.)"
+  },
+  "Cloud configured against the loopback endpoint": {
+    "pass": true,
+    "detail": "(notice: Execution mode configured. No inference request was sent.)"
+  },
+  "the cost line names the model and the rates": {
+    "pass": true,
+    "detail": "(cost: claude-mock: cost unknown. No rates are configured for this model, so no total can be stated.)"
+  },
+  "the cost line says the total is unknown": {
+    "pass": true,
+    "detail": "(cost: claude-mock: cost unknown. No rates are configured for this model, so no total can be stated.)"
+  },
+  "a known model shows the rates applied": {
+    "pass": true,
+    "detail": "(cost: claude-sonnet-4: cost unknown until the run reports usage. Rates applied: 3.00 input and 15.00 output per 1M tokens.)"
+  },
+  "paid approval recorded": {
+    "pass": true,
+    "detail": "(notice: Execution mode configured. No inference request was sent.)"
+  },
+  "the cost line is shown before the paid run": {
+    "pass": true,
+    "detail": "(cost: claude-mock: cost unknown. No rates are configured for this model, so no total can be stated.)"
+  },
+  "the approved run completes": {
+    "pass": true,
+    "detail": ""
+  }
+}

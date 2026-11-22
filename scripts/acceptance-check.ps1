@@ -31,6 +31,7 @@ function Status-Of([string]$row) {
     if ($row -match '\|\s*pass( —)?') { return 'pass' }
     if ($row -match 'not verified') { return 'not verified' }
     if ($row -match 'blocked — hardware') { return 'blocked — hardware' }
+    if ($row -match 'blocked — harness') { return 'blocked — harness' }
     if ($row -match 'blocked — key') { return 'blocked — key' }
     if ($row -match 'blocked — authorization') { return 'blocked — authorization' }
     if ($row -match '\*\*open\*\*') { return 'open defect' }
@@ -49,7 +50,7 @@ Record 'every matrix row has a defined status' ($unknown.Count -eq 0) "(unknown:
 # Summary counts must match the rows exactly.
 $summaryOk = $true
 $summaryDetail = @()
-foreach ($status in @('pass', 'not verified', 'blocked — hardware', 'blocked — key', 'blocked — authorization', 'open defect')) {
+foreach ($status in @('pass', 'not verified', 'blocked — harness', 'blocked — hardware', 'blocked — key', 'blocked — authorization', 'open defect')) {
     $declared = $null
     foreach ($line in $lines) {
         if ($line -match ("^\| " + [regex]::Escape($status) + " \| (\d+) \|")) {

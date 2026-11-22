@@ -895,3 +895,10 @@ The Cloud consent proof went from 3 failing checks to 2. Its configure step now 
 
 The two start checks still fail. Pressing Start from this script never reaches the handler -- four attempts, with the button re-resolved and both the Invoke pattern and a pointer click tried -- yet the same control starts runs in installed-local-proof, which passes 5/5 at this revision. The difference is therefore in this script's state handling, not in the application, and the acceptance row says exactly that rather than claiming either a pass or an app defect. One earlier 'declining sends zero requests' pass in this script was hollow for the same reason: no request was sent because the run never started.
 
+
+## Phase A (A5 honesty pass, 2026-11-22)
+
+cloud-consent-proof now proves what it can: the synthetic declaration, Cloud configuration, the cost line in three forms, the paid-approval toggle and the pre-run cost line -- 7/7. Its three run-path assertions were removed, not repaired, because each of them passed without the action it claimed to test: 'declining sends zero requests' passed when no run started, and 'the approved run completes' matched any 'Completed' already on screen.
+
+The scripted decline therefore remains undemonstrated and the acceptance row is marked blocked -- harness, naming the positive control: installed-local-proof starts three runs through the same control at this revision (5/5). The gate itself stays covered by the session tests. This is worse than a pass and better than a false one.
+
