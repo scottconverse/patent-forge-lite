@@ -45,7 +45,8 @@ quality or legal correctness.
 | Split UTF-8 across SSE chunks reassembles; invalid UTF-8 is an error, not U+FFFD | unit | pass |
 | Cloud mode at the session layer; key held in memory for the session only | unit (session tests) | pass |
 | Cloud start refused without explicit paid approval, zero provider calls | unit (session tests) | pass |
-| Cloud selectable in the desktop UI | — | **not implemented** |
+| Cloud selectable in the desktop UI | installed, UI automation | pass (33 checks) |
+| Paid Cloud approval control present; run refused without it | installed, UI automation | pass |
 | Lean refuses Local with a clear message | unit (`consent.rs`) | pass |
 | Lean permits Cloud past the profile gate (fails at the provider, not the gate) | unit, loopback 503 | pass |
 | Cost confirmation states *unknown* plus the rates, never a fabricated total | unit (`cost.rs`) | pass |

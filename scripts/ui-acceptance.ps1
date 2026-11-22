@@ -236,6 +236,8 @@ Check "real-invention consent is offered" ([bool](Find-Contains 'Real invention 
 Invoke-Element 'Synthetic test data'
 $syntheticOn = [System.Windows.Automation.AutomationElement]::FocusedElement
 Check "synthetic declaration can be ticked" ([bool](Find-Contains '✓  Synthetic test data'))
+Check "Cloud key field is present and masked" ([bool](Find-ById 'input-Cloud API key'))
+Check "paid Cloud approval control is present" ([bool](Find-Contains 'Approve paid Cloud request'))
 Invoke-Element 'Analysis page'
 Invoke-Element 'Start new version'
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)

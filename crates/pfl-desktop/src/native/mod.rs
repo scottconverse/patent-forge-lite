@@ -201,6 +201,10 @@ struct Desktop {
     /// The operator acknowledged the invention is real and stays on this machine.
     real_data: bool,
     authorized_local: bool,
+    /// The operator approved the paid Cloud request for the next run.
+    cloud_approved: bool,
+    cloud_model: Entity<TextInput>,
+    cloud_key: Entity<TextInput>,
     pending: bool,
     start_key: Option<String>,
     pending_open: Option<ProjectId>,
@@ -256,6 +260,14 @@ impl Desktop {
         let model = cx.new(|cx| {
             TextInput::new(TextBuffer::new("", false), 42., cx).labelled("Local model name")
         });
+        let cloud_model = cx.new(|cx| {
+            TextInput::new(TextBuffer::new("", false), 42., cx).labelled("Cloud model name")
+        });
+        let cloud_key = cx.new(|cx| {
+            TextInput::new(TextBuffer::new("", false), 42., cx)
+                .labelled("Cloud API key")
+                .masked(true)
+        });
         let view = cx.weak_entity();
         window.on_window_should_close(cx, move |_, cx| {
             view.update(cx, |view, cx| view.can_close(cx))
@@ -294,6 +306,9 @@ impl Desktop {
             synthetic: false,
             real_data: false,
             authorized_local: false,
+            cloud_approved: false,
+            cloud_model,
+            cloud_key,
             pending: false,
             start_key: None,
             pending_open: None,
@@ -540,9 +555,12 @@ impl Desktop {
         }
         if (!self.synthetic && !self.real_data)
             || (matches!(self.mode, Some(Mode::Local { .. })) && !self.authorized_local)
+            || (matches!(self.mode, Some(Mode::Cloud { .. })) && !self.cloud_approved)
         {
-            self.state.notice =
-                Some("Declare the data and authorize local inference in Execution setup.".into());
+            self.state.notice = Some(
+                "Declare the data, authorize local inference, or approve the paid Cloud request."
+                    .into(),
+            );
             return;
         }
         let key = self
@@ -557,6 +575,7 @@ impl Desktop {
                 synthetic_data: self.synthetic,
                 real_data: self.real_data,
                 local_inference: self.authorized_local,
+                paid_provider: self.cloud_approved,
                 ..Default::default()
             },
         };
@@ -1826,6 +1845,30 @@ impl Render for Desktop {
                         .text_color(rgb(theme::FAINT))
                         .child("A remote endpoint is not on-machine inference. Nothing is installed or downloaded."),
                 );
+                mode_card = mode_card
+                    .child(theme::divider())
+                    .child(theme::micro("CLOUD (ANTHROPIC) · PAID PER RUN"))
+                    .child(self.labelled("CLOUD MODEL NAME", self.cloud_model.clone()))
+                    .child(self.labelled("CLOUD API KEY (SESSION ONLY)", self.cloud_key.clone()))
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(rgb(theme::FAINT))
+                            .child(pfl_workflow::confirmation_text("Cloud model", None)),
+                    )
+                    .child(self.primary_button(
+                        "cloud-mode",
+                        "Configure Cloud with this key",
+                        |this, _, cx| {
+                            let model = this.cloud_model.read(cx).buffer.text().to_string();
+                            let key = this.cloud_key.read(cx).buffer.text().to_string();
+                            // The key travels to the session actor and nowhere else.
+                            let _ = this.session.request(Request::SetCloudKey(Some(key)));
+                            this.cloud_approved = false;
+                            this.send(Request::Configure(Mode::Cloud { model }), cx);
+                        },
+                        cx,
+                    ));
 
                 let consents = theme::panel()
                     .p_6()
@@ -1876,6 +1919,19 @@ impl Render for Desktop {
                         },
                         |this, _, cx| {
                             this.authorized_local = !this.authorized_local;
+                            cx.notify();
+                        },
+                        cx,
+                    ))
+                    .child(self.button(
+                        "cloud-consent",
+                        if self.cloud_approved {
+                            "✓  Approve paid Cloud request (this run)"
+                        } else {
+                            "○  Approve paid Cloud request (this run)"
+                        },
+                        |this, _, cx| {
+                            this.cloud_approved = !this.cloud_approved;
                             cx.notify();
                         },
                         cx,

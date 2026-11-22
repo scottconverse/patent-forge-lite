@@ -601,3 +601,8 @@ confirmation_text produces the statement a consent screen shows before a paid ru
 
 TextInput gained a masked mode for the Cloud key field. The mask replaces every byte with an asterisk while preserving byte length exactly, so cursor and selection offsets do not move; newlines are kept so wrapping is unchanged. Two tests assert offset preservation, that the secret is not painted, and newline handling. The field is not yet placed on the Setup page.
 
+
+## Phase A (A3/A4 Cloud UI, 2026-11-21)
+
+The Setup page now carries a Cloud section: a masked session-only key field, a Cloud model field, the honest cost statement from confirmation_text, a Configure Cloud button that sends the key to the session actor and configures the mode, and a per-run paid approval control. The run start refuses without that approval, so declining sends nothing. The UI harness checks the key field and the approval control (33 checks). The cost sentence is plain text that the accessibility tree does not expose, so it is covered by unit tests rather than an automation check.
+
