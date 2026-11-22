@@ -163,7 +163,8 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | C2 opt-in research records verified references; opt-out queries nothing | pass | integration (`research_run.rs`) |
 | C3 denied opt-in zero requests | pass | unit: research tests |
 | C4 IDS from records only | pass | unit: lineage test |
-| C5 desktop research entry: masked key, configure control, per-run opt-in | installed (harness) | partial — controls present, live query blocked on key |
+| C5 research end to end in the window: opt-out sends nothing, opt-in sends exactly one query, the verified reference is shown on the run | installed + mock, 8/8 twice | pass — `docs/evidence/research/` (JSON, request log, screenshot) |
+| C live PatentsView query | — | **blocked — key** |
 | D1 model picker | partial | list_local_models verified against real runtime; no picker UI |
 | D2 first-run profile choice | partial | profile selectable in Setup; no first-run prompt |
 | D3 tray/lifecycle | not implemented | |

@@ -131,6 +131,7 @@ pub enum Reply {
     Exported(PathBuf),
     Revision(DocumentRevision),
     PackageExported(PathBuf),
+    ResearchConfigured,
     Revisions(Vec<DocumentRevision>),
     Recovered(Vec<RunId>),
     Error(String),
@@ -572,7 +573,7 @@ impl Actor {
                     Some(source),
                 );
                 self.research_configured = true;
-                self.reply(Reply::Configured(self.mode.clone().unwrap_or(Mode::Replay)));
+                self.reply(Reply::ResearchConfigured);
             }
             Request::SetCloudKey(key) => {
                 // In memory only. Never logged, stored or echoed back.

@@ -798,3 +798,10 @@ Regeneration is suffix-only, as decided: a new run re-runs the chosen stage and 
 
 Unit test: regenerating from the fourth stage yields a new id and version with rerun_of set, every carried stage identical to the base run, the base run and its revision untouched. Installed proof: the window regenerates the compliance run from Definiteness onward, producing version 6 from base version 5 and completing (12/12, twice).
 
+
+## Phase C (research end to end, 2026-11-22)
+
+Against a loopback PatentsView mock: a run without the per-run opt-in completes and the mock records zero requests; enabling the opt-in installs the key and the run sends exactly one query; the verified reference is then rendered on the run from its immutable input, with an addressable row ('10123456 - Container with integrated temperature indicator - Acme Sensors - 2022-05-17 - USPTO PatentsView - verified'). 8/8, twice, with JSON, request log and screenshot per run under docs/evidence/research/.
+
+The live query remains blocked on a key; nothing here contacts a real provider. Two fixes came out of this work: enabling the opt-in now installs the key (so a run cannot be authorized for research that was never configured), and a research configuration has its own reply rather than reusing the mode notice.
+

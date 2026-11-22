@@ -211,6 +211,7 @@ struct Desktop {
     cloud_key: Entity<TextInput>,
     research_key: Entity<TextInput>,
     research_authorized: bool,
+    research_configured: bool,
     revisions: Vec<DocumentRevision>,
     /// The last comparison shown, rendered from two stored revisions.
     revision_diff: Option<pfl_workflow::diff::RevisionDiff>,
@@ -332,6 +333,7 @@ impl Desktop {
             cloud_key,
             research_key,
             research_authorized: false,
+            research_configured: false,
             revisions: Vec::new(),
             revision_diff: None,
             compliance_claims: None,
@@ -484,6 +486,10 @@ impl Desktop {
                     self.start_key = None;
                     self.state.notice =
                         Some("Execution mode configured. No inference request was sent.".into());
+                }
+                Reply::ResearchConfigured => {
+                    self.state.notice =
+                        Some("Research configured. It runs only for a run that opts in.".into());
                 }
                 Reply::PackageExported(path) => {
                     self.state.notice = Some(format!("Package written to {}", path.display()));
@@ -1340,6 +1346,7 @@ impl Render for Desktop {
 
                 let mut tabs = div()
                     .id("workflow-tabs")
+                    .accessibility_id("workflow-tabs")
                     .role(Role::TabList)
                     .flex()
                     .flex_row()
@@ -1706,6 +1713,67 @@ impl Render for Desktop {
                             ));
                         }
                         content = content.child(row);
+                    }
+                }
+
+                // References recorded on this run, straight from its immutable input.
+                if let Some(view) = self
+                    .state
+                    .run
+                    .as_ref()
+                    .filter(|view| !view.snapshot.input.upstream.prior_art.is_empty())
+                {
+                    {
+                        let mut list = theme::panel()
+                            .id("prior-art")
+                            .accessibility_id("prior-art")
+                            .p_5()
+                            .flex()
+                            .flex_col()
+                            .gap_2()
+                            .child(theme::micro("REFERENCES RECORDED FOR THIS RUN"));
+                        for (index, item) in
+                            view.snapshot.input.upstream.prior_art.iter().enumerate()
+                        {
+                            let dates = if item.grant_date.trim().is_empty() {
+                                String::new()
+                            } else {
+                                format!(" · {}", item.grant_date)
+                            };
+                            let source = if item.source.trim().is_empty() {
+                                String::new()
+                            } else {
+                                format!(" · {}", item.source)
+                            };
+                            let status = if item.verified {
+                                "verified"
+                            } else {
+                                "unverified"
+                            };
+                            list = list.child(
+                                div()
+                                    .id(format!("prior-art-{index}"))
+                                    .accessibility_id(format!("prior-art-entry-{index}"))
+                                    .role(Role::Group)
+                                    .aria_label(format!(
+                                        "Reference {}: {}",
+                                        item.reference, item.title
+                                    ))
+                                    .flex()
+                                    .flex_col()
+                                    .gap_1()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .text_color(rgb(theme::TEXT))
+                                            .child(format!("{} — {}", item.reference, item.title)),
+                                    )
+                                    .child(div().text_xs().text_color(rgb(theme::MUTED)).child(
+                                        format!("{}{}{} · {status}", item.assignee, dates, source),
+                                    )),
+                            );
+                        }
+                        content = content.child(list);
                     }
                 }
 
@@ -2358,6 +2426,15 @@ impl Render for Desktop {
                         },
                         |this, _, cx| {
                             this.research_authorized = !this.research_authorized;
+                            // Opting in also installs the key, so the run cannot be
+                            // authorized for research that was never configured.
+                            if this.research_authorized {
+                                let key = this.research_key.read(cx).buffer.text().to_string();
+                                if !key.trim().is_empty() && !this.research_configured {
+                                    this.send(Request::ConfigureResearch { api_key: key }, cx);
+                                    this.research_configured = true;
+                                }
+                            }
                             cx.notify();
                         },
                         cx,
