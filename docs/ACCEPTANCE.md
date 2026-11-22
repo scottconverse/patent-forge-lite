@@ -1,0 +1,113 @@
+# Acceptance record
+
+Revision: `4c0f05e` · Candidate: `dist\patent-forge-lite-0.1.0-x64.exe` (unsigned, unpublished)
+Record owner: agent · Status: **incomplete** — several gate items below are open by design.
+
+This record separates what was **executed** from what is merely implemented. Anything not run is
+listed as not run, not as passing.
+
+## Evidence classes
+
+- **Unit / integration**: `cargo test --workspace` in this repository.
+- **CI**: `.github/workflows/native-manual.yml` on a pushed commit, one job per platform.
+- **Run**: a command executed in this session with its output quoted.
+- **Installed**: the packaged application installed and driven through UI Automation.
+- **Mock**: exercised against a loopback server standing in for a provider.
+
+These are never interchangeable. Replay and mock evidence proves orchestration, not research
+quality or legal correctness.
+
+## 1. Engine and storage
+
+| Item | Evidence | Result |
+| --- | --- | --- |
+| Four workflows, 19 stages, verbatim upstream prompts | unit + CLI `pipeline` | pass |
+| Transactional SQLite, idempotent versions, checkpoint/attempt guards | unit | pass |
+| Crash recovery across fresh processes | integration (`fresh_process`) | pass |
+| Single-owner profile lock | integration | pass |
+| Exports: Markdown, HTML, `.docx` | unit; Word opened by hand (Scott) | pass |
+
+## 2. Providers and consent
+
+| Item | Evidence | Result |
+| --- | --- | --- |
+| Replay refuses real-invention declaration | unit | pass |
+| Exactly one data declaration (service and local adapter) | unit | pass |
+| Real data refused for Cloud (local-only in this build) | unit | pass |
+| Local endpoint must be loopback | unit + CLI run | pass |
+| Terminal frame required; missing frame → `Truncated` | unit + installed run | pass |
+| Stop reason allowlist (`stop` / `end_turn` / `stop_sequence`) | unit | pass |
+| Output-limit stop → `Truncated`, no report | unit + installed run | pass |
+| Malformed / mid-frame cloud stream → error | unit | pass |
+| Cloud reachable from the desktop | — | **not implemented** |
+
+## 3. Reference lineage and research
+
+| Item | Evidence | Result |
+| --- | --- | --- |
+| References supplied to feasibility reach claims, compliance, application | integration | pass |
+| IDS assembled only from recorded records | integration | pass |
+| Manual references via CLI (`--references`) | run | pass |
+| Opt-in HTTP research adapter, distinct empty/failed outcomes | unit (mock) | pass |
+| A real provider contacted | — | **not attempted** (needs provider choice and credentials) |
+
+## 4. Revisions, review and export
+
+| Item | Evidence | Result |
+| --- | --- | --- |
+| Versioned revisions anchored to immutable runs | integration | pass |
+| Compliance reviews selected revisions | integration | pass |
+| Claim structure validation (numbering, dependencies, references) | unit + CLI run | pass |
+| Edit → validate → save → package chain | run | pass |
+| Revision comparison / targeted regeneration | — | **not implemented** |
+| Desktop editing surface | — | **not implemented** |
+
+## 5. Desktop and accessibility
+
+| Item | Evidence | Result |
+| --- | --- | --- |
+| Branded GPUI interface, all pages render | installed, screenshots | pass |
+| Accessibility tree, labelled controls, announced run status | installed | pass |
+| `scripts/ui-acceptance.ps1` (isolated profile, PID-bound) | installed | pass (31 checks) |
+| Real-declared Local start, Truncated display, same-run resume | installed + loopback mock | pass |
+| Resume skips completed stages | installed + mock request counts (6 → 3 → 4) | pass |
+| macOS / Linux installed behaviour | — | **not run** |
+| Full / Lean usable as designed | — | **not run** (Cloud not selectable) |
+
+## 6. Project management, setup, lifecycle
+
+| Item | Evidence | Result |
+| --- | --- | --- |
+| Projects, intake, optional context fields | installed | pass |
+| Local endpoint/model configuration | installed | pass |
+| Model readiness / installed-model discovery | — | **not implemented** |
+| Cloud selection, cost confirmation, usage records | — | **not implemented** |
+| Tray / background lifecycle | — | **not implemented** |
+
+## 7. Migration
+
+| Item | Evidence | Result |
+| --- | --- | --- |
+| Synthetic legacy importer with backup/verify/activate | integration | pass |
+| Real PatentForge data migration | — | **not implemented** (needs explicit authorization) |
+
+## 8. Packaging
+
+| Item | Evidence | Result |
+| --- | --- | --- |
+| Windows installer built, installed, uninstalled, data retained | installed | pass |
+| Azure Trusted Signing of app and installer | Azure run + `Get-AuthenticodeSignature` | pass (v0.1.0) |
+| macOS / Linux packages | CI artifacts | built; unsigned; **not installed** |
+| Upgrade / rollback | — | **not tested** |
+| Full / Lean package variants | — | **not built** |
+
+## Cross-platform CI
+
+`native-manual.yml` on `4c0f05e`: Windows x64, macOS arm64, Linux x86_64 — all **success**
+(fmt, workspace tests, clippy `-D warnings`, native build per target).
+
+## Release decision inputs
+
+- No signature or publication was made for this revision.
+- Nothing paid was contacted; no private data was used.
+- The candidate is unsigned and unpublished; v0.1.0 remains the only published release.
