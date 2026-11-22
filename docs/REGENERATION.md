@@ -1,8 +1,9 @@
 # Targeted regeneration — semantics
 
-Status: **decided: suffix regeneration.** The feature is named "regenerate from here onward", because that is what it does. The section-scoped option is closed. The whole-run
-`rerun` path exists and its invariants are tested. This note is the contract the
-section-scoped version must satisfy.
+Status: **decided: suffix regeneration.** The feature is named **"regenerate from
+here onward"** and re-runs the selected stage **and every stage after it**. The
+section-scoped option is closed and must not be implemented. This note is the
+contract for the suffix version.
 
 ## What regeneration is
 
@@ -29,19 +30,23 @@ regeneration does not consume or alter revisions:
   overwrite or absorb hand edits;
 - nothing is deleted. Old revisions and old runs stay addressable by id.
 
-## Section scope (the part still to build)
+## Suffix scope (the part still to build)
 
-A section-scoped regeneration re-runs **the named stages of one workflow** rather
-than the whole workflow:
+"Regenerate from here onward" re-runs the chosen stage **and every later stage of
+that workflow**:
 
 - the new run's input is still the base run's snapshot;
-- stages outside the selection are **copied from the base run's committed
-  checkpoints**, marked as carried over rather than regenerated;
-- the new run records which stages were regenerated, so a report can say so;
-- if a selected stage fails or is truncated, the run terminates with that
+- stages **before** the chosen one are carried over from the base run's committed
+  checkpoints, which is exactly the contiguous prefix the engine already requires;
+- the new run records which stage it restarted from, so a report can say "regenerated
+  from stage N onward";
+- if a regenerated stage fails or is truncated, the run terminates with that
   outcome and no partial stage is committed — the same rule as a normal run.
 
-## Invariants (must be tested for the section version too)
+This keeps the durability invariant intact: checkpoints remain a contiguous
+completed prefix, so resume and recovery behave exactly as they do today.
+
+## Invariants (must be tested for the suffix version too)
 
 | Invariant | Currently covered by |
 | --- | --- |
@@ -50,6 +55,7 @@ than the whole workflow:
 | Lineage is recorded (`rerun_of`) | `rerun` tests |
 | A truncated or failed regeneration saves no partial stage | run-outcome tests |
 | Revisions are never consumed or rewritten | revision tests |
+| Stages before the restart point are byte-identical to the base run | to be written with the implementation |
 
 ## Not in scope
 

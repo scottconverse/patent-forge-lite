@@ -47,7 +47,7 @@ quality or legal correctness.
 | Cloud start refused without explicit paid approval, zero provider calls | unit (session tests) | pass |
 | Cloud selectable in the desktop UI | installed + mock, 7/7 twice | pass — the Cloud card sits below the fold, not out of reach: the content area scrolls (`overflow_y_scroll`), and the proof scrolls it into view before acting |
 | Paid Cloud approval control present; run refused without it | installed, UI automation | pass |
-| Declining sends zero requests in the installed app | — | **blocked — automation cannot activate the Start control** |
+| Declining sends zero requests in the installed app | installed + mock, 7/7 twice | pass — `docs/evidence/cloud-consent/` has the JSON (`requests: 0`) and the request log for both runs |
 | No fallback: a failed Cloud call makes exactly one request, no checkpoint | unit (`consent.rs`) | pass |
 | Loopback-only verification hook for the Cloud endpoint (non-loopback refused) | unit (build) + code review | pass |
 | Lean refuses Local with a clear message | unit (`consent.rs`) | pass |
@@ -55,6 +55,7 @@ quality or legal correctness.
 | Cost confirmation states *unknown* plus the rates, never a fabricated total | unit (`cost.rs`) | pass |
 | Cost confirmation shown before a paid run in the desktop | — | **not implemented** |
 | Masked input field (mask preserves byte offsets; secret never painted) | unit (`masking_tests`) | pass |
+| **Known defect:** nav items are `Button` with no accessible action, so assistive tech cannot press them | measured per control | **open** — `nav-*` patterns `[]`, tab `SelectionItem`, Start `Invoke` |
 
 ## 3. Reference lineage and research
 
