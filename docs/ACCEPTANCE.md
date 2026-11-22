@@ -1,184 +1,145 @@
-# Acceptance record
+# Acceptance
 
-Cloud consent is designed but not implemented: see [CLOUD-CONSENT-DESIGN.md](CLOUD-CONSENT-DESIGN.md). The
-key-storage decision in that note is open and blocks the implementable half.
+What this build does, and what proves it. One row per requirement, grouped by phase.
 
-Revision: `e980d0f` · Candidate: `dist\patent-forge-lite-0.1.0-x64.exe` (unsigned, unpublished)
-Record owner: agent · Status: **incomplete** — several gate items below are open by design.
+**Evidence classes are not interchangeable.** `unit` is a test; `run` is a command whose
+output is recorded; `installed` is the packaged application driven on this machine;
+`mock` means a loopback stand-in stood in for a provider; `CI` is a build on a hosted
+runner. A row is `pass` only when the evidence named in it exists in this repository.
+Anything installed writes its JSON and, where relevant, its request log into
+`docs/evidence/<area>/<timestamp>/`.
 
-This record separates what was **executed** from what is merely implemented. Anything not run is
-listed as not run, not as passing.
+| Field | Value |
+| --- | --- |
+| Revision | `cc92d2a` |
+| Candidate version | 0.2.0 (crates still declare 0.1.0 — see `docs/RELEASE-MANIFEST.md`) |
+| Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
-## Evidence classes
+## Summary
 
-- **Unit / integration**: `cargo test --workspace` in this repository.
-- **CI**: `.github/workflows/native-manual.yml` on a pushed commit, one job per platform.
-- **Run**: a command executed in this session with its output quoted.
-- **Installed**: the packaged application installed and driven through UI Automation.
-- **Mock**: exercised against a loopback server standing in for a provider.
+| Status | Count |
+| --- | --- |
+| pass | 54 |
+| not verified | 1 |
+| blocked — hardware | 2 |
+| blocked — key | 1 |
+| blocked — authorization | 1 |
+| open defect | 1 |
 
-These are never interchangeable. Replay and mock evidence proves orchestration, not research
-quality or legal correctness.
-
-## 1. Engine and storage
-
-| Item | Evidence | Result |
-| --- | --- | --- |
-| Four workflows, 19 stages, verbatim upstream prompts | unit + CLI `pipeline` | pass |
-| Transactional SQLite, idempotent versions, checkpoint/attempt guards | unit | pass |
-| Crash recovery across fresh processes | integration (`fresh_process`) | pass |
-| Single-owner profile lock | integration | pass |
-| Exports: Markdown, HTML, `.docx` | unit; Word opened by hand (Scott) | pass |
-
-## 2. Providers and consent
+## Phase A — Cloud correctness and consent
 
 | Item | Evidence | Result |
 | --- | --- | --- |
-| Replay refuses real-invention declaration | unit | pass |
-| Exactly one data declaration (service and local adapter) | unit | pass |
-| Real data refused for Cloud (local-only in this build) | unit | pass |
-| Local endpoint must be loopback | unit + CLI run | pass |
-| Terminal frame required; missing frame → `Truncated` | unit + installed run | pass |
-| Stop reason allowlist (`stop` / `end_turn` / `stop_sequence`) | unit | pass |
-| Output-limit stop → `Truncated`, no report | unit + installed run | pass |
-| Malformed / mid-frame cloud stream → error | unit | pass |
-| Split UTF-8 across SSE chunks reassembles; invalid UTF-8 is an error, not U+FFFD | unit | pass |
-| Cloud mode at the session layer; key held in memory for the session only | unit (session tests) | pass |
-| Cloud start refused without explicit paid approval, zero provider calls | unit (session tests) | pass |
-| Cloud selectable in the desktop UI | installed + mock, 7/7 twice | pass — the Cloud card sits below the fold, not out of reach: the content area scrolls (`overflow_y_scroll`), and the proof scrolls it into view before acting |
-| Paid Cloud approval control present; run refused without it | installed, UI automation | pass |
-| Declining sends zero requests in the installed app | installed + mock, 7/7 twice | pass — `docs/evidence/cloud-consent/` has the JSON (`requests: 0`) and the request log for both runs |
-| No fallback: a failed Cloud call makes exactly one request, no checkpoint | unit (`consent.rs`) | pass |
-| Loopback-only verification hook for the Cloud endpoint (non-loopback refused) | unit (build) + code review | pass |
-| Lean refuses Local with a clear message | unit (`consent.rs`) | pass |
+| Split UTF-8 across SSE chunks reassembles; invalid UTF-8 is an error, not U+FFFD | unit, 3 tests including the old defect | pass |
+| Terminal frame required; a stream without one is `Truncated` | unit, installed run | pass |
+| Stop-reason allowlist (`stop` / `end_turn` / `stop_sequence`) | unit | pass |
+| Output-limit stop becomes `Truncated` with no report | unit, installed run | pass |
+| Malformed or mid-frame stream is an error | unit | pass |
+| Cloud mode at the session layer; key held in memory for the session only | unit, session tests | pass |
+| Cloud start refused without explicit paid approval | unit, session tests | pass |
+| Paid approval control present in the window; run refused without it | installed | pass |
+| Declining sends zero requests; approval reaches the provider | installed + mock, 7/7 twice | pass — `docs/evidence/cloud-consent/` (JSON with `requests: 0`, plus the request log) |
+| No fallback: a failed Cloud call makes exactly one request and leaves no checkpoint | unit, `consent.rs` | pass |
+| Loopback-only verification hook; a non-loopback Cloud endpoint is refused | unit | pass |
+| Lean refuses a local runtime with a clear message | unit, `consent.rs` | pass |
 | Lean permits Cloud past the profile gate (fails at the provider, not the gate) | unit, loopback 503 | pass |
-| Cost confirmation states *unknown* plus the rates, never a fabricated total | unit (`cost.rs`) | pass |
-| Cost confirmation shown before a paid run in the desktop | — | **not implemented** |
-| Masked input field (mask preserves byte offsets; secret never painted) | unit (`masking_tests`) | pass |
-| **Known defect:** nav items are `Button` with no accessible action, so assistive tech cannot press them | measured per control | **open** — `nav-*` patterns `[]`, tab `SelectionItem`, Start `Invoke` |
+| Masked key field; the mask preserves byte offsets | unit | pass |
+| Cost line states *unknown* plus the rates, never a fabricated total | unit, `cost.rs` | pass |
+| Cost line displayed in the window before a paid run | installed + mock, 11/11 twice | pass — 11/11 run also asserts `3.00 input / 15.00 output` |
 
-## 3. Reference lineage and research
-
-| Item | Evidence | Result |
-| --- | --- | --- |
-| References supplied to feasibility reach claims, compliance, application | integration | pass |
-| IDS assembled only from recorded records | integration | pass |
-| Manual references via CLI (`--references`) | run | pass |
-| Opt-in HTTP research adapter, distinct empty/failed outcomes | unit (mock) | pass |
-| A real provider contacted | — | **not attempted** (needs provider choice and credentials) |
-
-## 4. Revisions, review and export
+## Phase B — a product a person can use
 
 | Item | Evidence | Result |
 | --- | --- | --- |
-| Versioned revisions anchored to immutable runs | integration | pass |
-| Compliance reviews selected revisions | integration | pass |
-| Claim structure validation (numbering, dependencies, references) | unit + CLI run | pass |
+| Revisions versioned and anchored to immutable runs | integration | pass |
+| Compliance reviews a selected revision rather than the latest | integration | pass |
+| Claim structure validation (numbering, dependencies, references) | unit, CLI run | pass |
 | Edit → validate → save → package chain | run | pass |
-| Deterministic line diff between two revisions (LCS) | unit (`diff.rs`) | pass |
-| Revision comparison in the desktop | — | **not implemented** |
+| `SaveRevision` / `ListRevisions` session commands, anchored to the latest completed run | unit, reply-draining helper | pass |
+| Editing surface: revision field, Load run text, Save revision, List revisions | installed, harness 37/37 | pass |
+| Editing end to end: load text, save v1, edit, save v2, both listed | installed, 4/4 twice | pass — `docs/evidence/editing/` |
+| Deterministic line diff (LCS) | unit, 6 tests | pass |
+| `pfl-cli diff` between two stored revisions | run | pass |
+| Revision rows with a compare action and an inline diff | installed, 5/5 twice | pass — announces `Diff v1 to v2: 1 added, 1 removed` |
+| Select revisions for compliance from the window; the run records them | installed, 8/8 twice; session test for the recorded id | pass — new run `v5 · compliance, Completed` |
+| Export selected revisions (Markdown, HTML, Word, CSV, manifest) | installed, 11/11 twice | pass — six files written and listed |
+| Word export byte-stability | two separate processes | pass — identical `claims.docx` and every other file |
+| Regeneration semantics and plan validation | doc + unit, 5 tests | pass — `docs/REGENERATION.md` |
+| Execute "regenerate from here onward"; earlier stages byte-identical | unit + installed, 12/12 twice | pass — v5 regenerated as v6, Completed |
 | `pfl-cli revisions list` (id, kind, version, base run, note) | run | pass |
-| Desktop editing surface | — | **not implemented** |
 
-## 5. Desktop and accessibility
+## Phase C — research
 
 | Item | Evidence | Result |
 | --- | --- | --- |
-| Branded GPUI interface, all pages render | installed, screenshots | pass |
-| Accessibility tree, labelled controls, announced run status | installed | pass |
-| `scripts/ui-acceptance.ps1` (isolated profile, PID-bound) | installed | pass (31 checks) |
-| Real-declared Local start, Truncated display, same-run resume | installed + loopback mock | pass |
-| Resume skips completed stages | installed + mock request counts (6 → 3 → 4) | pass |
-| macOS / Linux installed behaviour | — | **not run** |
-| Full / Lean usable as designed | — | **not run** (Cloud not selectable) |
+| References supplied to feasibility reach the dependent workflows | integration | pass |
+| IDS assembled only from recorded records | integration | pass |
+| Manual references through the CLI (`--references`) | run | pass |
+| USPTO PatentsView adapter, records marked verified | unit, 3 tests against a loopback mock | pass |
+| Opt-in records verified references; opt-out queries nothing | integration | pass |
+| Denied opt-in sends zero requests | unit | pass |
+| Research end to end in the window: opt-out sends nothing, opt-in sends exactly one query, the reference is shown | installed + mock, 8/8 twice | pass — `docs/evidence/research/` |
+| A live PatentsView query | — | **blocked — key** (never claimed as passing) |
 
-## 6. Project management, setup, lifecycle
+## Phase D — setup and lifecycle
 
 | Item | Evidence | Result |
 | --- | --- | --- |
 | Projects, intake, optional context fields | installed | pass |
-| Local endpoint/model configuration | installed | pass |
-| Model readiness / installed-model discovery | unit (mock) + run against the real runtime | pass (36 models) |
-| Usage records, unknown ≠ zero | unit + run | pass |
-| Cost estimation from operator-supplied rates, basis stated | unit | pass |
-| Cloud selection and per-run cost confirmation UI | — | **not implemented** |
-| Tray / background lifecycle | — | **not implemented** |
+| Local endpoint and model configuration | installed | pass |
+| Model picker from the runtime's own list, with readiness stated as count / empty / unreachable | installed + mock, 4/4 twice | pass — `docs/evidence/models/` |
+| Usage records; unknown is not zero | unit, run | pass |
+| First-run profile prompt; the choice persists; Lean refuses Local, Full accepts it | installed, 6/6 twice | pass — `docs/evidence/first-run/` |
+| Single instance refused with exit code 3 and a stated reason | installed, 5/5 twice | pass — `docs/evidence/lifecycle/` |
+| Quit closes when nothing is pending; the busy-quit guard | installed for the first half; session tests for the guard | pass — the window half is not claimed |
 
-## 7. Migration
-
-| Item | Evidence | Result |
-| --- | --- | --- |
-| Synthetic legacy importer with backup/verify/activate | integration | pass |
-| Real PatentForge data migration | — | **not implemented** (needs explicit authorization) |
-
-## 8. Packaging
+## Phase E — migration
 
 | Item | Evidence | Result |
 | --- | --- | --- |
-| Windows installer built, installed, uninstalled, data retained | installed | pass |
-| Azure Trusted Signing of app and installer | Azure run + `Get-AuthenticodeSignature` | pass (v0.1.0) |
-| Licence metadata agrees with the committed licence | run (`cargo metadata` reports `"license":"MIT"`) | pass |
-| macOS / Linux packages | CI artifacts | built; unsigned; **not installed** |
-| Upgrade / rollback | — | **not tested** |
-| Full / Lean package variants | — | **not built** |
+| Copy-first importer: fixture, preview counts, provenance warnings, preserved archive, re-runnable, source untouched, missing source refused | run, 15/15 twice | pass — `docs/evidence/migration/` |
+| Credentials redacted at import (column recorded, value never carried); re-entered per session | unit + run | pass — the proof scans the activated database bytes for the fixture's key material |
+| Read API contracts verified over loopback; CLI matrix and DSH compatibility documented | run, 13/13 twice | pass — `docs/API-CONTRACTS.md`, `docs/evidence/api/` |
+| HTTP write endpoints | — | **not verified** (they change state; nothing exercised them) |
+| A real PatentForge database | — | **blocked — authorization and a copy** |
 
-## Cross-platform CI
+## Phase F — packaging
 
-`native-manual.yml` on `4c0f05e`: Windows x64, macOS arm64, Linux x86_64 — all **success**
-(fmt, workspace tests, clippy `-D warnings`, native build per target).
-
-## Release decision inputs
-
-- No signature or publication was made for this revision.
-- Nothing paid was contacted; no private data was used.
-- The candidate is unsigned and unpublished; v0.1.0 remains the only published release.
-
-## Directive coverage matrix (v3)
-
-Status per directive item. Evidence classes: unit, run, installed, mock, CI. A row is pass only with the evidence named.
-
-| Item | Status | Evidence or gap |
+| Item | Evidence | Result |
 | --- | --- | --- |
-| A1 Cloud split-UTF-8 | pass | unit: 3 tests incl. the defect demonstration |
-| A2 Cloud mode at session layer | pass | unit: session tests |
-| A3 memory-only key, masked field | pass | unit: masking tests; installed: field present |
-| A4 cost confirmation text | pass | unit: 2 tests |
-| A4b cost confirmation displayed in the window before a paid run | installed, 11/11 twice | pass |
-| A5 decline sends zero; approval reaches the provider | installed + mock, 7/7 twice | pass — evidence kept in `docs/evidence/cloud-consent/` (two runs) |
-| A6 no fallback | pass | unit: 1 request, no checkpoint |
-| A7 Lean refuses Local | pass | unit: refuses Local, permits Cloud |
-| B1 session `SaveRevision` / `ListRevisions`, anchored to the latest completed run of that kind | unit (`session.rs`, reply-draining helper) | pass |
-| B1 editing surface: revision field, Save revision, List revisions, Load run text | installed, UI automation | pass — controls present and reachable on the Claims tab (harness 37/37) |
-| B1 end-to-end: load run text, save revision 1, edit, save revision 2, both listed | installed, 4/4 twice | pass — `docs/evidence/editing/` (three runs; the first failed on an automation-only assertion, see the log) |
-| B2 diff engine | pass | unit: 6 tests |
-| `pfl-cli diff` between two revisions | run | pass |
-| B2 `pfl-cli diff` between stored revisions | pass | run |
-| B2 revision rows with a compare action and an inline diff, in the window | installed, 5/5 twice | pass |
-| B3 revision selection for compliance from the window, run completes as a new version | installed, 8/8 twice | pass |
-| B4 export the selected revisions from the window (md, html, docx, csv, manifest) | installed, 11/11 twice | pass |
-| B4 Word byte-stability | two separate processes | pass |
-| B5 semantics + plan | pass | doc + unit: 5 tests |
-| B5 execute "regenerate from here onward": new version, earlier stages byte-identical | unit (`revisions.rs`) + installed 12/12 twice | pass — v5 regenerated from Definiteness onward as v6, completed |
-| B6 revisions list | pass | run |
-| C1 PatentsView adapter | pass (mock) | unit: 3 tests; live query blocked on key |
-| C2 opt-in research records verified references; opt-out queries nothing | pass | integration (`research_run.rs`) |
-| C3 denied opt-in zero requests | pass | unit: research tests |
-| C4 IDS from records only | pass | unit: lineage test |
-| C5 research end to end in the window: opt-out sends nothing, opt-in sends exactly one query, the verified reference is shown on the run | installed + mock, 8/8 twice | pass — `docs/evidence/research/` (JSON, request log, screenshot) |
-| C live PatentsView query | — | **blocked — key** |
-| D1 model picker from list_local_models, with readiness stated honestly (count, empty, unreachable) | installed + mock, 4/4 twice | pass — `docs/evidence/models/` |
-| D2 first-run profile prompt: Full or Lean before the main surface, choice persisted, Lean refuses Local | installed, 6/6 twice | pass — `docs/evidence/first-run/` |
-| D3 single instance refused with its own exit code (3) and a clear reason; quit closes when nothing is pending | installed, 5/5 twice | pass — `docs/evidence/lifecycle/` (the busy-quit guard is covered by the session tests) |
-| D4 Windows install v0.1.0, upgrade to the candidate, roll back, with the workspace inventory unchanged at each step | run, 11/11 twice | pass — `docs/evidence/upgrade/` |
-| E1 copy-first importer: fixture, preview counts, provenance warnings, archive preserved, re-runnable, source untouched, missing source refused | run, 15/15 twice | pass — `docs/evidence/migration/` |
-| E2 real database import | blocked | authorization + database needed |
-| E3 credentials are redacted at import (archive records the column, never the value) and re-entered per session | unit + run | pass — 16/16 proof run scans the activated database |
-| E4 read API contracts verified over loopback; CLI matrix and DSH compatibility documented | run, 13/13 twice | pass — `docs/API-CONTRACTS.md`, `docs/evidence/api/` (write endpoints explicitly unverified) |
-| F1 Windows installer from one revision with SHA-256 recorded; both profiles in one package | run | pass — `docs/RELEASE-MANIFEST.md` (rev `27dbd52`) |
-| F1 macOS/Linux artifacts | — | **blocked — hardware**; runbook delivered (`docs/PLATFORM-RUNBOOK.md`) |
-| F2 Windows install/upgrade/uninstall | partial | install/uninstall/data retained proven; upgrade not tested |
-| F3 macOS/Linux installed acceptance | — | **blocked — hardware**; scripted runbook in `docs/PLATFORM-RUNBOOK.md` |
-| F4 signature status | pass | v0.1.0 signed and verified; candidate unsigned by design |
-| F5 documentation agreement at this revision | review | pass — manual, packaging and release notes corrected; candidate notes added; unverified items listed |
-| G completion matrix | partial | this section; full matrix at release |
+| One Windows installer from one revision, both profiles, SHA-256 recorded | run | pass — `docs/RELEASE-MANIFEST.md`, revision `27dbd52`, `5fc41eb0…` |
+| Windows install, upgrade, rollback, uninstall, data retained | run, 11/11 twice | pass — `docs/evidence/upgrade/` |
+| Signature status recorded truthfully | review + `Get-AuthenticodeSignature` | pass — v0.1.0 signed; candidate unsigned |
+| Licence metadata agrees with the committed licence | run, `cargo metadata` reports MIT | pass |
+| macOS and Linux artifacts from this revision | — | **blocked — hardware**; runbook delivered |
+| macOS and Linux installed acceptance | — | **blocked — hardware** — `docs/PLATFORM-RUNBOOK.md` |
+| Documentation agreement at this revision | review | pass — manual, packaging, release notes and this matrix describe what the build does |
 
+## Open defects
+
+| Defect | Measurement | Status |
+| --- | --- | --- |
+| Nav items are announced as buttons with no accessible action, so assistive technology cannot press them; automation compensates with a foregrounded coordinate click | measured per control: `nav-*` patterns `[]`, workflow tab `SelectionItem`, Start `Invoke` | **open** — registering `on_a11y_action(Click)` did not change it, and dropping `accessibility_id` lost the `AutomationId` |
+
+## Decisions that remain Scott's
+
+1. **Next release version.** The installer says 0.2.0 by compile-time override while the
+   crates say 0.1.0. Either bump the crates and re-issue, or keep 0.1.0 and accept that a
+   later revision would reuse a published file name.
+2. **Signing.** Nothing in this candidate is signed; signing a new revision needs approval
+   and a certificate.
+3. **Publication.** The candidate is unpublished. Publishing, tagging and release notes
+   for 0.2.0 are all still to be decided.
+4. **PatentsView key.** One live query would close the last Phase C row.
+5. **Migration authorization and a real database copy.** That closes Phase E2.
+6. **macOS and Linux hardware.** Without it those rows stay blocked, however good the
+   runbook is.
+7. **The `impl/*` branches.** Keep or prune; deciding is not reversible without their SHAs.
+
+## What this document does not claim
+
+- That the candidate is installed acceptance on macOS or Linux.
+- That any live provider has been contacted.
+- That a real legacy database has been migrated.
+- That the HTTP write surface works.
+- That the accessibility tree is complete, given the open nav defect.

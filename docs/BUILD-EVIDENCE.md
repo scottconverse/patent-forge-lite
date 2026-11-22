@@ -866,3 +866,8 @@ The version skew is recorded rather than hidden: the installer is named 0.2.0 by
 
 F5: the manual no longer says Cloud is missing (the card is below the fold), no longer claims a tray lifecycle exists, and no longer says Windows is signed for a candidate revision. Packaging points at the manifest and the verified upgrade run. Release notes gain a clearly-marked candidate section listing what is new and what remains unverified.
 
+
+## Phase G (acceptance matrix rewritten, 2026-11-22)
+
+ACCEPTANCE.md was two layered matrices, and the older one still claimed Cloud was not selectable, that the desktop had no editing surface, that revision comparison was unimplemented and that upgrade/rollback was untested. It is now one matrix: 54 pass, 1 not verified (HTTP writes), 2 blocked on hardware, 1 on a key, 1 on authorization, 1 open defect, every row naming its evidence class and artifact, followed by the open defects, the seven decisions that remain Scott's, and an explicit list of what the document does not claim. The counts were verified by counting the rows rather than by adding prose together.
+
