@@ -735,3 +735,8 @@ The Cloud consent proof now passes 7/7, twice in a row, against the native build
 
 Four script defects had to be fixed, none of them product defects: the stub-binary guard launched a window instead of probing with an invalid page; nav buttons expose no InvokePattern and need a foregrounded coordinate click; Invoke and clicks both do nothing on an element outside the window, so every action now scrolls it into view; and the completion check read the status bar instead of the run summary. The earlier 'no InvokePattern' diagnosis was wrong -- a workspace build had overwritten the native binary with a stub.
 
+
+## Corrections after review (2026-11-21)
+
+Three corrections, all accepted. (1) The acceptance row for Cloud selection was wrong in the opposite direction: the content area scrolls (overflow_y_scroll), so the card is below the fold, not unreachable, and its y=1260 measurement was stale. The row now records pass, with the scrolling stated. (2) Repetition was unverifiable because results went to a temp folder; the proof now writes its JSON and request log into docs/evidence/cloud-consent/<timestamp>/, and two passing runs are committed there. (3) Action patterns were measured one control at a time: nav items (nav-projects..nav-settings) are ControlType.Button with NO supported pattern, the workflow tab is a TabItem with SelectionItem, and Start new version is a Button with InvokePattern. So the inconsistency is real in the accessibility tree, not a wrong conclusion. Registering on_a11y_action(Click) on nav items did not change it, and removing accessibility_id lost the AutomationId without adding an action, so both experiments were reverted; automation keeps the foregrounded coordinate click for navigation.
+

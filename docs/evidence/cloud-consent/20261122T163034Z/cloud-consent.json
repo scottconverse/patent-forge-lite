@@ -1,0 +1,30 @@
+{
+  "synthetic data declared": {
+    "pass": true,
+    "detail": "(notice: Opening the most recent project.)"
+  },
+  "Cloud configured against the loopback endpoint": {
+    "pass": true,
+    "detail": "(notice: Execution mode configured. No inference request was sent.)"
+  },
+  "declining sends zero requests": {
+    "pass": true,
+    "detail": "(requests: 0)"
+  },
+  "refusal names the paid approval": {
+    "pass": true,
+    "detail": "(notice: Declare the data, authorize local inference, or approve the paid Cloud request.)"
+  },
+  "paid approval recorded": {
+    "pass": true,
+    "detail": "(notice: Declare the data, authorize local inference, or approve the paid Cloud request.)"
+  },
+  "approved Cloud run reaches the provider": {
+    "pass": true,
+    "detail": "(requests: 6)"
+  },
+  "the approved run completes": {
+    "pass": true,
+    "detail": ""
+  }
+}

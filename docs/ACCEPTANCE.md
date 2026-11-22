@@ -45,7 +45,7 @@ quality or legal correctness.
 | Split UTF-8 across SSE chunks reassembles; invalid UTF-8 is an error, not U+FFFD | unit | pass |
 | Cloud mode at the session layer; key held in memory for the session only | unit (session tests) | pass |
 | Cloud start refused without explicit paid approval, zero provider calls | unit (session tests) | pass |
-| Cloud selectable in the desktop UI | installed, UI automation | **partial** — controls exist but the Cloud card is clipped below the window (button at y=1260, window ends y=1227) |
+| Cloud selectable in the desktop UI | installed + mock, 7/7 twice | pass — the Cloud card sits below the fold, not out of reach: the content area scrolls (`overflow_y_scroll`), and the proof scrolls it into view before acting |
 | Paid Cloud approval control present; run refused without it | installed, UI automation | pass |
 | Declining sends zero requests in the installed app | — | **blocked — automation cannot activate the Start control** |
 | No fallback: a failed Cloud call makes exactly one request, no checkpoint | unit (`consent.rs`) | pass |
@@ -142,7 +142,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | A2 Cloud mode at session layer | pass | unit: session tests |
 | A3 memory-only key, masked field | pass | unit: masking tests; installed: field present |
 | A4 cost confirmation text | pass | unit: 2 tests |
-| A5 decline sends zero; approval reaches the provider | installed + mock, 7/7 twice | pass |
+| A5 decline sends zero; approval reaches the provider | installed + mock, 7/7 twice | pass — evidence kept in `docs/evidence/cloud-consent/` (two runs) |
 | A6 no fallback | pass | unit: 1 request, no checkpoint |
 | A7 Lean refuses Local | pass | unit: refuses Local, permits Cloud |
 | B1 desktop editing to revision | not implemented | engine save_revision exists |
@@ -153,7 +153,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | B3 revision selection in desktop | not implemented | engine selection exists |
 | B4 revision exports md/html/docx/csv/manifest | pass | unit: 7 tests |
 | B5 semantics + plan | pass | doc + unit: 5 tests |
-| B5 execution with carry-over | blocked — design | contiguous-prefix invariant; two options recorded in REGENERATION.md |
+| B5 execution | decided — not built | suffix regeneration ("regenerate from here onward"), per the chosen semantics in REGENERATION.md |
 | B6 revisions list | pass | run |
 | C1 PatentsView adapter | pass (mock) | unit: 3 tests; live query blocked on key |
 | C2 opt-in research records verified references; opt-out queries nothing | pass | integration (`research_run.rs`) |

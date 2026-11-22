@@ -1,6 +1,6 @@
 # Targeted regeneration — semantics
 
-Status: **semantics fixed; section-scoped implementation open.** The whole-run
+Status: **decided: suffix regeneration.** The feature is named "regenerate from here onward", because that is what it does. The section-scoped option is closed. The whole-run
 `rerun` path exists and its invariants are tested. This note is the contract the
 section-scoped version must satisfy.
 
@@ -62,7 +62,7 @@ than the whole workflow:
 
 The run engine requires committed checkpoints to form a **contiguous completed prefix** of the workflow's stages (service report path, and execution resumes from stages.skip(checkpoints.len())). This invariant is what makes resume safe, and a section regeneration that carries non-adjacent stages would violate it.
 
-Two ways forward, and the choice changes the semantics:
+**Decision (Scott, 2026-11-21): option 2, suffix regeneration, renamed "regenerate from here onward".** The prefix invariant is kept, the durability guarantee is untouched, and the UI must not promise single-stage regeneration.
 
 1. **Sparse checkpoints.** Add a marker to Checkpoint (serde-defaulted) saying whether it was generated or carried over, and relax the prefix rule to allow carried gaps. Faithful to section scope, but touches the durability invariant that every existing resume test depends on.
 2. **Regenerate from the first selected stage onward.** Keep the prefix rule untouched: a selection behaves as 're-run this stage and everything after it', with earlier stages carried as a genuine prefix. Simple and safe, but the name must change (it is a suffix regeneration, not an arbitrary section).

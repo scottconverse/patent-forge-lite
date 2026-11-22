@@ -25,6 +25,7 @@ if ($probe -match 'requires a native build') {
 }
 
 if (-not $OutDir) { $OutDir = Join-Path $env:TEMP ("pfl-cloud-" + [guid]::NewGuid().ToString('N').Substring(0, 6)) }
+if (-not $EvidenceDir) { $EvidenceDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'docs\evidence\cloud-consent' }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 if (-not $Port) {
     $probeSocket = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
@@ -225,6 +226,15 @@ while ((Get-Date) -lt $deadline -and -not (Find-Contains 'Completed')) { Start-S
 Record 'the approved run completes' ([bool](Find-Contains 'Completed'))
 
 $results | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $OutDir 'cloud-consent.json')
+if ($EvidenceDir) {
+    New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
+    $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
+    $keep = Join-Path $EvidenceDir $stamp
+    New-Item -ItemType Directory -Force -Path $keep | Out-Null
+    Copy-Item (Join-Path $OutDir 'cloud-consent.json') $keep -Force
+    if (Test-Path $log) { Copy-Item $log $keep -Force }
+    Write-Host "evidence kept: $keep"
+}
 Clear-Harness
 $failed = @($results.Values | Where-Object { -not $_.pass }).Count
 Write-Host ("`nRESULT: {0} passed, {1} failed" -f ($results.Count - $failed), $failed)
