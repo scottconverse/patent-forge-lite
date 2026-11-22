@@ -453,8 +453,10 @@ JSON array. A failed search is an error, never an empty result.
   reason not to.
 - **Cloud mode** sends the prompt and invention text to Anthropic, only when you authorized a paid
   run for that run.
-- **Research is disabled.** There is no live prior-art retrieval; supplied references are used
-  verbatim, and the model is told it may not invent citations. It sometimes does anyway. Verify.
+- **Research is opt-in.** USPTO PatentsView is available with a session-only key and a per-run opt-in;
+  results are recorded as verified references and flow into the IDS. A query that fails is an error,
+  never an empty result. Without opt-in, no query is made. Supplied references are used verbatim, and
+  the model is told it may not invent citations. It sometimes does anyway. Verify.
 - **Secrets** are never written into reports, events or the database. Do not paste credentials into
   the invention fields.
 - The application holds an OS-level lock on its workspace, so two instances cannot interleave writes.
@@ -474,7 +476,7 @@ JSON array. A failed search is an error, never an empty result.
 - A provider stream that ends before its terminal frame is recorded as **Truncated**, never as
   Completed; the partial text is not committed as a result.
 - Cloud inference is fail-closed and has only been verified against a mock, not a live endpoint.
-- Live research (prior-art retrieval) is a seam with a fixture source, not a provider.
+- Live research is USPTO PatentsView with a session-only key and per-run opt-in; the generic HTTP\n  contract and the fixture source remain for local use. No live query has been verified from this\n  build yet, so treat retrieval as unproven until one is.
 - One tray/background lifecycle is not implemented; closing the window closes the application.
 - Real PatentForge data migration is intentionally not in this version.
 - A single user profile per machine; there is no multi-user or team mode.

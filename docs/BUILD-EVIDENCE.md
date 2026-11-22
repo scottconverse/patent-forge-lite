@@ -718,3 +718,8 @@ pfl-cli diff --workspace --a --b renders the deterministic diff between two stor
 
 Phase A made Cloud selectable in the desktop, which made the README and manual statements that it is unavailable wrong. Both now describe the session-only key, the per-run paid approval and the unknown-until-usage cost line, and the Lean profile is recorded as usable for Cloud and replay. This is the documentation-agreement work F5 requires, applied to the one claim the code had already invalidated.
 
+
+## Phase F (F5 research documentation, 2026-11-21)
+
+The manual still said research was disabled and live retrieval was only a seam. It now describes PatentsView with a session-only key and per-run opt-in, states that a failed query is an error rather than an empty result, and records plainly that no live query has been verified from this build.
+
