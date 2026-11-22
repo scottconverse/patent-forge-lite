@@ -144,6 +144,19 @@ impl WorkflowService {
                     .into(),
             ));
         }
+        if input.authorization.synthetic_data && input.authorization.real_data {
+            return Err(Error::Invalid(
+                "a run holds exactly one data declaration: synthetic test data or a real invention, not both"
+                    .into(),
+            ));
+        }
+        // Real-invention data is Local-only until a Cloud consent model is designed.
+        if input.authorization.real_data && input.provider.kind == ProviderKind::Cloud {
+            return Err(Error::Invalid(
+                "real-invention data is local-only in this build; cloud runs require synthetic test data"
+                    .into(),
+            ));
+        }
         if input.provider.kind == ProviderKind::Replay && !input.authorization.synthetic_data {
             return Err(Error::Invalid(
                 "recorded replay produces synthetic output and cannot be used for a real-invention run"

@@ -303,3 +303,33 @@ Evidence (candidate `fb8db64a…510246`, unsigned, unpublished):
 | Real profile before/after | identical length and timestamp across harness runs |
 
 Still held: no signing run, no publication, no Increment B.
+## Increment A — recheck fixes (candidate 3, 2026-11-21)
+
+The recheck accepted the Local fix but held the release for four reasons. All are now closed.
+
+| Finding | Fix |
+| --- | --- |
+| Harness could recursively delete a caller-supplied `-ProfileRoot` | The harness creates its own directory, refuses an existing one outright, and only deletes a directory it created (`$ownsProfileRoot`). Verified: an existing directory is refused and survives. |
+| Running-instance check logged a failure but continued | It now throws before seeding or launching, so it cannot drive another window. Verified: with a foreign instance live, the harness aborts and that process survives untouched. |
+| Completion accepted unsupported stop reasons | Replaced the denylist with per-provider **allowlists**: Ollama completes only on `stop`; Cloud only on `end_turn` / `stop_sequence`. An absent reason, a limit, `tool_use`, `pause_turn` or any unknown value is `Incomplete` → `Truncated`. |
+| Run could be both synthetic and real; Cloud widened to real data | Exactly one declaration is required (service and local adapter); Cloud requires synthetic data, so real-invention data is **Local-only**. `real_data + paid_provider` on Cloud is refused with an explicit message. |
+
+The stricter stop rule immediately found three fixtures that had been passing without a stop reason
+(two in `tests/providers.rs`, one in `tests/run_outcomes.rs`); all now carry `done_reason: "stop"` /
+`stop_reason: "end_turn"`.
+
+Evidence (candidate `f2c0ddeb…aa475`, unsigned, unpublished):
+
+| Check | Result |
+| --- | --- |
+| `cargo test --workspace` | **117 passed**, exit 0 |
+| fmt / clippy `-D warnings` | clean |
+| Real-declared Local run (loopback mock) | `Completed`, `real_data` recorded |
+| Missing terminal frame / `length` stop | `Truncated`, no report |
+| Unsupported reasons (`tool_use`, `pause_turn`, unknown) | `Truncated` |
+| Both declarations | refused: "exactly one data declaration" |
+| Real data + Cloud | refused: "local-only" |
+| Harness safety | existing `-ProfileRoot` refused and preserved; foreign instance aborts and survives |
+| Installed acceptance, owned temp profile | **31 passed**, real profile untouched |
+
+Still held: no signing, no publication, no Increment B.

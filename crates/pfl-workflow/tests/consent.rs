@@ -105,6 +105,56 @@ async fn synthetic_replay_records_its_declaration() {
     let _ = service.shutdown().await;
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_run_cannot_claim_both_declarations() {
+    let service = service();
+    let id = project(&service).await;
+    let error = service
+        .start_workflow(
+            id,
+            WorkflowKind::Feasibility,
+            "both-declarations".into(),
+            Authorization {
+                synthetic_data: true,
+                real_data: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect_err("exactly one declaration is allowed");
+    assert!(
+        error.to_string().contains("exactly one data declaration"),
+        "unexpected error: {error}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn real_invention_data_cannot_be_sent_to_cloud() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    // A cloud adapter with a placeholder endpoint: the policy refuses before any call.
+    let provider =
+        Arc::new(CloudProvider::with_endpoint("key", "model", "http://127.0.0.1:1").unwrap());
+    let service = WorkflowService::new(store, provider, Handle::current());
+    let id = project(&service).await;
+    let error = service
+        .start_workflow(
+            id,
+            WorkflowKind::Feasibility,
+            "real-cloud".into(),
+            Authorization {
+                real_data: true,
+                paid_provider: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect_err("real data is local-only in this build");
+    assert!(
+        error.to_string().contains("local-only"),
+        "unexpected error: {error}"
+    );
+}
+
 #[test]
 fn old_snapshots_without_a_data_declaration_still_deserialize() {
     // A run recorded before the field existed must load, with the new field

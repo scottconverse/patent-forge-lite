@@ -34,7 +34,7 @@ async fn complete_stream() -> impl IntoResponse {
     let frames = [
         "{\"message\":{\"content\":\"Stage output \"},\"done\":false}\n",
         "{\"message\":{\"content\":\"for café\"},\"done\":false}\n",
-        "{\"message\":{\"content\":\"\"},\"done\":true,\"prompt_eval_count\":12,\"eval_count\":8}\n",
+        "{\"message\":{\"content\":\"\"},\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":12,\"eval_count\":8}\n",
     ]
     .concat();
     (

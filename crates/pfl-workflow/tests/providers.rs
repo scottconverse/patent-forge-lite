@@ -72,7 +72,7 @@ async fn cloud_ok(
         "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":11}}}\n\n",
         "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"Hello \"}}\n\n",
         "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"café\"}}\n\n",
-        "event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":7}}\n\n",
+        "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":7}}\n\n",
         "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
     ]
     .concat();
@@ -95,7 +95,7 @@ async fn ollama_ok(body: String) -> impl IntoResponse {
     let frames = [
         "{\"message\":{\"content\":\"Recorded \"},\"done\":false}\n",
         "{\"message\":{\"content\":\"local café\"},\"done\":false}\n",
-        "{\"message\":{\"content\":\"\"},\"done\":true,\"prompt_eval_count\":9,\"eval_count\":5}\n",
+        "{\"message\":{\"content\":\"\"},\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":9,\"eval_count\":5}\n",
     ]
     .concat();
     (

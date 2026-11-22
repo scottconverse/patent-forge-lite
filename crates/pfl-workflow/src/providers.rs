@@ -213,9 +213,17 @@ impl Provider for CloudProvider {
                     .into(),
             ));
         }
-        if !request.input.authorization.synthetic_data && !request.input.authorization.real_data {
+        if request.input.authorization.synthetic_data == request.input.authorization.real_data {
             return Err(Error::Invalid(
-                "the run carries no data declaration; declare synthetic test material or a real invention"
+                "the run must carry exactly one data declaration: synthetic test material or a real invention"
+                    .into(),
+            ));
+        }
+        // Real-invention data stays Local-only until Cloud disclosure and consent
+        // are designed and approved. Deliberately narrower than the local adapter.
+        if request.input.authorization.real_data {
+            return Err(Error::Invalid(
+                "real-invention data is local-only in this build; cloud runs require synthetic test data"
                     .into(),
             ));
         }
@@ -307,7 +315,13 @@ impl Provider for CloudProvider {
                 }
             }
         }
-        require_terminal_frame(complete, &text, "cloud", stop_reason.as_deref())?;
+        require_terminal_frame(
+            complete,
+            &text,
+            "cloud",
+            stop_reason.as_deref(),
+            CLOUD_COMPLETE_STOPS,
+        )?;
         Ok(ProviderResponse {
             text,
             usage: Usage {
@@ -339,26 +353,34 @@ fn take_ndjson_line(pending: &mut Vec<u8>) -> Option<Vec<u8>> {
 
 /// The single rule for "did this provider actually finish": a terminal frame was
 /// seen and the text is not blank. Anything else is incomplete, never Completed.
+/// Which stop reasons prove a stage finished. Anything else — an output limit, a
+/// continuation state such as `tool_use`, or no reason at all — is incomplete.
+const OLLAMA_COMPLETE_STOPS: &[&str] = &["stop"];
+const CLOUD_COMPLETE_STOPS: &[&str] = &["end_turn", "stop_sequence"];
+
 fn require_terminal_frame(
     complete: bool,
     text: &str,
     provider: &str,
     stop_reason: Option<&str>,
+    accepted_stops: &[&str],
 ) -> Result<()> {
     if !complete {
         return Err(Error::Incomplete(format!(
             "{provider} stream ended before its completion frame; partial text was not committed"
         )));
     }
-    // A terminal frame is not the same as a complete answer: a model that hit its
-    // output limit stopped, but it did not finish the stage.
-    if let Some(reason) = stop_reason {
-        let limited = matches!(reason, "length" | "max_tokens" | "max_output_tokens");
-        if limited {
-            return Err(Error::Incomplete(format!(
-                "{provider} stopped at its output limit ({reason}); the stage is not complete"
-            )));
-        }
+    // A terminal frame is not the same as a finished answer. A successful stop
+    // reason must be present and recognised; everything else is unsupported.
+    let Some(reason) = stop_reason else {
+        return Err(Error::Incomplete(format!(
+            "{provider} reported no stop reason, so the stage cannot be proven finished"
+        )));
+    };
+    if !accepted_stops.contains(&reason) {
+        return Err(Error::Incomplete(format!(
+            "{provider} stopped with unsupported reason '{reason}'; the stage is not complete"
+        )));
     }
     if text.trim().is_empty() {
         return Err(Error::Provider(format!(
@@ -467,9 +489,9 @@ impl Provider for OllamaProvider {
                     .into(),
             ));
         }
-        if !request.input.authorization.synthetic_data && !request.input.authorization.real_data {
+        if request.input.authorization.synthetic_data == request.input.authorization.real_data {
             return Err(Error::Invalid(
-                "the run carries no data declaration; declare synthetic test material or a real invention"
+                "the run must carry exactly one data declaration: synthetic test material or a real invention"
                     .into(),
             ));
         }
@@ -546,6 +568,7 @@ impl Provider for OllamaProvider {
                             &text,
                             "Ollama",
                             frame.done_reason.as_deref(),
+                            OLLAMA_COMPLETE_STOPS,
                         )?;
                         return Ok(ProviderResponse {
                             text,
@@ -602,32 +625,86 @@ mod tests {
 
     #[test]
     fn a_stream_without_its_terminal_frame_is_incomplete_not_completed() {
-        let error = require_terminal_frame(false, "partial analysis", "Ollama", None).unwrap_err();
+        let error = require_terminal_frame(
+            false,
+            "partial analysis",
+            "Ollama",
+            None,
+            OLLAMA_COMPLETE_STOPS,
+        )
+        .unwrap_err();
         assert!(matches!(error, Error::Incomplete(_)));
-        // And a terminal frame with no text is its own provider error.
-        let empty = require_terminal_frame(true, "   ", "cloud", None).unwrap_err();
+        // Accepted stop but no text is its own provider error.
+        let empty =
+            require_terminal_frame(true, "   ", "cloud", Some("end_turn"), CLOUD_COMPLETE_STOPS)
+                .unwrap_err();
         assert!(matches!(empty, Error::Provider(_)));
-        assert!(require_terminal_frame(true, "complete analysis", "Ollama", Some("stop")).is_ok());
+        assert!(
+            require_terminal_frame(
+                true,
+                "complete analysis",
+                "Ollama",
+                Some("stop"),
+                OLLAMA_COMPLETE_STOPS
+            )
+            .is_ok()
+        );
     }
 
     #[test]
-    fn an_output_limit_stop_is_not_a_completed_stage() {
-        // A terminal frame is not enough: the model must have chosen to stop.
-        for reason in ["length", "max_tokens", "max_output_tokens"] {
-            let error = require_terminal_frame(true, "whole answer so far", "Ollama", Some(reason))
-                .unwrap_err();
+    fn only_a_successful_stop_reason_completes_a_stage() {
+        for reason in [
+            "length",
+            "max_tokens",
+            "max_output_tokens",
+            "tool_use",
+            "pause_turn",
+            "something_new",
+        ] {
+            let error = require_terminal_frame(
+                true,
+                "whole answer so far",
+                "cloud",
+                Some(reason),
+                CLOUD_COMPLETE_STOPS,
+            )
+            .unwrap_err();
             assert!(
                 matches!(error, Error::Incomplete(_)),
                 "{reason} must be incomplete, got {error:?}"
             );
-            assert!(error.to_string().contains("output limit"));
         }
-        // Normal stop reasons still complete.
-        for reason in ["stop", "end_turn", "stop_sequence"] {
-            assert!(require_terminal_frame(true, "text", "cloud", Some(reason)).is_ok());
+        // A limit is named in the message so the operator can act on it.
+        let limit = require_terminal_frame(
+            true,
+            "text",
+            "Ollama",
+            Some("length"),
+            OLLAMA_COMPLETE_STOPS,
+        )
+        .unwrap_err();
+        assert!(limit.to_string().contains("unsupported reason 'length'"));
+        // No reason at all cannot prove the stage finished.
+        let missing =
+            require_terminal_frame(true, "text", "cloud", None, CLOUD_COMPLETE_STOPS).unwrap_err();
+        assert!(missing.to_string().contains("no stop reason"));
+        // The accepted set differs per provider.
+        for reason in OLLAMA_COMPLETE_STOPS {
+            assert!(
+                require_terminal_frame(true, "text", "Ollama", Some(reason), OLLAMA_COMPLETE_STOPS)
+                    .is_ok()
+            );
         }
-        // A missing stop reason is tolerated only when a terminal frame arrived.
-        assert!(require_terminal_frame(true, "text", "cloud", None).is_ok());
+        for reason in CLOUD_COMPLETE_STOPS {
+            assert!(
+                require_terminal_frame(true, "text", "cloud", Some(reason), CLOUD_COMPLETE_STOPS)
+                    .is_ok()
+            );
+        }
+        assert!(
+            require_terminal_frame(true, "text", "cloud", Some("stop"), CLOUD_COMPLETE_STOPS)
+                .is_err()
+        );
     }
     #[test]
     fn streaming_frames_preserve_unicode_and_unknown_usage() {

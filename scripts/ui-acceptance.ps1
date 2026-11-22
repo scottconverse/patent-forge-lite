@@ -137,10 +137,19 @@ Write-Host ("binary: {0}" -f $Exe)
 # Isolation: the app resolves its data directory from LOCALAPPDATA, so the harness
 # points it at a throwaway root for both seeding and the launched process. The
 # operator's real profile is never read, replaced or deleted.
-if (-not $ProfileRoot) {
+# The harness only ever deletes a directory it created itself. A caller-supplied
+# -ProfileRoot must not exist, so cleanup cannot remove someone else's data.
+if ($ProfileRoot) {
+    if (Test-Path $ProfileRoot) {
+        throw "refusing to use an existing -ProfileRoot: $ProfileRoot (the harness deletes its own temporary profile)"
+    }
+    New-Item -ItemType Directory -Path $ProfileRoot | Out-Null
+    $ownsProfileRoot = $true
+} else {
     $ProfileRoot = Join-Path ([IO.Path]::GetTempPath()) ("pfl-ui-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    New-Item -ItemType Directory -Path $ProfileRoot | Out-Null
+    $ownsProfileRoot = $true
 }
-New-Item -ItemType Directory -Force -Path $ProfileRoot | Out-Null
 $previousLocalAppData = $env:LOCALAPPDATA
 # Snapshot the real profile so the harness can prove it did not write to it.
 $realProfile = if ($previousLocalAppData) { Join-Path $previousLocalAppData 'patent-forge-lite\projects.sqlite3' } else { $null }
@@ -153,6 +162,10 @@ Write-Host ("  data root: {0}" -f $ProfileRoot)
 # harness must not stop a process it did not start.
 $foreign = @(Get-Process -Name 'pfl-desktop' -ErrorAction SilentlyContinue)
 Check "no other Patent Forge Lite instance is running" ($foreign.Count -eq 0) ("(pids: {0})" -f (($foreign | ForEach-Object { $_.Id }) -join ','))
+if ($foreign.Count -gt 0) {
+    # Driving the wrong window would produce meaningless passes. Abort instead.
+    throw "another Patent Forge Lite instance is running (pids $(($foreign | ForEach-Object { $_.Id }) -join ',')); close it and rerun"
+}
 
 if (-not $NoSeed) {
     & (Join-Path $PSScriptRoot 'seed-profile.ps1') -Force | Out-Null
@@ -275,7 +288,7 @@ Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 700
 Check "process exits cleanly" (-not [bool](Get-Process -Id $proc.Id -ErrorAction SilentlyContinue))
 if ($previousLocalAppData) { $env:LOCALAPPDATA = $previousLocalAppData } else { Remove-Item Env:\LOCALAPPDATA -ErrorAction SilentlyContinue }
-if (-not $KeepProfile) { Remove-Item $ProfileRoot -Recurse -Force -ErrorAction SilentlyContinue }
+if (-not $KeepProfile -and $ownsProfileRoot) { Remove-Item $ProfileRoot -Recurse -Force -ErrorAction SilentlyContinue }
 $afterStamp = if ($realProfile -and (Test-Path $realProfile)) { (Get-Item $realProfile).LastWriteTimeUtc } else { $null }
 Check "the operator's real profile was not modified" ($afterStamp -eq $realStamp) ("(before: {0}, after: {1})" -f $realStamp, $afterStamp)
 
