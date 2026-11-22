@@ -300,7 +300,8 @@ impl Provider for CloudProvider {
                 // stage finished.
                 let Ok(frame) = serde_json::from_str::<serde_json::Value>(data) else {
                     return Err(Error::Provider(
-                        "cloud stream contained a malformed frame; the stage is not complete".into(),
+                        "cloud stream contained a malformed frame; the stage is not complete"
+                            .into(),
                     ));
                 };
                 match frame["type"].as_str() {

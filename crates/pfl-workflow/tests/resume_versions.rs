@@ -104,10 +104,18 @@ async fn resumed_compliance_reviews_the_claims_it_recorded() {
         )
         .await
         .unwrap();
-    assert_eq!(wait(&service, &feasibility.id).await.outcome, RunOutcome::Completed);
+    assert_eq!(
+        wait(&service, &feasibility.id).await.outcome,
+        RunOutcome::Completed
+    );
 
     let claims_v1 = service
-        .start_workflow(project.id.clone(), WorkflowKind::Claims, "c1".into(), auth())
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Claims,
+            "c1".into(),
+            auth(),
+        )
         .await
         .unwrap();
     let claims_v1 = wait(&service, &claims_v1.id).await;
@@ -135,7 +143,12 @@ async fn resumed_compliance_reviews_the_claims_it_recorded() {
 
     // A newer claims set now exists. It must not leak into the resumed review.
     let claims_v2 = service
-        .start_workflow(project.id.clone(), WorkflowKind::Claims, "c2".into(), auth())
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Claims,
+            "c2".into(),
+            auth(),
+        )
         .await
         .unwrap();
     let claims_v2 = wait(&service, &claims_v2.id).await;
