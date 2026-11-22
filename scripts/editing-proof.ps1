@@ -190,6 +190,9 @@ Invoke-Named 'List revisions'
 $listed = Wait-Notice '2 stored revision(s)' 12
 Record 'both revisions are listed (2 stored)' $listed "(notice: $(Notice))"
 
+Invoke-Named 'Compare v2 with v1'
+Record 'revision comparison reports the change' (Wait-Notice 'Diff v1 to v2') "(notice: $(Notice))"
+
 New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $keep = Join-Path $EvidenceDir $stamp

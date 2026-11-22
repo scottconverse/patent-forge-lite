@@ -212,6 +212,8 @@ struct Desktop {
     research_key: Entity<TextInput>,
     research_authorized: bool,
     revisions: Vec<DocumentRevision>,
+    /// The last comparison shown, rendered from two stored revisions.
+    revision_diff: Option<pfl_workflow::diff::RevisionDiff>,
     revision_text: Entity<TextInput>,
     pending: bool,
     start_key: Option<String>,
@@ -328,6 +330,7 @@ impl Desktop {
             research_key,
             research_authorized: false,
             revisions: Vec::new(),
+            revision_diff: None,
             revision_text,
             pending: false,
             start_key: None,
@@ -1441,34 +1444,94 @@ impl Render for Desktop {
                                             cx,
                                         )),
                                 );
-                        for revision in self
-                            .revisions
-                            .iter()
-                            .filter(|revision| revision.kind == kind)
+                        // Rows carry a compare action that diffs the previous version of the
+                        // same kind against this one. Built from cloned data so the closures
+                        // can mutate the view.
+                        let mut rows: Vec<(u32, String, String, Option<String>, String)> =
+                            Vec::new();
                         {
-                            let base = revision
-                                .base_run_id
-                                .as_ref()
-                                .map(|run| run.0.chars().take(8).collect::<String>())
-                                .unwrap_or_else(|| "manual".into());
-                            panel = panel.child(
-                                div()
-                                    .flex()
-                                    .flex_row()
-                                    .items_center()
-                                    .gap_2()
-                                    .child(theme::pill(
-                                        format!("v{}", revision.version),
-                                        theme::ACCENT,
-                                        0x3a2418,
-                                    ))
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .text_color(rgb(theme::MUTED))
-                                            .child(format!("base {base} · {}", revision.note)),
-                                    ),
-                            );
+                            let series: Vec<DocumentRevision> = self
+                                .revisions
+                                .iter()
+                                .filter(|revision| revision.kind == kind)
+                                .cloned()
+                                .collect();
+                            for (index, entry) in series.iter().enumerate() {
+                                let base = entry
+                                    .base_run_id
+                                    .as_ref()
+                                    .map(|run| run.0.chars().take(8).collect::<String>())
+                                    .unwrap_or_else(|| "manual".into());
+                                let previous = index
+                                    .checked_sub(1)
+                                    .and_then(|prior| series.get(prior))
+                                    .map(|prior| prior.text.clone());
+                                rows.push((
+                                    entry.version,
+                                    base,
+                                    entry.note.clone(),
+                                    previous,
+                                    entry.text.clone(),
+                                ));
+                            }
+                        }
+                        for (version, base, note, previous, text) in rows {
+                            let mut row = div()
+                                .flex()
+                                .flex_row()
+                                .items_center()
+                                .gap_x_2()
+                                .gap_y_2()
+                                .child(theme::pill(format!("v{version}"), theme::ACCENT, 0x3a2418))
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(rgb(theme::MUTED))
+                                        .child(format!("base {base} · {note}")),
+                                );
+                            if let Some(previous) = previous {
+                                let comparison = pfl_workflow::diff::diff_text(&previous, &text);
+                                let added = comparison.added;
+                                let removed = comparison.removed;
+                                row = row.child(self.button(
+                                    format!("compare-v{version}"),
+                                    format!("Compare v{version} with v{}", version - 1),
+                                    move |this, _, cx| {
+                                        this.revision_diff = Some(comparison.clone());
+                                        this.state.notice = Some(format!(
+                                            "Diff v{} to v{}: {added} added, {removed} removed",
+                                            version - 1,
+                                            version
+                                        ));
+                                        cx.notify();
+                                    },
+                                    cx,
+                                ));
+                            }
+                            panel = panel.child(row);
+                        }
+                        if let Some(diff) = &self.revision_diff {
+                            let mut block = div()
+                                .flex()
+                                .flex_col()
+                                .gap_1()
+                                .p_3()
+                                .bg(rgb(0x11202e))
+                                .rounded_md();
+                            for line in diff.lines.iter().take(200) {
+                                let (prefix, colour) = match line.kind {
+                                    pfl_workflow::diff::DiffKind::Added => ("+", theme::ACCENT),
+                                    pfl_workflow::diff::DiffKind::Removed => ("-", theme::DANGER),
+                                    pfl_workflow::diff::DiffKind::Same => (" ", theme::MUTED),
+                                };
+                                block = block.child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(rgb(colour))
+                                        .child(format!("{prefix} {}", line.text)),
+                                );
+                            }
+                            panel = panel.child(block);
                         }
                         content = content.child(panel);
                     }

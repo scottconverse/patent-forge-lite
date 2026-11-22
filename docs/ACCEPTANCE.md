@@ -152,7 +152,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | B2 diff engine | pass | unit: 6 tests |
 | `pfl-cli diff` between two revisions | run | pass |
 | B2 `pfl-cli diff` between stored revisions | pass | run |
-| B2 diff in desktop | not implemented | |
+| B2 revision rows with a compare action and an inline diff, in the window | installed, 5/5 twice | pass |
 | B3 revision selection in desktop | not implemented | engine selection exists |
 | B4 revision exports md/html/docx/csv/manifest | pass | unit: 7 tests |
 | B5 semantics + plan | pass | doc + unit: 5 tests |

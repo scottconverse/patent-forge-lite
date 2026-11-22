@@ -772,3 +772,10 @@ The first attempt is kept deliberately: it failed only because the check looked 
 
 CI on ec56d13 failed only on macOS: the quit-guard test asserted the active-job count immediately after the Run reply, and on that runner the counter lagged by a scheduling tick. The test now waits for the count, as its neighbouring assertions already did.
 
+
+## Phase B (B2 diff in the window, 2026-11-22)
+
+Each revision row now carries 'Compare vN with v(N-1)'. The comparison is computed with the deterministic diff engine, announced as 'Diff v1 to v2: 1 added, 1 removed', and rendered inline with +/- markers. The editing proof extends to five checks and passes twice; evidence under docs/evidence/editing/.
+
+Build hygiene: the native UI now builds into target/native, separate from the workspace target, because three times a test run in the same shell overwrote target/session with the non-native stub.
+
