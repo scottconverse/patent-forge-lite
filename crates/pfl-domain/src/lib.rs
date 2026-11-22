@@ -55,7 +55,46 @@ macro_rules! id {
 }
 id!(ProjectId);
 id!(RunId);
+id!(RevisionId);
 id!(AttemptId);
+/// An edited document revision. Distinct from a generation run: runs stay
+/// immutable, edits become new revisions that point at the run they derive from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentKind {
+    Claims,
+    Application,
+}
+impl DocumentKind {
+    /// The workflow that generates this document.
+    pub fn workflow(self) -> WorkflowKind {
+        match self {
+            Self::Claims => WorkflowKind::Claims,
+            Self::Application => WorkflowKind::Application,
+        }
+    }
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::Claims => "claims",
+            Self::Application => "application",
+        }
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DocumentRevision {
+    pub id: RevisionId,
+    pub project_id: ProjectId,
+    pub kind: DocumentKind,
+    /// 1-based, unique per project and kind.
+    pub version: u32,
+    /// The immutable generation run this revision was edited from, if any.
+    #[serde(default)]
+    pub base_run_id: Option<RunId>,
+    pub text: String,
+    #[serde(default)]
+    pub note: String,
+    pub created_at_ms: u64,
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -424,6 +463,11 @@ pub struct PriorArtItem {
 /// creation so a resume can never silently consume a newer analysis.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Upstream {
+    /// The document revisions this run reviewed, when the operator selected them.
+    #[serde(default)]
+    pub claims_revision_id: Option<RevisionId>,
+    #[serde(default)]
+    pub specification_revision_id: Option<RevisionId>,
     /// Feasibility checkpoint text, in workflow order.
     #[serde(default)]
     pub stage_texts: Vec<(Stage, String)>,
@@ -631,6 +675,9 @@ pub trait Store: Send + Sync {
     fn list_projects(&self) -> Result<Vec<Project>>;
     fn project(&self, id: &ProjectId) -> Result<Project>;
     fn save_intake(&self, id: &ProjectId, intake: &Intake, at_ms: u64) -> Result<Project>;
+    fn save_revision(&self, revision: &DocumentRevision) -> Result<DocumentRevision>;
+    fn revisions(&self, project: &ProjectId, kind: DocumentKind) -> Result<Vec<DocumentRevision>>;
+    fn revision(&self, id: &RevisionId) -> Result<DocumentRevision>;
     fn settings(&self) -> Result<Settings>;
     fn save_settings(&self, settings: &Settings) -> Result<()>;
     fn create_run(&self, request: &NewRun) -> Result<RunSnapshot>;

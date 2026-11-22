@@ -425,3 +425,28 @@ CPC, source and `Verified` status.
 
 Still open for Item 2: a desktop entry point for references and the research endpoint, and choice of
 a real provider (needs Scott's decision on provider and API access).
+## Item 3 (engine start): versioned document revisions (2026-11-21)
+
+Generation runs stay immutable. Edits are now separate, ordered revision records that anchor the
+run they were edited from.
+
+- `DocumentKind` (claims, application) and `DocumentRevision` (id, project, kind, version,
+  `base_run_id`, text, note, created) in the domain, with `RevisionId`.
+- SQLite table `document_revisions`, unique per `(project, kind, version)`; the service assigns the
+  next version, so versioning is per document kind.
+- `WorkflowService::{save_revision, revisions, revision}`. A revision may only anchor a run of the
+  same project *and* the same document kind.
+- Compliance can now run against **selected revisions**:
+  `start_workflow_with_selection` records `claims_revision_id` / `specification_revision_id` in the
+  immutable upstream snapshot and uses their text instead of the latest runs. The compliance prompt
+  names the revisions under review.
+
+Evidence: `tests/revisions.rs` (3 tests) proves version ordering, retrieval, that edits never mutate
+the generation run, that application revisions are a separate series, that a mismatched anchor is
+refused, and that a compliance run started with selections carries exactly the selected texts and
+ids and completes.
+
+129 workspace tests pass; fmt and clippy clean.
+
+Still open for Item 3: desktop editing UI, targeted regeneration, revision comparison/history view,
+revision-aware exports (package), and revision selection in the CLI/API.

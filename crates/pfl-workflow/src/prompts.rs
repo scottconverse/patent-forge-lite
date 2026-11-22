@@ -150,6 +150,26 @@ pub fn narrative(intake: &Intake) -> String {
     parts.join("\n\n")
 }
 
+/// Names the exact document revisions a review examined, when the operator chose
+/// them. Empty when the run used the workflow's default upstream.
+fn selection_context(upstream: &Upstream) -> String {
+    let mut lines = Vec::new();
+    if let Some(id) = &upstream.claims_revision_id {
+        lines.push(format!("- Claims revision: {id}"));
+    }
+    if let Some(id) = &upstream.specification_revision_id {
+        lines.push(format!("- Specification revision: {id}"));
+    }
+    if lines.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "\n\n## Selected revisions under review\n\n{}\n",
+            lines.join("\n")
+        )
+    }
+}
+
 fn prior_art_context(upstream: &Upstream) -> String {
     if upstream.prior_art.is_empty() {
         return "No prior art search results available.".into();
@@ -170,6 +190,7 @@ pub fn user(stage: Stage, input: &RunInput, outputs: &BTreeMap<Stage, String>) -
     let get = |s: Stage| outputs.get(&s).map(String::as_str).unwrap_or("");
     let upstream = &input.upstream;
     let prior_art = prior_art_context(upstream);
+    let selection = selection_context(upstream);
     match stage.kind() {
         WorkflowKind::Feasibility => {
             let s1 = get(Stage::TechnicalRestatement);
@@ -247,7 +268,7 @@ pub fn user(stage: Stage, input: &RunInput, outputs: &BTreeMap<Stage, String>) -
         WorkflowKind::Compliance => {
             let check = stage.label();
             format!(
-                "## Claims Under Review\n\n{}\n\n## Feasibility Analysis (reference text — this is NOT a drafted application specification)\n\n{}\n\n## Invention Narrative\n\n{n}\n\n## Prior Art Context\n\n{prior_art}\n\n---\n\nPerform the {check} check against the claims above. The reference text is the feasibility analysis, not a drafted specification; say so plainly if a check cannot be made without one. Report findings with severity and citations to the supplied text.",
+                "## Claims Under Review\n\n{}\n\n## Specification Under Review\n\n{}\n\n## Invention Narrative\n\n{n}\n\n## Prior Art Context\n\n{prior_art}\n{selection}\n---\n\nPerform the {check} check against the claims and specification above. Name the revisions you reviewed. If the specification text is the feasibility analysis rather than a drafted application, say so plainly and state which checks you could not make. Report findings with severity and citations to the supplied text.",
                 if upstream.claims_text.trim().is_empty() {
                     "No claims were supplied for this review."
                 } else {

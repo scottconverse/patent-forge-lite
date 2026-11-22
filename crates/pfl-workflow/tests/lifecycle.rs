@@ -47,6 +47,9 @@ impl Store for BarrierStore {
     forward!(list_projects() -> Result<Vec<Project>>);
     forward!(project(id: &ProjectId) -> Result<Project>);
     forward!(save_intake(id: &ProjectId, intake: &Intake, at_ms: u64) -> Result<Project>);
+    forward!(save_revision(revision: &DocumentRevision) -> Result<DocumentRevision>);
+    forward!(revisions(project: &ProjectId, kind: DocumentKind) -> Result<Vec<DocumentRevision>>);
+    forward!(revision(id: &RevisionId) -> Result<DocumentRevision>);
     forward!(settings() -> Result<Settings>);
     forward!(save_settings(settings: &Settings) -> Result<()>);
     fn create_run(&self, request: &NewRun) -> Result<RunSnapshot> {

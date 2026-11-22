@@ -176,6 +176,10 @@ impl SqliteStore {
              CREATE TABLE IF NOT EXISTS legacy_records(
                identity TEXT NOT NULL REFERENCES legacy_imports(identity),table_name TEXT NOT NULL,
                ordinal INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(identity,table_name,ordinal));
+             CREATE TABLE IF NOT EXISTS document_revisions(
+               id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES projects(id),
+               kind TEXT NOT NULL,version INTEGER NOT NULL CHECK(version>0),payload TEXT NOT NULL,
+               UNIQUE(project_id,kind,version));
              INSERT OR IGNORE INTO schema_migrations(version) VALUES(1);"
         ).map_err(db)?;
         transaction
@@ -321,6 +325,65 @@ impl Store for SqliteStore {
             )
             .map_err(db)?;
             Ok(project)
+        })
+    }
+
+    fn save_revision(&self, revision: &DocumentRevision) -> Result<DocumentRevision> {
+        if revision.text.trim().is_empty() {
+            return Err(Error::Invalid("a document revision needs text".into()));
+        }
+        self.transaction(|tx| {
+            let next: i64 = tx
+                .query_row(
+                    "SELECT COALESCE(MAX(version),0)+1 FROM document_revisions WHERE project_id=?1 AND kind=?2",
+                    [&revision.project_id.0, revision.kind.slug()],
+                    |row| row.get(0),
+                )
+                .map_err(db)?;
+            let mut stored = revision.clone();
+            stored.version = next as u32;
+            tx.execute(
+                "INSERT INTO document_revisions(id,project_id,kind,version,payload) VALUES(?1,?2,?3,?4,?5)",
+                params![
+                    &stored.id.0,
+                    &stored.project_id.0,
+                    stored.kind.slug(),
+                    stored.version as i64,
+                    encode(&stored)?
+                ],
+            )
+            .map_err(db)?;
+            Ok(stored)
+        })
+    }
+
+    fn revisions(&self, project: &ProjectId, kind: DocumentKind) -> Result<Vec<DocumentRevision>> {
+        self.transaction(|tx| {
+            let mut statement = tx
+                .prepare(
+                    "SELECT payload FROM document_revisions WHERE project_id=?1 AND kind=?2 ORDER BY version",
+                )
+                .map_err(db)?;
+            let rows = statement
+                .query_map([&project.0, kind.slug()], |row| row.get::<_, String>(0))
+                .map_err(db)?;
+            let mut revisions = Vec::new();
+            for row in rows {
+                let payload: String = row.map_err(db)?;
+                revisions.push(decode(&payload)?);
+            }
+            Ok(revisions)
+        })
+    }
+
+    fn revision(&self, id: &RevisionId) -> Result<DocumentRevision> {
+        self.transaction(|tx| {
+            read_json(
+                tx,
+                "SELECT payload FROM document_revisions WHERE id=?1",
+                &id.0,
+            )?
+            .ok_or_else(|| Error::NotFound("document revision".into()))
         })
     }
 

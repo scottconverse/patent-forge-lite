@@ -94,6 +94,59 @@ impl WorkflowService {
         self.db(move |s| s.save_intake(&id, &intake, now_ms()))
             .await
     }
+    /// Saves an edited document as a new revision. Generation runs stay immutable:
+    /// a revision records the run it was edited from and never mutates it.
+    pub async fn save_revision(
+        &self,
+        project_id: ProjectId,
+        kind: DocumentKind,
+        base_run_id: Option<RunId>,
+        text: String,
+        note: String,
+    ) -> Result<DocumentRevision> {
+        if let Some(run_id) = &base_run_id {
+            let run = self.run(run_id.clone()).await?;
+            if run.project_id != project_id || run.input.kind != kind.workflow() {
+                return Err(Error::Invalid(
+                    "a revision must reference a run of the same project and document".into(),
+                ));
+            }
+        }
+        let revision = DocumentRevision {
+            id: RevisionId::new(),
+            project_id,
+            kind,
+            version: 0,
+            base_run_id,
+            text,
+            note,
+            created_at_ms: now_ms(),
+        };
+        self.db(move |store| store.save_revision(&revision)).await
+    }
+
+    pub async fn revisions(
+        &self,
+        project_id: ProjectId,
+        kind: DocumentKind,
+    ) -> Result<Vec<DocumentRevision>> {
+        let store = self.store.clone();
+        let runtime = self.runtime.clone();
+        runtime
+            .spawn_blocking(move || store.revisions(&project_id, kind))
+            .await
+            .map_err(|e| Error::Storage(e.to_string()))?
+    }
+
+    pub async fn revision(&self, id: RevisionId) -> Result<DocumentRevision> {
+        let store = self.store.clone();
+        let runtime = self.runtime.clone();
+        runtime
+            .spawn_blocking(move || store.revision(&id))
+            .await
+            .map_err(|e| Error::Storage(e.to_string()))?
+    }
+
     pub async fn settings(&self) -> Result<Settings> {
         self.db(|s| s.settings()).await
     }
@@ -390,6 +443,69 @@ impl WorkflowService {
         }
         let run = self.db(move |s| s.create_run(&request)).await?;
         self.launch(run).await
+    }
+
+    /// Starts a dependent workflow against *selected document revisions* rather than
+    /// whatever the project happens to have produced last. The selection is recorded
+    /// in the immutable upstream snapshot so a review can always name what it read.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn start_workflow_with_selection(
+        self: &Arc<Self>,
+        project_id: ProjectId,
+        kind: WorkflowKind,
+        idempotency_key: String,
+        authorization: Authorization,
+        prior_art: Vec<PriorArtItem>,
+        claims_revision: Option<RevisionId>,
+        specification_revision: Option<RevisionId>,
+    ) -> Result<RunSnapshot> {
+        let project = self.project(project_id.clone()).await?;
+        let mut upstream = self.upstream(&project_id, kind).await?;
+        if self.settings().await?.profile == SetupProfile::Lean
+            && self.provider.snapshot().kind == ProviderKind::Local
+        {
+            return Err(Error::Invalid(
+                "Lean setup is Cloud-only: it never acquires or uses a local runtime".into(),
+            ));
+        }
+        upstream.prior_art = prior_art;
+        if let Some(revision_id) = claims_revision {
+            let revision = self.revision(revision_id.clone()).await?;
+            if revision.project_id != project_id || revision.kind != DocumentKind::Claims {
+                return Err(Error::Invalid(
+                    "the selected claims revision belongs to another project or document".into(),
+                ));
+            }
+            upstream.claims_text = revision.text;
+            upstream.claims_revision_id = Some(revision_id);
+        }
+        if let Some(revision_id) = specification_revision {
+            let revision = self.revision(revision_id.clone()).await?;
+            if revision.project_id != project_id || revision.kind != DocumentKind::Application {
+                return Err(Error::Invalid(
+                    "the selected specification revision belongs to another project or document"
+                        .into(),
+                ));
+            }
+            upstream.specification_text = revision.text;
+            upstream.specification_revision_id = Some(revision_id);
+        }
+        self.start(NewRun {
+            id: RunId::new(),
+            project_id,
+            idempotency_key,
+            input: RunInput {
+                kind,
+                intake: project.intake,
+                provider: self.provider.snapshot(),
+                prompts: prompts::snapshot(kind),
+                authorization,
+                upstream,
+            },
+            rerun_of: None,
+            created_at_ms: now_ms(),
+        })
+        .await
     }
 
     pub async fn resume(self: &Arc<Self>, id: RunId) -> Result<RunSnapshot> {
