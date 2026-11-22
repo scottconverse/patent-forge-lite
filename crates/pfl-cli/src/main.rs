@@ -800,6 +800,7 @@ async fn main() {
                 | "inspect"
                 | "validate-claims"
                 | "package"
+                | "save-revision"
         ) {
             return Err(invalid("unknown command; only live performs real inference"));
         }
@@ -815,6 +816,9 @@ async fn main() {
         let mut claims_revision = None;
         let mut application_revision = None;
         let mut out = None;
+        let mut kind = None;
+        let mut from_run = None;
+        let mut note = None;
         let mut i = 1;
         while i < args.len() {
             match (args[i].as_str(), args.get(i + 1)) {
@@ -835,6 +839,11 @@ async fn main() {
                     application_revision = Some(RevisionId(value.to_string()))
                 }
                 ("--out", Some(value)) if out.is_none() => out = Some(PathBuf::from(value)),
+                ("--kind", Some(value)) if kind.is_none() => kind = Some(value.to_string()),
+                ("--from-run", Some(value)) if from_run.is_none() => {
+                    from_run = Some(RunId(value.to_string()))
+                }
+                ("--note", Some(value)) if note.is_none() => note = Some(value.to_string()),
                 ("--stage", Some(value)) if stage.is_none() => {
                     stage = Some(value.parse::<usize>().map_err(|_| invalid("invalid pause stage"))?);
                 }
@@ -943,7 +952,10 @@ fn validate_claims(path: PathBuf) -> Result<()> {
     let text = std::fs::read_to_string(&path)
         .map_err(|e| Error::Io(format!("cannot read {}: {e}", path.display())))?;
     let report = pfl_workflow::claims::validate(&text);
-    println!("{}", serde_json::to_string_pretty(&report).map_err(|e| Error::Invalid(e.to_string()))?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report).map_err(|e| Error::Invalid(e.to_string()))?
+    );
     if report.errors() > 0 {
         return Err(Error::Invalid(format!(
             "{} structural claim error(s)",
@@ -1032,6 +1044,49 @@ async fn write_package(
             "references": references.len(),
             "claims_revision": claims_revision.as_ref().map(|r| r.id.0.clone()),
             "application_revision": application_revision.as_ref().map(|r| r.id.0.clone()),
+        })
+    );
+    Ok(())
+}
+/// Saves an edited document as a new revision of the project.
+async fn save_revision_cmd(
+    workspace: PathBuf,
+    kind: DocumentKind,
+    from_run: Option<RunId>,
+    file: PathBuf,
+    note: String,
+) -> Result<()> {
+    let text = std::fs::read_to_string(&file)
+        .map_err(|e| Error::Io(format!("cannot read {}: {e}", file.display())))?;
+    if text.trim().is_empty() {
+        return Err(invalid("the edited document is empty"));
+    }
+    let marker = read_marker(&workspace)?;
+    let database = workspace.join(&marker.database);
+    let _profile_lock = take_profile_lock(&database)?;
+    let open = database.clone();
+    let store: Arc<dyn Store> = Arc::new(
+        tokio::task::spawn_blocking(move || SqliteStore::open(open))
+            .await
+            .map_err(|e| Error::Storage(e.to_string()))??,
+    );
+    let provider: Arc<dyn Provider> = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+    let project_id = marker
+        .project_id
+        .clone()
+        .ok_or_else(|| invalid("this workspace has no project yet"))?;
+    let revision = service
+        .save_revision(project_id, kind, from_run, text, note)
+        .await?;
+    service.shutdown().await?;
+    println!(
+        "{}",
+        serde_json::json!({
+            "revision_id": revision.id.0,
+            "kind": revision.kind.slug(),
+            "version": revision.version,
+            "base_run_id": revision.base_run_id.map(|id| id.0),
         })
     );
     Ok(())
