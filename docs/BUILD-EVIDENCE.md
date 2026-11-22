@@ -850,3 +850,10 @@ Three CLI commands now expose the migration that existed behind the storage API:
 
 The proof creates the fixture, hashes it, previews (1 project, 2 runs, 16 archive-only records across 12 uninterpreted tables, with the three provenance warnings), imports (1 project, 2 runs, 30 records, backup written, new database activated), inspects the result, imports again (repeated, nothing duplicated), and confirms the source hash never changes. A missing source is an error, not an empty import. 15/15, twice, evidence under docs/evidence/migration/.
 
+
+## Phase E (E3 credentials, E4 contracts, 2026-11-22)
+
+E3: a credential is never carried across a migration, not even into the opaque archive. Credential-named columns (suffix match on apikey, token, secret, password, salt) are replaced with '[redacted at import: re-enter this credential]', and the migration proof scans the activated database bytes for the fixture's salt and key material and finds none. maxTokens stays intact: the match is on suffixes so a budget is not mistaken for a secret. The raw-field test now asserts every non-credential column is preserved verbatim and every credential column is redacted.
+
+E4: docs/API-CONTRACTS.md records the HTTP surface measured over loopback (health, projects, project, history, run, events, report, export, and a 404 for an unknown project) plus the CLI behaviour matrix and the DSH compatibility basis. Write endpoints are listed as unverified, because they change state and nothing here exercised them. scripts/api-proof.ps1 re-runs the measurement (13/13, twice, evidence under docs/evidence/api/).
+

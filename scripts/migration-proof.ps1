@@ -56,6 +56,15 @@ $inspectAgain = (Invoke-Cli @('inspect', '--database', $second.activated_path)).
 $runsAgain = @($inspectAgain.projects[0].runs).Count
 Record 'a repeated import does not duplicate anything' (($inspectAgain.project_count -eq 1) -and ($runsAgain -eq 2)) "(projects: $($inspectAgain.project_count), runs: $runsAgain)"
 
+# No credential may survive into the activated workspace, not even redacted-in-name
+# only: the fixture's own secrets must be absent from the file.
+$activatedBytes = [System.IO.File]::ReadAllBytes($first.activated_path)
+$activatedText = [System.Text.Encoding]::UTF8.GetString($activatedBytes)
+$saltAbsent = -not $activatedText.Contains('synthetic-not-a-real-encryption-salt')
+$zerosAbsent = -not $activatedText.Contains(('0' * 40))
+$onesAbsent = -not $activatedText.Contains(('1' * 40))
+Record 'no credential survives into the imported workspace' ($saltAbsent -and $zerosAbsent -and $onesAbsent) "(salt absent: $saltAbsent, zero-key absent: $zerosAbsent, uspto-key absent: $onesAbsent)"
+
 $afterHash = (Get-FileHash $fixture -Algorithm SHA256).Hash.ToLower()
 Record 'the source is untouched' ($afterHash -eq $sourceHash) "(sha256: $afterHash)"
 

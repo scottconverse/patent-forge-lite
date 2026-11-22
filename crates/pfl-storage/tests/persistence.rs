@@ -648,3 +648,46 @@ fn real_child_exit_rolls_back_uncommitted_events_and_recovers_before_and_after_s
         assert_eq!(store.begin_attempt(&id, 51).unwrap().number, 2);
     }
 }
+
+#[test]
+fn importing_never_carries_a_credential_into_the_archive() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("legacy.sqlite");
+    pfl_storage::write_legacy_synthetic_fixture(&source).unwrap();
+    let workspace = dir.path().join("ws");
+    let receipt = pfl_storage::migrate_legacy_synthetic(&source, &workspace).unwrap();
+    let activated = receipt.activated_path.clone().unwrap();
+    let store = SqliteStore::open(&activated).unwrap();
+
+    let settings = store
+        .legacy_records(&receipt.source_identity, "AppSettings")
+        .unwrap();
+    assert_eq!(settings.len(), 1, "the settings row is still recorded");
+    let row = settings[0].as_object().expect("an object");
+    for column in ["cloudApiKey", "usptoApiKey", "encryptionSalt"] {
+        let value = row
+            .get(column)
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        assert!(
+            value.contains("redacted at import"),
+            "{column} must be redacted, found {value:?}"
+        );
+    }
+    // The fixture's own values must appear nowhere in the archive.
+    let encoded = serde_json::to_string(&settings).unwrap();
+    assert!(
+        !encoded.contains("synthetic-not-a-real-encryption-salt"),
+        "{encoded}"
+    );
+    assert!(!encoded.contains(&"1".repeat(40)), "{encoded}");
+    assert!(!encoded.contains(&"0".repeat(40)), "{encoded}");
+
+    // And nowhere in the activated database's bytes either.
+    let bytes = std::fs::read(&activated).unwrap();
+    let needle = b"synthetic-not-a-real-encryption-salt";
+    assert!(
+        !bytes.windows(needle.len()).any(|window| window == needle),
+        "a credential survived into the activated database"
+    );
+}

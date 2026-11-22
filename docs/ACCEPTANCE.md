@@ -172,8 +172,8 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | D4 Windows install v0.1.0, upgrade to the candidate, roll back, with the workspace inventory unchanged at each step | run, 11/11 twice | pass — `docs/evidence/upgrade/` |
 | E1 copy-first importer: fixture, preview counts, provenance warnings, archive preserved, re-runnable, source untouched, missing source refused | run, 15/15 twice | pass — `docs/evidence/migration/` |
 | E2 real database import | blocked | authorization + database needed |
-| E3 credential re-entry | not implemented | |
-| E4 API contract + docs | partial | docs exist; contracts unverified |
+| E3 credentials are redacted at import (archive records the column, never the value) and re-entered per session | unit + run | pass — 16/16 proof run scans the activated database |
+| E4 read API contracts verified over loopback; CLI matrix and DSH compatibility documented | run, 13/13 twice | pass — `docs/API-CONTRACTS.md`, `docs/evidence/api/` (write endpoints explicitly unverified) |
 | F1 one installer per platform | partial | Windows built; macOS/Linux artifacts built unsigned |
 | F2 Windows install/upgrade/uninstall | partial | install/uninstall/data retained proven; upgrade not tested |
 | F3 macOS/Linux installed | blocked | hardware |

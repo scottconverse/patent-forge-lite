@@ -116,6 +116,25 @@ fn identity(connection: &Connection) -> Result<String> {
     }
     Ok(id)
 }
+/// Replacement recorded where a credential used to be. Deliberately not reversible.
+pub const REDACTED_CREDENTIAL: &str = "[redacted at import: re-enter this credential]";
+
+/// Columns whose contents are secrets. Matched on the name so a new legacy column of the
+/// same kind is redacted even though the importer has never seen it.
+fn is_credential_column(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    let compact: String = lower
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect();
+    // Suffix matching, not substring: `maxTokens` is a budget, not a secret.
+    compact.ends_with("apikey")
+        || compact.ends_with("token")
+        || compact.ends_with("secret")
+        || compact.ends_with("password")
+        || compact.ends_with("salt")
+}
+
 fn snapshot(connection: &Connection) -> Result<Snapshot> {
     let mut statement = connection.prepare(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
@@ -149,6 +168,14 @@ fn snapshot(connection: &Connection) -> Result<Snapshot> {
                         let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
                         serde_json::json!({ "sqlite_blob_hex": hex })
                     }
+                };
+                // A credential is never carried across a migration, not even into the
+                // opaque archive: the column is recorded as redacted so nothing about the
+                // value survives, and the operator re-enters it for the new session.
+                let value = if is_credential_column(name) {
+                    Value::String(REDACTED_CREDENTIAL.into())
+                } else {
+                    value
                 };
                 record.insert(name.clone(), value);
             }

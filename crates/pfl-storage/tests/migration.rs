@@ -115,11 +115,38 @@ fn copy_first_import_projects_active_history_reports_and_every_raw_field() {
         .map(|r| r.unwrap())
         .collect();
     for table in names {
-        assert_eq!(
-            store.legacy_records(ID, &table).unwrap(),
-            source_rows(&source_db, &table),
-            "field comparison for {table}"
-        );
+        // The archive preserves every field except credentials, which are redacted so
+        // no secret is ever carried across a migration.
+        let archived = store.legacy_records(ID, &table).unwrap();
+        let original_rows = source_rows(&source_db, &table);
+        assert_eq!(archived.len(), original_rows.len(), "row count for {table}");
+        for (archived_row, original_row) in archived.iter().zip(original_rows.iter()) {
+            let archived_row = archived_row.as_object().expect("an object");
+            let original_row = original_row.as_object().expect("an object");
+            for (column, value) in original_row {
+                let kept = archived_row.get(column).expect("the column is archived");
+                if is_credential(column) {
+                    assert!(
+                        kept.as_str().unwrap_or("").contains("redacted at import"),
+                        "{table}.{column} must be redacted, found {kept:?}"
+                    );
+                } else {
+                    assert_eq!(kept, value, "field comparison for {table}.{column}");
+                }
+            }
+        }
+    }
+    fn is_credential(column: &str) -> bool {
+        let compact: String = column
+            .to_ascii_lowercase()
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .collect();
+        compact.ends_with("apikey")
+            || compact.ends_with("token")
+            || compact.ends_with("secret")
+            || compact.ends_with("password")
+            || compact.ends_with("salt")
     }
     assert_eq!(fs::read(&source).unwrap(), original_bytes);
     let mut edited = projects[0].intake.clone();
