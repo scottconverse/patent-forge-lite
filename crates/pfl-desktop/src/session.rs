@@ -593,6 +593,7 @@ impl Actor {
             Request::SetProfile(profile) => {
                 let mut settings = self.service.settings().await?;
                 settings.profile = profile;
+                settings.profile_chosen = true;
                 self.service.save_settings(settings.clone()).await?;
                 self.reply(Reply::Settings(settings));
             }

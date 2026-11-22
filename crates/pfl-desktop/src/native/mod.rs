@@ -232,6 +232,8 @@ struct Desktop {
     research_key: Entity<TextInput>,
     research_authorized: bool,
     research_configured: bool,
+    /// True until the operator has chosen Full or Lean on a fresh profile.
+    first_run: bool,
     /// Models the local runtime reported, newest listing wins.
     local_models: Vec<String>,
     /// Honest readiness text for the runtime: a count, or why it could not be asked.
@@ -362,6 +364,7 @@ impl Desktop {
             research_key,
             research_authorized: false,
             research_configured: false,
+            first_run: false,
             local_models: Vec::new(),
             local_status: "Runtime not queried yet.".into(),
             revisions: Vec::new(),
@@ -565,6 +568,7 @@ impl Desktop {
                 }
                 Reply::Settings(settings) => {
                     self.profile = settings.profile;
+                    self.first_run = !settings.profile_chosen;
                     cx.notify();
                 }
                 Reply::Stopped | Reply::Recovered(_) => {}
@@ -2403,6 +2407,13 @@ impl Render for Desktop {
                         "local-mode",
                         "Configure existing local runtime",
                         |this, _, cx| {
+                            if this.profile == SetupProfile::Lean {
+                                this.state.notice = Some(
+                                    "The Lean profile refuses a local runtime. Choose Full in Setup to use your own.".into(),
+                                );
+                                cx.notify();
+                                return;
+                            }
                             let mode = Mode::Local {
                                 endpoint: this.endpoint.read(cx).buffer.text().into(),
                                 model: this.model.read(cx).buffer.text().into(),
@@ -2780,6 +2791,46 @@ impl Render for Desktop {
                     ),
             )
             .child(top_right);
+
+        // First run: ask for Full or Lean before showing anything else. The choice is
+        // recorded in settings, and Lean refuses a local runtime by design.
+        let content = if self.first_run {
+            let prompt = div()
+                .id("first-run-prompt")
+                .accessibility_id("first-run-prompt")
+                .role(Role::Group)
+                .aria_label("Choose a profile to continue")
+                .flex()
+                .flex_col()
+                .gap_4()
+                .max_w(px(760.))
+                .child(self.page_header(
+                    "Choose how this build runs",
+                    "One installer, two profiles. Full offers your own runtime and the paid Cloud provider. Lean offers Cloud only and refuses a local runtime outright. You can change this later in Setup.",
+                    None,
+                ))
+                .child(self.primary_button(
+                    "choose-full",
+                    "Use Full (local and Cloud)",
+                    |this, _, cx| {
+                        this.send(Request::SetProfile(SetupProfile::Full), cx);
+                        this.first_run = false;
+                    },
+                    cx,
+                ))
+                .child(self.button(
+                    "choose-lean",
+                    "Use Lean (Cloud only)",
+                    |this, _, cx| {
+                        this.send(Request::SetProfile(SetupProfile::Lean), cx);
+                        this.first_run = false;
+                    },
+                    cx,
+                ));
+            div().child(prompt)
+        } else {
+            content
+        };
 
         let main = div()
             .id("main-content")

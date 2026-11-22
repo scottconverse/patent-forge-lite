@@ -176,6 +176,10 @@ pub struct Settings {
     /// authorized run refuses rather than silently searching nothing.
     #[serde(default)]
     pub research_endpoint: Option<String>,
+    /// False until the operator has chosen a profile at first run. The window asks
+    /// before showing the main surface, rather than assuming one.
+    #[serde(default)]
+    pub profile_chosen: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

@@ -553,6 +553,7 @@ impl SqliteStore {
                         .map(str::to_string),
                     // Legacy settings never carried a research endpoint.
                     research_endpoint: None,
+                    profile_chosen: true,
                 };
                 tx.execute("INSERT INTO settings VALUES(1,?1)", [encode(&settings)?])
                     .map_err(db)?;

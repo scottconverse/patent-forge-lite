@@ -817,3 +817,8 @@ The Setup local card lists the runtime's installed models, shows each as a picka
 
 Two supporting changes: the Ollama mock now serves /api/tags, and the app accepts --local-endpoint (loopback only) so acceptance can point it at a stand-in runtime without depending on typing into a field that exposes no ValuePattern.
 
+
+## Phase D (D2 first-run profile prompt, 2026-11-22)
+
+A fresh profile asks Full or Lean before showing anything else, and the choice is recorded so a relaunch does not ask again. Lean refuses a local runtime with its own message (checked before any field validation, so the reason is the profile and not a missing model name); Full accepts the same runtime and configures it. 6/6, twice, evidence under docs/evidence/first-run/.
+

@@ -167,7 +167,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | C5 research end to end in the window: opt-out sends nothing, opt-in sends exactly one query, the verified reference is shown on the run | installed + mock, 8/8 twice | pass — `docs/evidence/research/` (JSON, request log, screenshot) |
 | C live PatentsView query | — | **blocked — key** |
 | D1 model picker from list_local_models, with readiness stated honestly (count, empty, unreachable) | installed + mock, 4/4 twice | pass — `docs/evidence/models/` |
-| D2 first-run profile choice | partial | profile selectable in Setup; no first-run prompt |
+| D2 first-run profile prompt: Full or Lean before the main surface, choice persisted, Lean refuses Local | installed, 6/6 twice | pass — `docs/evidence/first-run/` |
 | D3 tray/lifecycle | not implemented | |
 | D4 Windows upgrade/rollback | not tested | installer exists |
 | E1 copy-first importer | partial | synthetic importer tested; real path absent |
