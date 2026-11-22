@@ -1,5 +1,8 @@
 # Acceptance record
 
+Cloud consent is designed but not implemented: see [CLOUD-CONSENT-DESIGN.md](CLOUD-CONSENT-DESIGN.md). The
+key-storage decision in that note is open and blocks the implementable half.
+
 Revision: `e980d0f` · Candidate: `dist\patent-forge-lite-0.1.0-x64.exe` (unsigned, unpublished)
 Record owner: agent · Status: **incomplete** — several gate items below are open by design.
 
