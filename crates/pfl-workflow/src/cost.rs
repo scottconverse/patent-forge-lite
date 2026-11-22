@@ -61,6 +61,27 @@ pub fn estimate_run(run: &RunSnapshot, pricing: &Pricing) -> Option<Estimate> {
 ///
 /// A run's usage is unknowable in advance, so the honest statement is *unknown*
 /// plus the rates that will be applied — never a fabricated total.
+/// Rates recorded when this build was made, used only to disclose what a paid run will
+/// be billed at. They are a basis for the confirmation line, not a quote: the total is
+/// unknown until the provider reports usage. An unknown model yields `None`, so the
+/// window says plainly that no rates are configured rather than inventing them.
+pub fn pricing_for(model: &str) -> Option<Pricing> {
+    let model = model.trim().to_ascii_lowercase();
+    let (input, output) = if model.contains("opus") {
+        (15.0, 75.0)
+    } else if model.contains("sonnet") {
+        (3.0, 15.0)
+    } else if model.contains("haiku") {
+        (0.8, 4.0)
+    } else {
+        return None;
+    };
+    Some(Pricing {
+        input_per_million: input,
+        output_per_million: output,
+    })
+}
+
 pub fn confirmation_text(model: &str, pricing: Option<&Pricing>) -> String {
     match pricing {
         Some(rates) => format!(
@@ -128,6 +149,27 @@ mod tests {
         assert_eq!(estimate(&usage, &pricing()), None);
     }
 
+    #[test]
+    fn the_confirmation_line_names_the_rates_that_will_apply() {
+        let rates = pricing_for("claude-sonnet-4").expect("a known model has recorded rates");
+        assert_eq!(rates.input_per_million, 3.0);
+        assert_eq!(rates.output_per_million, 15.0);
+        let text = confirmation_text("claude-sonnet-4", Some(&rates));
+        assert!(
+            text.contains("unknown until the run reports usage"),
+            "{text}"
+        );
+        assert!(text.contains("3.00 input"), "{text}");
+        assert!(text.contains("15.00 output"), "{text}");
+    }
+
+    #[test]
+    fn an_unknown_model_says_no_rates_rather_than_inventing_them() {
+        assert_eq!(pricing_for("mystery-model"), None);
+        let text = confirmation_text("mystery-model", pricing_for("mystery-model").as_ref());
+        assert!(text.contains("No rates are configured"), "{text}");
+        assert!(!text.contains("per 1M tokens"), "{text}");
+    }
     #[test]
     fn zero_tokens_with_no_unknowns_is_a_real_zero() {
         let usage = UsageSummary::default();

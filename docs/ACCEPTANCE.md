@@ -143,6 +143,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | A2 Cloud mode at session layer | pass | unit: session tests |
 | A3 memory-only key, masked field | pass | unit: masking tests; installed: field present |
 | A4 cost confirmation text | pass | unit: 2 tests |
+| A4b cost confirmation displayed in the window before a paid run | installed, 11/11 twice | pass |
 | A5 decline sends zero; approval reaches the provider | installed + mock, 7/7 twice | pass — evidence kept in `docs/evidence/cloud-consent/` (two runs) |
 | A6 no fallback | pass | unit: 1 request, no checkpoint |
 | A7 Lean refuses Local | pass | unit: refuses Local, permits Cloud |

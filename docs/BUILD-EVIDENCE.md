@@ -805,3 +805,8 @@ Against a loopback PatentsView mock: a run without the per-run opt-in completes 
 
 The live query remains blocked on a key; nothing here contacts a real provider. Two fixes came out of this work: enabling the opt-in now installs the key (so a run cannot be authorized for research that was never configured), and a research configuration has its own reply rather than reusing the mode notice.
 
+
+## Phase D (cost confirmation in the window, 2026-11-22)
+
+The Cloud card computes its line from the model the operator typed and now has a documented rate table (cost::pricing_for), so a known model shows the rates that will apply while the total stays unknown until usage arrives; an unknown model says plainly that no rates are configured rather than inventing them. The same line is shown on the Analysis page whenever a paid run is approved. Installed proof 11/11, twice: 'claude-sonnet-4: cost unknown until the run reports usage. Rates applied: 3.00 input and 15.00 output per 1M tokens.'
+

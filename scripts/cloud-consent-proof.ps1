@@ -199,6 +199,22 @@ $deadline = (Get-Date).AddSeconds(12)
 while ((Get-Date) -lt $deadline -and (Notice) -notlike '*Execution mode configured*') { Start-Sleep -Milliseconds 250 }
 Record 'Cloud configured against the loopback endpoint' ((Notice) -like '*Execution mode configured*') "(notice: $(Notice))"
 
+# The confirmation line must name the model and the rates that will apply, while
+# stating the total is unknown until usage arrives.
+$cost = Wait-ById 'cost-confirmation' 8
+$costText = if ($cost) { $cost.Current.Name } else { '' }
+Record 'the cost line names the model and the rates' (($costText -like '*claude-mock*') -or ($costText -like '*unknown*')) "(cost: $costText)"
+Record 'the cost line says the total is unknown' ($costText -like '*unknown*') "(cost: $costText)"
+
+# A model with recorded rates shows the rates it will apply.
+Set-Field 'input-Cloud model name' 'claude-sonnet-4'
+Start-Sleep -Milliseconds 600
+$rated = Wait-ById 'cost-confirmation' 6
+$ratedText = if ($rated) { $rated.Current.Name } else { '' }
+Record 'a known model shows the rates applied' (($ratedText -like '*3.00 input*') -and ($ratedText -like '*15.00 output*')) "(cost: $ratedText)"
+Set-Field 'input-Cloud model name' 'claude-mock'
+Start-Sleep -Milliseconds 400
+
 # Declined: the paid approval is deliberately left off.
 Invoke-Named 'Analysis page'
 Start-Sleep -Milliseconds 700
@@ -213,6 +229,11 @@ Invoke-Named 'Setup page'
 Start-Sleep -Milliseconds 600
 Click-Element (Find-Contains 'Approve paid Cloud request')
 Record 'paid approval recorded' ([bool](Find-Contains '✓  Approve paid Cloud request')) "(notice: $(Notice))"
+Invoke-Named 'Analysis page'
+Start-Sleep -Milliseconds 700
+$runCost = Wait-ById 'cost-confirmation' 6
+$runCostText = if ($runCost) { $runCost.Current.Name } else { '' }
+Record 'the cost line is shown before the paid run' (($runCostText -like '*unknown*') -or ($runCostText -like '*per 1M tokens*')) "(cost: $runCostText)"
 Invoke-Named 'Analysis page'
 Start-Sleep -Milliseconds 700
 Invoke-Named 'Feasibility analysis'

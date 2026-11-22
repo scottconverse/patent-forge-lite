@@ -1683,6 +1683,27 @@ impl Render for Desktop {
                     }
                 }
 
+                // Before a paid run, the window states the model, that the total is unknown
+                // until usage arrives, and the rates that will be applied.
+                if self.cloud_approved {
+                    let model = self.cloud_model.read(cx).buffer.text().to_string();
+                    let pricing = pfl_workflow::pricing_for(&model);
+                    let text = pfl_workflow::confirmation_text(&model, pricing.as_ref());
+                    content = content.child(
+                        div()
+                            .id("cost-confirmation")
+                            .accessibility_id("cost-confirmation")
+                            .role(Role::Status)
+                            .aria_label(text.clone())
+                            .p_4()
+                            .rounded_md()
+                            .bg(rgb(0x1b3247))
+                            .text_xs()
+                            .text_color(rgb(theme::MUTED))
+                            .child(text),
+                    );
+                }
+
                 // Suffix regeneration: offer a restart point at each committed stage. The
                 // copy never says "single stage"; everything from the choice onward re-runs.
                 if let Some(view) = self
@@ -2320,12 +2341,21 @@ impl Render for Desktop {
                     .child(theme::micro("CLOUD (ANTHROPIC) · PAID PER RUN"))
                     .child(self.labelled("CLOUD MODEL NAME", self.cloud_model.clone()))
                     .child(self.labelled("CLOUD API KEY (SESSION ONLY)", self.cloud_key.clone()))
-                    .child(
+                    .child(div().text_xs().text_color(rgb(theme::FAINT)).child({
+                        // The confirmation line is computed from the model the
+                        // operator typed, so it names the model and either the
+                        // rates that will apply or says plainly that none are
+                        // configured. The total stays unknown until usage arrives.
+                        let model = self.cloud_model.read(cx).buffer.text().to_string();
+                        let pricing = pfl_workflow::pricing_for(&model);
+                        let text = pfl_workflow::confirmation_text(&model, pricing.as_ref());
                         div()
-                            .text_xs()
-                            .text_color(rgb(theme::FAINT))
-                            .child(pfl_workflow::confirmation_text("Cloud model", None)),
-                    )
+                            .id("cost-confirmation")
+                            .accessibility_id("cost-confirmation")
+                            .role(Role::Status)
+                            .aria_label(text.clone())
+                            .child(text)
+                    }))
                     .child(self.labelled(
                         "PATENTSVIEW API KEY (SESSION ONLY)",
                         self.research_key.clone(),
