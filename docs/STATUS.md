@@ -18,11 +18,12 @@ is the honest inventory.
 | Application workflow | 5 sections plus a non-LLM IDS/assembly step using the legacy application prompts. |
 | Exports | Markdown, HTML and real `.docx`, all from the same saved run identity. |
 | Report reading | Reports render as documents (heading hierarchy, emphasised labels, bordered tables, monospaced code) with a source view for selection and copying. Parser is unit-tested. |
+| Consent | Every run records whether it carried synthetic test material or a real invention; replay refuses real data, and local mode refuses a non-loopback endpoint. |
 | Desktop | Native GPUI interface with a layered dark design system: icon rail, elevated cards with real box shadows, workflow tabs, outcome pills, checkpoint progress bars, stage ledger, document pane, hover states, Ctrl+1–6 page navigation. Projects, intake with nine context fields, live progress, cancel/resume, history, reports, three export formats, setup-profile selection, single-owner lock, app-wide quit guard. |
 | Accessibility | A real AccessKit tree is published: labelled buttons, text inputs, tabs, headings, and status regions with stable AutomationIds. Screen readers get structure, and `scripts/ui-acceptance.ps1` drives the window through UI Automation (20 checks, all passing). |
 | CLI | `replay`, `import-replay`, `pause-fixture`, `resume`, `pipeline` (all four workflows), `serve`. |
 | API | Compatibility auth (Bearer, legacy 401 messages, tokenless mode, single-use 5-minute download tokens, long-lived query tokens), health shape, project/run/event/report/export routes. |
-| Providers | Recorded replay, Ollama over NDJSON streaming, Anthropic Messages over SSE. Each fails closed without its exact snapshot and explicit authorization. |
+| Providers | Recorded replay, Ollama over NDJSON (loopback only), Anthropic Messages over SSE. Each fails closed without its exact snapshot and explicit authorization; a stream missing its terminal frame is recorded as **Truncated**, never Completed. |
 | Live local inference | Verified 2026-11-21 with `phi4-mini:latest` on the running local Ollama: **all four workflows, 19 stages, 19 real calls, 715.5 s**, then reopened with zero regeneration. |
 | Research | Injectable `ResearchSource` seam with an offline fixture implementation; supplied references are snapshotted and reach the prior-art prompt. |
 | Setup profiles | Lean is Cloud-only and refuses a local runtime; Full permits both. |

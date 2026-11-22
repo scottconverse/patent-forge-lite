@@ -248,6 +248,7 @@ impl Provider for CloudProvider {
         let mut text = String::new();
         let mut input_tokens = None;
         let mut output_tokens = None;
+        let mut complete = false;
         loop {
             let item = tokio::select! {
                 biased;
@@ -291,6 +292,7 @@ impl Provider for CloudProvider {
                     Some("message_delta") => {
                         output_tokens = frame["usage"]["output_tokens"].as_u64();
                     }
+                    Some("message_stop") => complete = true,
                     Some("error") => {
                         return Err(Error::Provider("cloud provider reported an error".into()));
                     }
@@ -298,9 +300,7 @@ impl Provider for CloudProvider {
                 }
             }
         }
-        if text.trim().is_empty() {
-            return Err(Error::Provider("empty cloud response".into()));
-        }
+        require_terminal_frame(complete, &text, "cloud")?;
         Ok(ProviderResponse {
             text,
             usage: Usage {
@@ -309,6 +309,41 @@ impl Provider for CloudProvider {
             },
         })
     }
+}
+
+/// Loopback means the endpoint resolves to this machine: the literal names, or a
+/// loopback IP. Everything else is a remote runtime and is refused for local mode.
+fn is_loopback_host(host: &str) -> bool {
+    host.eq_ignore_ascii_case("localhost")
+        || host == "[::1]"
+        || host == "::1"
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback())
+}
+
+/// Removes one complete NDJSON line from the pending byte buffer, newline included.
+/// Bytes are accumulated before decoding so a multi-byte character split across
+/// network chunks is reassembled rather than mangled.
+fn take_ndjson_line(pending: &mut Vec<u8>) -> Option<Vec<u8>> {
+    let index = pending.iter().position(|byte| *byte == b'\n')?;
+    Some(pending.drain(..=index).collect())
+}
+
+/// The single rule for "did this provider actually finish": a terminal frame was
+/// seen and the text is not blank. Anything else is incomplete, never Completed.
+fn require_terminal_frame(complete: bool, text: &str, provider: &str) -> Result<()> {
+    if !complete {
+        return Err(Error::Incomplete(format!(
+            "{provider} stream ended before its completion frame; partial text was not committed"
+        )));
+    }
+    if text.trim().is_empty() {
+        return Err(Error::Provider(format!(
+            "{provider} completed with no analysis text"
+        )));
+    }
+    Ok(())
 }
 
 /// Direct Ollama NDJSON streaming. Construction validates configuration only,
@@ -331,6 +366,11 @@ impl OllamaProvider {
             || url.fragment().is_some()
         {
             return Err(Error::Invalid("Ollama endpoint must be HTTP(S), with a host and no credentials, query or fragment".into()));
+        }
+        if !is_loopback_host(url.host_str().unwrap_or("")) {
+            return Err(Error::Invalid(
+                "on-machine inference requires a loopback endpoint (127.0.0.1, ::1 or localhost); remote runtimes are not supported in this build".into(),
+            ));
         }
         let model = model.into();
         if model.trim().is_empty() {
@@ -355,15 +395,8 @@ impl OllamaProvider {
     pub fn is_on_machine(&self) -> bool {
         reqwest::Url::parse(self.snapshot.endpoint.as_deref().unwrap_or(""))
             .ok()
-            .and_then(|u| u.host_str().map(str::to_string))
-            .is_some_and(|host| {
-                host.eq_ignore_ascii_case("localhost")
-                    || host == "[::1]"
-                    || host == "::1"
-                    || host
-                        .parse::<std::net::IpAddr>()
-                        .is_ok_and(|ip| ip.is_loopback())
-            })
+            .and_then(|u| u.host_str().map(is_loopback_host))
+            .unwrap_or(false)
     }
 }
 
@@ -456,13 +489,12 @@ impl Provider for OllamaProvider {
                 }
                 None if !pending.is_empty() => pending.push(b'\n'),
                 None => {
-                    return Err(Error::Provider(
-                        "Ollama stream ended without a completion frame".into(),
+                    return Err(Error::Incomplete(
+                        "Ollama stream ended before its completion frame; partial text was not committed".into(),
                     ));
                 }
             }
-            while let Some(newline) = pending.iter().position(|b| *b == b'\n') {
-                let line: Vec<_> = pending.drain(..=newline).collect();
+            while let Some(line) = take_ndjson_line(&mut pending) {
                 if let Some(frame) = decode_line(&line)? {
                     if frame.error.is_some() {
                         return Err(Error::Provider("Ollama reported an inference error".into()));
@@ -477,11 +509,7 @@ impl Provider for OllamaProvider {
                         if cancellation.is_cancelled() {
                             return Err(Error::Cancelled);
                         }
-                        if text.trim().is_empty() {
-                            return Err(Error::Provider(
-                                "Ollama completed with no analysis text".into(),
-                            ));
-                        }
+                        require_terminal_frame(true, &text, "Ollama")?;
                         return Ok(ProviderResponse {
                             text,
                             usage: Usage {
@@ -514,11 +542,35 @@ mod tests {
                 .unwrap()
                 .is_on_machine()
         );
-        assert!(
-            !OllamaProvider::new("http://192.0.2.1:11434", "model")
-                .unwrap()
-                .is_on_machine()
-        );
+        // A remote runtime cannot be represented as on-machine inference.
+        assert!(OllamaProvider::new("http://192.0.2.1:11434", "model").is_err());
+        assert!(OllamaProvider::new("https://ollama.example.com", "model").is_err());
+        assert!(OllamaProvider::new("http://[::1]:11434", "model").is_ok());
+        assert!(OllamaProvider::new("http://localhost:11434", "model").is_ok());
+    }
+
+    #[test]
+    fn fragmented_network_chunks_reassemble_without_mangling_unicode() {
+        // The same line arrives in two chunks, with the multi-byte character split
+        // across the boundary.
+        let mut pending = Vec::new();
+        pending.extend_from_slice(b"{\"message\":{\"content\":\"caf\xc3");
+        assert!(take_ndjson_line(&mut pending).is_none());
+        pending.extend_from_slice(b"\xa9 \xf0\x9f\xa7\xaa\"},\"done\":true}\n");
+        let line = take_ndjson_line(&mut pending).expect("complete line");
+        let text = String::from_utf8(line).expect("utf8");
+        assert!(text.contains("café 🧪"));
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn a_stream_without_its_terminal_frame_is_incomplete_not_completed() {
+        let error = require_terminal_frame(false, "partial analysis", "Ollama").unwrap_err();
+        assert!(matches!(error, Error::Incomplete(_)));
+        // And a terminal frame with no text is its own provider error.
+        let empty = require_terminal_frame(true, "   ", "cloud").unwrap_err();
+        assert!(matches!(empty, Error::Provider(_)));
+        assert!(require_terminal_frame(true, "complete analysis", "Ollama").is_ok());
     }
     #[test]
     fn streaming_frames_preserve_unicode_and_unknown_usage() {

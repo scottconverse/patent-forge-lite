@@ -117,6 +117,7 @@ impl RunView {
                 | RunOutcome::Cancelled
                 | RunOutcome::Failed
                 | RunOutcome::Interrupted
+                | RunOutcome::Truncated
         )
     }
 }

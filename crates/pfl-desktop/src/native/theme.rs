@@ -110,6 +110,7 @@ pub fn outcome_colors(outcome: &str) -> (u32, u32) {
         "cancelling" | "cancelled" => (WARN, 0x352a13),
         "failed" => (DANGER, 0x361a19),
         "interrupted" => (VIOLET, 0x2a2340),
+        "truncated" => (WARN, 0x352a13),
         _ => (MUTED, 0x1b3247),
     }
 }

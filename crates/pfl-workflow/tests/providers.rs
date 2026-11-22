@@ -73,6 +73,7 @@ async fn cloud_ok(
         "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"Hello \"}}\n\n",
         "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"café\"}}\n\n",
         "event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":7}}\n\n",
+        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
     ]
     .concat();
     (

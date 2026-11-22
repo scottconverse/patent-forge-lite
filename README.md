@@ -78,13 +78,15 @@ tar xzf patent-forge-lite-<version>-linux-x64.tar.gz
 1. Launch. You land on **Projects**.
 2. **New project** → fill in the title and a description of at least 50 words (the counter turns
    green when you meet it) → **Save intake**.
-3. Open **Execution setup** → *Use synthetic recorded replay* → tick *This invention is synthetic
-   test data*.
+3. Open **Execution setup** → *Use synthetic recorded replay* → tick **Synthetic test data**.
+   (The other declaration — **Real invention data (stays on this machine)** — is for Local mode and
+   is refused by replay, which only produces synthetic output.)
 4. Back to **Analysis** → pick a workflow → **Start new version**. In replay this is instant.
 5. Open **Report** → read it → **Export Word**.
 
 That whole path works offline with no model. When you want real analysis, point it at your local
-Ollama in Execution setup and choose **Full** setup profile.
+Ollama in Execution setup, choose **Full** setup profile, and switch the declaration to **Real
+invention data** — the run then records that a real invention was processed locally.
 
 The complete walkthrough — every screen, every control, every troubleshooting step — is the
 **[user manual](docs/USER-MANUAL.md)**.

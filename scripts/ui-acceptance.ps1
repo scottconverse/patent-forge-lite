@@ -175,7 +175,10 @@ Check "optional fields hide again without losing values" ($collapsed -eq $baseli
 Write-Host "`n[3] Recorded replay run through the real actor"
 Invoke-Element 'Setup page'
 Invoke-Element 'Use synthetic recorded replay'
+Check "real-invention consent is offered" ([bool](Find-Contains 'Real invention data'))
 Invoke-Element 'Synthetic test data'
+$syntheticOn = [System.Windows.Automation.AutomationElement]::FocusedElement
+Check "synthetic declaration can be ticked" ([bool](Find-Contains '✓  Synthetic test data'))
 Invoke-Element 'Analysis page'
 Invoke-Element 'Start new version'
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)

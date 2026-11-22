@@ -198,6 +198,8 @@ struct Desktop {
     workflow: WorkflowKind,
     profile: SetupProfile,
     synthetic: bool,
+    /// The operator acknowledged the invention is real and stays on this machine.
+    real_data: bool,
     authorized_local: bool,
     pending: bool,
     start_key: Option<String>,
@@ -290,6 +292,7 @@ impl Desktop {
             workflow: WorkflowKind::Feasibility,
             profile: SetupProfile::Lean,
             synthetic: false,
+            real_data: false,
             authorized_local: false,
             pending: false,
             start_key: None,
@@ -535,13 +538,11 @@ impl Desktop {
             self.state.notice = Some("The current run is still active.".into());
             return;
         }
-        if !self.synthetic
+        if (!self.synthetic && !self.real_data)
             || (matches!(self.mode, Some(Mode::Local { .. })) && !self.authorized_local)
         {
-            self.state.notice = Some(
-                "Confirm synthetic data and any local-inference authorization in Execution setup."
-                    .into(),
-            );
+            self.state.notice =
+                Some("Declare the data and authorize local inference in Execution setup.".into());
             return;
         }
         let key = self
@@ -554,6 +555,7 @@ impl Desktop {
             idempotency_key: key,
             authorization: Authorization {
                 synthetic_data: self.synthetic,
+                real_data: self.real_data,
                 local_inference: self.authorized_local,
                 ..Default::default()
             },
@@ -1831,6 +1833,22 @@ impl Render for Desktop {
                     .flex_shrink_0()
                     .child(theme::micro("AUTHORIZATION"))
                     .child(self.button(
+                        "real-data-consent",
+                        if self.real_data {
+                            "✓  Real invention data (stays on this machine)"
+                        } else {
+                            "○  Real invention data (stays on this machine)"
+                        },
+                        |this, _, cx| {
+                            this.real_data = !this.real_data;
+                            if this.real_data {
+                                this.synthetic = false;
+                            }
+                            cx.notify();
+                        },
+                        cx,
+                    ))
+                    .child(self.button(
                         "synthetic-consent",
                         if self.synthetic {
                             "✓  Synthetic test data"
@@ -1839,6 +1857,9 @@ impl Render for Desktop {
                         },
                         |this, _, cx| {
                             this.synthetic = !this.synthetic;
+                            if this.synthetic {
+                                this.real_data = false;
+                            }
                             cx.notify();
                         },
                         cx,

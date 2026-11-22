@@ -229,3 +229,40 @@ One process note, recorded because it happened: the first run used an earlier he
 failed to locate the run it had dispatched and stopped. It had already dispatched a successful
 run; that run was recovered from the run list and verified (never re-dispatched). The full
 procedure's script replaced it for the installer and printed `SIGNED OK`.
+## Increment A (candidate, 2026-11-21) — not published
+
+Scope: make the product truthful and dependable. No release was tagged, no artifact was replaced.
+
+### Code changes
+
+- **Recorded data declaration.** `Authorization` gains `real_data` (serde-defaulted, so pre-change
+  snapshots still deserialize). Every run now requires one of two recorded declarations; replay
+  refuses a real-invention declaration because recorded output is synthetic by construction.
+  The desktop offers both declarations and records the chosen one in the immutable run input.
+- **Loopback enforcement.** `OllamaProvider::new` rejects any non-loopback endpoint, so a remote
+  runtime cannot be presented as on-machine inference. `is_on_machine()` is now a pure helper,
+  not a label applied after the fact.
+- **Truncated outcomes.** Both providers must see a terminal frame (`done` / `message_stop`).
+  A stream that ends early returns a dedicated `Incomplete` error, which the service records as
+  `RunOutcome::Truncated` — never `Completed`. Truncated runs are resumable.
+- **Compliance label.** The stage prompt no longer calls the feasibility analysis a
+  "Specification", and the Analysis page states that the review does not examine a drafted
+  specification.
+
+### Evidence
+
+| Check | Result |
+| --- | --- |
+| `cargo test --workspace` | **111 passed** (was 104; +5 consent, +2 provider) |
+| `cargo fmt --check`, `clippy -D warnings` | clean |
+| New: consent rules (`tests/consent.rs`) | no declaration refused; replay+real refused; synthetic accepted and recorded |
+| New: old-snapshot compatibility | an `Authorization` JSON without `real_data` parses, field defaults false |
+| New: fragmented chunks | a UTF-8 character split across chunks reassembles (`café 🧪`) |
+| New: missing terminal frame | `Incomplete`, not a completed result; cloud fixture needed its `message_stop` added — the rule caught a real gap in the fixture |
+| Loopback via CLI | `pfl-cli live --endpoint http://192.0.2.10:11434` → refused with the policy message; a loopback endpoint passes policy and fails later on connection |
+| Installed-build UI acceptance | candidate installed to `%LOCALAPPDATA%\Programs\PatentForge Lite`, **28 checks passed** via `ui-acceptance.ps1 -Exe <installed>` |
+| Candidate installer | `dist\patent-forge-lite-0.1.0-x64.exe`, 7.47 MB, SHA-256 `b08c68dabbde0e7f2886583b590947aa123b438f0ba8d28d19134e342c5c840d`, **unsigned** |
+
+Not done in this increment: reference lineage, application-revision review, rendered HTML, IDS
+assembly (Increment B); Cloud UI; macOS/Linux installed acceptance (those platforms are now
+described as artifacts only).

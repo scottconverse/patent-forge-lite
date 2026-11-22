@@ -215,17 +215,21 @@ To configure local inference:
    with `ollama list`.
 3. Click **Configure existing local runtime**.
 
-A remote endpoint is not on-machine inference, and Lite will say so if you try to treat it as such.
+Local mode requires a loopback endpoint: `127.0.0.1`, `::1` or `localhost`. A remote runtime is
+refused at configuration time, because a remote endpoint is not on-machine inference.
 
 ### Authorization
 
-Two checkboxes gate every run:
+A data declaration plus one authorization gates every run:
 
-- **Synthetic test data** — you confirm the invention text is test material, not a real
-  client's confidential invention. Required for replay in this version.
+- **Synthetic test data** — the text is authored test material. Required for Recorded replay,
+  which only produces synthetic output.
+- **Real invention data (stays on this machine)** — the text is a real invention and you consent
+  to local processing. Valid only with Local mode; replay refuses it outright.
 - **Authorize local inference** — required when the mode is Local.
 
-Both are per-run conditions; configuring a mode does not pre-authorize a run.
+The declaration is recorded in the run itself, so a saved run always states which kind of data it
+contained. A run with neither declaration is refused before any provider call.
 
 ### Setup profile
 
@@ -371,7 +375,8 @@ you also want the data gone.
 | Nothing happens when you launch; exits instantly | You are running the non-native stub build | Use the installed application or `cargo build -p pfl-desktop --features native` |
 | "PatentForge Lite is already using this data location" | Another copy already owns the workspace | Close the other window, or wait for the process to exit |
 | "Choose recorded replay or configure local inference first" | No execution mode selected | Setup → select a mode |
-| "Replay requires explicitly marked synthetic data" | Consent checkbox unticked | Setup → tick *Synthetic test data* |
+| "declare the run's data first…" | Neither declaration ticked | Setup → tick *Synthetic test data* or *Real invention data* |
+| "recorded replay produces synthetic output…" | Real data declared while replay is the mode | Switch to Local, or tick synthetic instead |
 | "invention title and description of at least 50 words required" | Description too short | Extend the description; the counter turns green at 50 |
 | "… must complete a … run before this workflow can start" | Prerequisite analysis missing | Run the named analysis first |
 | "Lean setup is Cloud-only…" | Profile is Lean, mode is Local | Setup → choose **Full** |
@@ -440,6 +445,10 @@ only, and never downloads a model.
 - Cloud execution is **not available in the desktop**; `pfl-cli serve` is **replay-only**.
 - `pfl-cli` is **not bundled** in the installer.
 - No installed/interactive acceptance has been performed on macOS or Linux yet.
+- Real-invention runs are **Local-only**: replay is synthetic by construction and Cloud is not
+  selectable, so on-machine inference is the only path for a real invention.
+- A provider stream that ends before its terminal frame is recorded as **Truncated**, never as
+  Completed; the partial text is not committed as a result.
 - Cloud inference is fail-closed and has only been verified against a mock, not a live endpoint.
 - Live research (prior-art retrieval) is a seam with a fixture source, not a provider.
 - One tray/background lifecycle is not implemented; closing the window closes the application.

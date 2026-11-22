@@ -21,6 +21,10 @@ pub enum Error {
     Cancelled,
     #[error("provider: {0}")]
     Provider(String),
+    /// The provider stream ended without its terminal frame. The text received
+    /// so far is untrustworthy as a completed result.
+    #[error("incomplete provider response: {0}")]
+    Incomplete(String),
     #[error("storage: {0}")]
     Storage(String),
     #[error("I/O: {0}")]
@@ -440,6 +444,10 @@ pub struct PromptSnapshot {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Authorization {
     pub synthetic_data: bool,
+    /// The operator acknowledged this run may process a real (non-synthetic)
+    /// invention. Recorded with the run, because consent is part of its identity.
+    #[serde(default)]
+    pub real_data: bool,
     pub local_inference: bool,
     pub paid_provider: bool,
     pub research: bool,
@@ -478,12 +486,15 @@ pub enum RunOutcome {
     Failed,
     Interrupted,
     Completed,
+    /// The provider stopped before its terminal frame. Distinct from Failed and
+    /// never presented as Completed.
+    Truncated,
 }
 impl RunOutcome {
     pub fn is_terminal(self) -> bool {
         matches!(
             self,
-            Self::Cancelled | Self::Failed | Self::Interrupted | Self::Completed
+            Self::Cancelled | Self::Failed | Self::Interrupted | Self::Completed | Self::Truncated
         )
     }
 }

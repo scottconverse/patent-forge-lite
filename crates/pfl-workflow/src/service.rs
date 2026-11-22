@@ -135,13 +135,26 @@ impl WorkflowService {
                 "prompt snapshot differs; restore the exact prompt version before resume".into(),
             ));
         }
-        if !input.authorization.synthetic_data {
+        // Every run needs an explicit data declaration: either synthetic test
+        // material, or an acknowledgement that this is a real invention. The
+        // declaration is part of the immutable run input.
+        if !input.authorization.synthetic_data && !input.authorization.real_data {
             return Err(Error::Invalid(
-                "only explicitly authorized synthetic data is enabled in this slice".into(),
+                "declare the run's data first: synthetic test data, or a real-invention acknowledgement"
+                    .into(),
+            ));
+        }
+        if input.provider.kind == ProviderKind::Replay && !input.authorization.synthetic_data {
+            return Err(Error::Invalid(
+                "recorded replay produces synthetic output and cannot be used for a real-invention run"
+                    .into(),
             ));
         }
         if input.provider.kind == ProviderKind::Local && !input.authorization.local_inference {
-            return Err(Error::Invalid("local inference has not been explicitly authorized for this endpoint/model and synthetic input".into()));
+            return Err(Error::Invalid(
+                "local inference has not been explicitly authorized for this endpoint and model"
+                    .into(),
+            ));
         }
         if input.intake.title.trim().is_empty()
             || input.intake.description.split_whitespace().count() < 50
@@ -447,6 +460,9 @@ impl WorkflowService {
                 Ok(report) if !cancellation.is_cancelled() => (RunOutcome::Completed, Some(report)),
                 Ok(_) | Err(Error::Cancelled) => (RunOutcome::Cancelled, None),
                 Err(_) if cancellation.is_cancelled() => (RunOutcome::Cancelled, None),
+                // A stream that dies before its terminal frame is not a failure of
+                // the analysis; it is an incomplete answer and is recorded as such.
+                Err(Error::Incomplete(_)) => (RunOutcome::Truncated, None),
                 Err(_) => (RunOutcome::Failed, None),
             };
             // The Store's compound terminal write owns the sanitized durable
