@@ -450,3 +450,22 @@ ids and completes.
 
 Still open for Item 3: desktop editing UI, targeted regeneration, revision comparison/history view,
 revision-aware exports (package), and revision selection in the CLI/API.
+## Item 3: deterministic claim-structure checks (2026-11-21)
+
+`pfl_workflow::claims::validate` parses a claim set and checks structure offline: duplicate and
+missing numbering, claims out of order, self-reference, reference to a nonexistent claim, forward
+reference from a dependent claim, a dependent claim with no parent, and range/list references
+(`claims 1-3`, `claims 2 and 4`). Issues carry a severity and the claim they belong to; the module
+is deterministic and spends no provider call.
+
+Independent claims that reference an earlier claim are accepted — that pattern is legitimate
+("A method using the container of claim 1") and flagging it produced false positives, which the
+tests caught.
+
+Eight unit tests cover the clean case, duplicates and gaps, forward references, missing targets,
+self-reference, ranges and lists, and empty/unnumbered text.
+
+134 workspace tests pass; fmt and clippy clean.
+
+Still open for Item 3: CLI/desktop surfacing of the check, revision comparison, targeted
+regeneration, revision-aware export package.

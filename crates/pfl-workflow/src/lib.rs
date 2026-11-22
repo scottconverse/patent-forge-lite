@@ -2,6 +2,7 @@
 //! durable snapshots/events; they never own a provider request.
 pub use pfl_domain::*;
 
+pub mod claims;
 mod context;
 mod export;
 pub mod prompts;
