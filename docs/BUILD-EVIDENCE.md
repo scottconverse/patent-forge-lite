@@ -613,3 +613,8 @@ A failed Cloud call makes exactly one request (mock counter) and records no chec
 
 A loopback-only verification hook (PFL_CLOUD_ENDPOINT) was added so installed acceptance can stand a local mock in for the Cloud host and count requests without spending. A non-loopback value is refused at provider construction, so the variable cannot redirect a real key off the machine.
 
+
+## Phase A (A5 proof scaffolding, 2026-11-21)
+
+scripts/mock-cloud.ps1 serves a valid SSE stream on loopback and logs every request; scripts/installed-cloud-consent.ps1 drives the app to configure Cloud, decline, then approve. The decline half currently reports zero requests, but the run is not yet trustworthy: two probes showed the Cloud fields intermittently absent from the automation tree and the configure reply not observed, so the approve half is unproven. A5 stays open until the script waits for elements, confirms the Configured reply, and both halves pass repeatedly.
+
