@@ -546,3 +546,15 @@ Gate with real exit codes: build 0, fmt 0, clippy 0, tests 0.
 `native-manual.yml` on `d9ff138`: Windows x64, macOS arm64, Linux x86_64 — all **success**.
 Acceptance record updated to this revision: model discovery and usage records now recorded as
 passing with their evidence class; Cloud selection and cost confirmation remain open.
+## Item 4: cost estimation with a stated basis (2026-11-21)
+
+`pfl_workflow::cost` prices recorded usage at **operator-supplied** rates. It never invents a price:
+`Pricing` carries the two rates, and an `Estimate` carries the token counts plus a `basis()` string so
+a confirmation can state how the figure was produced.
+
+If any stage's usage is unknown the estimate is `None` — unknown, not `0.0`, because a partial total
+understates a bill and zero reads as free. A genuinely zero run with no unknowns still yields a real
+`0.0`.
+
+Three unit tests: known usage priced from the supplied rates, unknown usage yielding no estimate,
+and zero-with-no-unknowns being a real zero.
