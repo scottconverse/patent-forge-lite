@@ -53,7 +53,7 @@ Feasibility  ──►  Claims drafting  ──►  Compliance review
 | --- | --- | --- |
 | Feasibility | 6 | Understand what you have, what exists in the field, and whether it looks patentable |
 | Claims drafting | 4 | Get a claim set: strategy, up to 20 claims, examiner critique, revised claims |
-| Compliance review | 4 | Check a claim set against written description, definiteness, formalities, eligibility |
+| Compliance review | 4 | Check the claim set against the **feasibility analysis** for written description, definiteness, formalities and eligibility. It does **not** review a drafted specification — that arrives with application revisions. |
 | Application drafting | 5 | Assemble a draft application: abstract, background, summary, description, drawings |
 
 Each run is immutable. Its inputs, provider, prompt version and upstream text are snapshotted
@@ -198,10 +198,15 @@ Open **Setup**. Nothing here sends a request by itself; it only decides what *ma
 | --- | --- | --- | --- |
 | **Recorded replay** | Plays bundled synthetic model output for every stage | None | Free |
 | **Local** | Calls an Ollama endpoint you name, with a model you already have | Loopback only | Free |
-| **Cloud** | Anthropic API | Yes | Paid, per run |
+| **Cloud** | Anthropic API — **not selectable in this build** | Yes | Paid, per run |
 
 Start with replay. It is instant, deterministic and free, and it lets you learn the interface
 without a model.
+
+> **Cloud is not wired into the desktop yet.** The adapter, cost gate and fail-closed authorization
+> exist in the engine, but the application offers only **Recorded replay** and **Local**. There is no
+> Cloud selection, no API-key entry and no Cloud run path in the UI. Because of that, the **Lean**
+> profile — Cloud-only by definition — currently has no usable execution mode.
 
 To configure local inference:
 
@@ -224,10 +229,10 @@ Both are per-run conditions; configuring a mode does not pre-authorize a run.
 
 ### Setup profile
 
-| Profile | Meaning |
-| --- | --- |
-| **Lean** | Cloud-only. A local runtime is refused outright. |
-| **Full** | Local and Cloud both available. Choose this for any local work. |
+| Profile | Meaning | Usable today? |
+| --- | --- | --- |
+| **Lean** | Cloud-only. A local runtime is refused outright. | **No** — Cloud is not selectable in the desktop |
+| **Full** | Local and Cloud both available. | Yes, for Local and replay |
 
 Cloud calls additionally require explicit **paid** authorization for each run; without it, the run
 is refused before any request leaves the machine. There is no silent fallback between providers.
@@ -372,7 +377,8 @@ you also want the data gone.
 | "Lean setup is Cloud-only…" | Profile is Lean, mode is Local | Setup → choose **Full** |
 | "Finish or cancel active work before changing execution mode" | A run is live | Wait, or cancel it, then change mode |
 | "cloud/paid providers require explicit paid-provider authorization" | Cloud run without consent | A Cloud run is refused by design; authorize paid use or use local |
-| A stage fails with `cloud HTTP 4xx` or `Ollama HTTP 5xx` | Provider rejected the call | Check the endpoint/model and the runtime's own log; nothing is retried and no fallback is attempted |
+| A stage fails with `Ollama HTTP 5xx` | Provider rejected the call | Check the endpoint/model and the runtime's own log; nothing is retried and no fallback is attempted |
+| Cloud mode is missing | Not implemented in the desktop | The engine has the adapter; the UI does not expose it yet |
 | Stage fails on macOS/Linux: "could not open display" / Vulkan error | No usable GPU/display in that session | Run inside a real desktop session, not a headless one |
 | Word shows a repair prompt | Genuine bug in `.docx` writing | Send the file; this path is tested |
 | macOS: "app is damaged" | Quarantine on an unsigned build | `xattr -dr com.apple.quarantine "Patent Forge Lite.app"` |
@@ -385,8 +391,13 @@ you can report.
 
 ## 12. Command line and API
 
-The `pfl-cli` binary ships with the application and drives the same core. Useful for automation and
-for verifying an installation.
+`pfl-cli` **is not included in the Windows installer** — build it from source:
+
+```bash
+cargo build -p pfl-cli --release
+```
+
+It drives the same core and is useful for automation and for verifying an installation.
 
 ```bash
 pfl-cli pipeline --workspace ./synthetic        # all four analyses on synthetic input, then reopen
@@ -396,9 +407,10 @@ pfl-cli live --workspace ./w --endpoint http://127.0.0.1:11434 --model phi4-mini
 pfl-cli serve    --workspace ./w --addr 127.0.0.1:4330
 ```
 
-`serve` exposes the compatibility HTTP API (health, projects, runs, events, report, export). Set
-`PFL_API_TOKEN` to require `Authorization: Bearer <token>`; without it the API is open on the
-loopback address only. Endpoints and auth semantics are documented in [API.md](API.md).
+`serve` exposes the compatibility HTTP API (health, projects, runs, events, report, export) over
+**recorded replay only** — it cannot reach a live provider. Set `PFL_API_TOKEN` to require
+`Authorization: Bearer <token>`; without it the API is open on the loopback address only.
+Endpoints and auth semantics are documented in [API.md](API.md).
 
 `live` performs **real inference**. It requires an endpoint and model you name, uses synthetic input
 only, and never downloads a model.
@@ -423,6 +435,10 @@ only, and never downloads a model.
 ## 14. Known limits
 
 - macOS and Linux builds are **unsigned**. Windows is signed with Azure Trusted Signing.
+- macOS and Linux are offered as **artifacts**, not verified support: no installed or interactive
+  acceptance has been performed on either platform.
+- Cloud execution is **not available in the desktop**; `pfl-cli serve` is **replay-only**.
+- `pfl-cli` is **not bundled** in the installer.
 - No installed/interactive acceptance has been performed on macOS or Linux yet.
 - Cloud inference is fail-closed and has only been verified against a mock, not a live endpoint.
 - Live research (prior-art retrieval) is a seam with a fixture source, not a provider.

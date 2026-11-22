@@ -36,6 +36,22 @@ administrator rights) and uninstalling never deletes your projects.
 - Local inference against Ollama: all four analyses, 19 stages, on a single model.
 - Word export opened in Word without a repair prompt.
 
+## Known limitations in this build
+
+These are limitations of the shipped build, not future ideas:
+
+- **Cloud is not selectable.** The engine has an Anthropic adapter with a fail-closed paid-call
+  gate, but the application offers only Recorded replay and Local. There is no key entry and no
+  Cloud run path in the UI.
+- **The Lean setup profile has no usable mode**, because it is Cloud-only and Cloud is not in the
+  desktop yet.
+- **`pfl-cli` is not included in the Windows installer.** Build it from source.
+- **`pfl-cli serve` is replay-only.** It cannot reach a live provider.
+- **Every analysis currently requires the synthetic-data confirmation.** There is no supported
+  real-invention workflow in 0.1.0.
+- **macOS and Linux are artifacts, not verified support.** They compile and pass their tests;
+  nobody has installed or used them.
+
 ## Not verified, and not claimed
 
 - No installed or interactive acceptance on macOS or Linux yet — those builds compile and pass

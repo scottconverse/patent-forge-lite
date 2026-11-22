@@ -162,6 +162,7 @@
       <div class="trust">
         <span>Signed Windows installer (Azure Trusted Signing)</span>
         <span>Works fully offline in replay</span>
+        <span>Windows is the only interactively verified platform</span>
         <span>Open source</span>
       </div>
     </div>
@@ -223,7 +224,7 @@
       </div>
       <div class="step">
         <h3>Choose what does the thinking</h3>
-        <p>Recorded replay (instant, offline, free), your own Ollama model, or Anthropic Cloud with explicit paid authorization. Configuration alone never sends anything.</p>
+        <p>Recorded replay (instant, offline, free) or your own Ollama model on this machine. Configuration alone never sends anything. Cloud is implemented in the engine but not yet selectable in the application.</p>
       </div>
       <div class="step">
         <h3>Run and keep</h3>
@@ -274,14 +275,14 @@
       </div>
       <div class="platform">
         <h3>macOS arm64</h3>
-        <div class="state">Unsigned build</div>
+        <div class="state">Unsigned · artifacts only</div>
         <p class="small">Unzip, then right-click → Open the first time. Requires macOS 13+.</p>
         <pre>unzip patent-forge-lite-0.1.0-macos-arm64.zip
 open "Patent Forge Lite.app"</pre>
       </div>
       <div class="platform">
         <h3>Linux x86_64</h3>
-        <div class="state">Unsigned build</div>
+        <div class="state">Unsigned · artifacts only</div>
         <p class="small">Extract and run. Needs a working GPU and the usual desktop libraries.</p>
         <pre>tar xzf patent-forge-lite-0.1.0-linux-x64.tar.gz
 ./patent-forge-lite/pfl-desktop</pre>
@@ -307,9 +308,9 @@ open "Patent Forge Lite.app"</pre>
         <tr><td>Windows desktop</td><td><span class="ok">Built, launched, driven by hand and by automation</span></td></tr>
         <tr><td>Windows installer</td><td><span class="ok">Built, signed, installed, uninstalled, verified</span></td></tr>
         <tr><td>macOS &amp; Linux desktop</td><td><span class="part">Compiles and passes tests in CI; no interactive acceptance yet</span></td></tr>
-        <tr><td>macOS &amp; Linux packages</td><td><span class="part">Published unsigned</span></td></tr>
+        <tr><td>macOS &amp; Linux packages</td><td><span class="part">Published unsigned; no installed or interactive acceptance yet</span></td></tr>
         <tr><td>Local inference</td><td><span class="ok">Verified against Ollama on one model</span></td></tr>
-        <tr><td>Cloud inference</td><td><span class="part">Fail-closed; verified against a mock only</span></td></tr>
+        <tr><td>Cloud inference</td><td><span class="part">Adapter fail-closed, mock-verified; <strong>not selectable in the desktop</strong></span></td></tr>
         <tr><td>Live prior-art research</td><td><span class="part">Seam only — no external provider yet</span></td></tr>
       </tbody>
     </table>

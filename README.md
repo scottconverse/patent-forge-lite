@@ -40,7 +40,9 @@ Barlow type. Reports open as a document — not raw markdown.
     learning the interface and for verifying behaviour deterministically.
   - *Local* — an existing [Ollama](https://ollama.com) installation. You choose the endpoint and
     model; Lite never downloads or starts one for you.
-  - *Cloud* — an Anthropic API key, only if you explicitly authorize a paid call per run.
+  - *Cloud* — an Anthropic key and a paid-call authorization. **Not available in the desktop build yet**;
+    the adapter exists and the CLI/API gates are wired, but there is no Cloud selection or key entry in
+    the application.
 
 ## Install
 
@@ -55,6 +57,11 @@ the signed application binary.
 **macOS / Linux** — download the archive for your platform from Releases and see
 [the user manual](docs/USER-MANUAL.md#macos-and-linux) for the two commands it takes. These
 builds are **unsigned**, so macOS Gatekeeper needs a right-click → Open the first time.
+
+> **Platform support is not equal.** Windows has installed, interactive, signed acceptance.
+> macOS and Linux have published, compiled artifacts and a passing test suite — but **no installed
+> or interactive acceptance has been performed on either**, so they are offered as artifacts, not
+> as verified support.
 
 ```bash
 # macOS (arm64)
@@ -120,6 +127,10 @@ cargo run   -p pfl-cli -- pipeline --workspace ./synthetic
 Crates: `pfl-domain` (contracts), `pfl-storage` (SQLite), `pfl-workflow` (four workflows, providers,
 research seam), `pfl-api` (compatibility HTTP surface), `pfl-desktop` (GPUI), `pfl-cli` (harness:
 `replay`, `import-replay`, `pause-fixture`, `resume`, `pipeline`, `serve`, `live`, `inspect`).
+
+`pfl-cli` is **not included in the Windows installer**. Build it from source with
+`cargo build -p pfl-cli --release`. `serve` exposes the compatibility API over **recorded replay
+only** — it cannot reach a live provider.
 
 Toolchain is pinned to Rust 1.98.1 and GPUI to a single Zed revision; both are recorded in
 `Cargo.toml` and `docs/BUILD-EVIDENCE.md`. CI compiles, tests and lints on Windows x64, macOS arm64
