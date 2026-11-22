@@ -668,3 +668,8 @@ pfl_workflow::diff computes a deterministic line diff between two revision texts
 
 The package now emits claims.html and application.html alongside the markdown, each escaping the revision text into a pre block and naming the revision id and version. A test asserts escaping (angle brackets, ampersand, quotes), that raw markup cannot leak, that re-exporting the same revision produces identical bytes, and that the manifest carries the html file hash.
 
+
+## Phase B (B4 revision Word export, 2026-11-21)
+
+claims.docx and application.docx join the package, built from the revision text with the same heading mapping as the run exporter and titled with kind, version and revision id. A test asserts the file is a real docx container (PK zip magic, over 1 KB) and that the manifest names it.
+

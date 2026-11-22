@@ -131,6 +131,55 @@ fn revision_html(revision: &DocumentRevision) -> String {
     )
 }
 
+/// Renders a revision as a Word document. Deterministic: the same revision text
+/// always produces the same paragraphs, so a re-export is byte-stable apart from
+/// the container's own timestamps.
+fn revision_docx(revision: &DocumentRevision) -> Result<Vec<u8>> {
+    use docx_rs::*;
+
+    let title = format!(
+        "{} revision {} ({})",
+        revision.kind.slug(),
+        revision.version,
+        revision.id.0
+    );
+    let mut document = Docx::new();
+    document = document.add_paragraph(
+        Paragraph::new()
+            .add_run(Run::new().add_text(&title).bold())
+            .style("Heading1"),
+    );
+    if !revision.note.trim().is_empty() {
+        document = document.add_paragraph(
+            Paragraph::new().add_run(Run::new().add_text(format!("Edit note: {}", revision.note))),
+        );
+    }
+    for line in revision.text.lines() {
+        let trimmed = line.trim_end();
+        let heading_level = trimmed
+            .strip_prefix("# ")
+            .map(|_| 2)
+            .or_else(|| trimmed.strip_prefix("## ").map(|_| 3));
+        let body = match heading_level {
+            Some(_) => trimmed.trim_start_matches('#').trim().to_string(),
+            None => trimmed.to_string(),
+        };
+        let run = Run::new().add_text(&body);
+        let paragraph = match heading_level {
+            Some(2) => Paragraph::new().add_run(run.bold()).style("Heading2"),
+            Some(_) => Paragraph::new().add_run(run.bold()).style("Heading3"),
+            None => Paragraph::new().add_run(run),
+        };
+        document = document.add_paragraph(paragraph);
+    }
+    let mut buffer = Vec::new();
+    document
+        .build()
+        .pack(&mut std::io::Cursor::new(&mut buffer))
+        .map_err(|e| Error::Invalid(format!("cannot build the revision document: {e}")))?;
+    Ok(buffer)
+}
+
 /// Builds the package for the selected revisions.
 ///
 /// `compliance` is the saved findings text, when a review was run against these
@@ -164,6 +213,10 @@ pub fn build_package(
             name: "claims.html".into(),
             bytes: revision_html(revision).into_bytes(),
         });
+        files.push(PackageFile {
+            name: "claims.docx".into(),
+            bytes: revision_docx(revision)?,
+        });
         revisions.push(ManifestRevision {
             kind: "claims".into(),
             revision_id: revision.id.0.clone(),
@@ -184,6 +237,10 @@ pub fn build_package(
         files.push(PackageFile {
             name: "application.html".into(),
             bytes: revision_html(revision).into_bytes(),
+        });
+        files.push(PackageFile {
+            name: "application.docx".into(),
+            bytes: revision_docx(revision)?,
         });
         revisions.push(ManifestRevision {
             kind: "application".into(),
@@ -337,6 +394,31 @@ mod tests {
             .find(|entry| entry.name == "claims.html")
             .expect("the manifest names the html file");
         assert_eq!(entry.sha256, hex(&html.bytes));
+    }
+    #[test]
+    fn word_export_is_a_real_docx_named_by_the_manifest() {
+        let claims = revision(DocumentKind::Claims, 2, "1. A thing.\n2. Another.");
+        let files = build_package("Fixture", Some(&claims), None, &[], None).unwrap();
+        let docx = file(&files, "claims.docx");
+        // A .docx is a zip container: PK\x03\x04.
+        assert_eq!(
+            &docx.bytes[..2],
+            b"PK",
+            "the export must be a real docx container"
+        );
+        assert!(
+            docx.bytes.len() > 1000,
+            "the container must hold a document"
+        );
+        let manifest: PackageManifest =
+            serde_json::from_slice(&file(&files, "manifest.json").bytes).unwrap();
+        assert!(
+            manifest
+                .files
+                .iter()
+                .any(|entry| entry.name == "claims.docx"),
+            "the manifest names the Word file"
+        );
     }
     #[test]
     fn an_empty_selection_is_refused() {
