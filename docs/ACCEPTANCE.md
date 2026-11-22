@@ -131,3 +131,45 @@ quality or legal correctness.
 - No signature or publication was made for this revision.
 - Nothing paid was contacted; no private data was used.
 - The candidate is unsigned and unpublished; v0.1.0 remains the only published release.
+
+## Directive coverage matrix (v3)
+
+Status per directive item. Evidence classes: unit, run, installed, mock, CI. A row is pass only with the evidence named.
+
+| Item | Status | Evidence or gap |
+| --- | --- | --- |
+| A1 Cloud split-UTF-8 | pass | unit: 3 tests incl. the defect demonstration |
+| A2 Cloud mode at session layer | pass | unit: session tests |
+| A3 memory-only key, masked field | pass | unit: masking tests; installed: field present |
+| A4 cost confirmation text | pass | unit: 2 tests |
+| A5 decline sends zero (installed) | blocked | automation cannot activate Start; session+engine proven |
+| A6 no fallback | pass | unit: 1 request, no checkpoint |
+| A7 Lean refuses Local | pass | unit: refuses Local, permits Cloud |
+| B1 desktop editing to revision | not implemented | engine save_revision exists |
+| B2 diff engine | pass | unit: 6 tests |
+| B2 diff in desktop | not implemented | |
+| B3 revision selection in desktop | not implemented | engine selection exists |
+| B4 revision exports md/html/docx/csv/manifest | pass | unit: 7 tests |
+| B5 semantics + plan | pass | doc + unit: 5 tests |
+| B5 execution with carry-over | not implemented | contract in REGENERATION.md |
+| B6 revisions list | pass | run |
+| C1 PatentsView adapter | not implemented | needs key choice confirmed |
+| C2 verified-only references | partial | generic HTTP adapter mock-verified |
+| C3 denied opt-in zero requests | pass | unit: research tests |
+| C4 IDS from records only | pass | unit: lineage test |
+| C5 desktop research entry | not implemented | |
+| D1 model picker | partial | list_local_models verified against real runtime; no picker UI |
+| D2 first-run profile choice | partial | profile selectable in Setup; no first-run prompt |
+| D3 tray/lifecycle | not implemented | |
+| D4 Windows upgrade/rollback | not tested | installer exists |
+| E1 copy-first importer | partial | synthetic importer tested; real path absent |
+| E2 real database import | blocked | authorization + database needed |
+| E3 credential re-entry | not implemented | |
+| E4 API contract + docs | partial | docs exist; contracts unverified |
+| F1 one installer per platform | partial | Windows built; macOS/Linux artifacts built unsigned |
+| F2 Windows install/upgrade/uninstall | partial | install/uninstall/data retained proven; upgrade not tested |
+| F3 macOS/Linux installed | blocked | hardware |
+| F4 signature status | pass | v0.1.0 signed and verified; candidate unsigned by design |
+| F5 documentation agreement | partial | corrected repeatedly; needs a final pass at the release revision |
+| G completion matrix | partial | this section; full matrix at release |
+

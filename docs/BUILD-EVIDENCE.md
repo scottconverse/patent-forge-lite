@@ -688,3 +688,8 @@ regenerable_stages lists the committed checkpoints of a terminal run, so a secti
 
 plan_regeneration validates a section selection against a completed run: an empty selection is refused, a stage the base never produced is refused (probed with a claims stage against a feasibility run), and a valid selection is returned in the base run's own order with duplicates removed, so the plan is deterministic. Execution with carried-over checkpoints is still to build.
 
+
+## Coverage matrix added (2026-11-21)
+
+docs/ACCEPTANCE.md now carries a directive-wide matrix: every A–G item with its status and the evidence class that proves it, or the concrete gap. Blocked rows name their blocker (automation for A5, authorization for E2, hardware for F3).
+
