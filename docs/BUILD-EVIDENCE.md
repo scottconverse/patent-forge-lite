@@ -658,3 +658,8 @@ The installed decline/approve pair is recorded as blocked on automation, not as 
 
 pfl-cli revisions prints every stored revision for a workspace with its kind, id, version, base run, note and creation time. Verified end to end: pipeline created a claims run, save-revision stored version 1 against it, and revisions listed exactly that record.
 
+
+## Phase B (B2 diff engine, 2026-11-21)
+
+pfl_workflow::diff computes a deterministic line diff between two revision texts using a longest-common-subsequence table, with added/removed counts and a compact render for the CLI or a review screen. Six tests: identical texts (no phantom line from a trailing newline), insertion, deletion, replacement, determinism of both the structure and the rendering, and empty inputs. No timestamps or hashing, so the same two texts always produce the same output.
+

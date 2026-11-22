@@ -74,7 +74,8 @@ quality or legal correctness.
 | Compliance reviews selected revisions | integration | pass |
 | Claim structure validation (numbering, dependencies, references) | unit + CLI run | pass |
 | Edit → validate → save → package chain | run | pass |
-| Revision comparison / targeted regeneration | — | **not implemented** |
+| Deterministic line diff between two revisions (LCS) | unit (`diff.rs`) | pass |
+| Revision comparison in the desktop | — | **not implemented** |
 | `pfl-cli revisions list` (id, kind, version, base run, note) | run | pass |
 | Desktop editing surface | — | **not implemented** |
 
