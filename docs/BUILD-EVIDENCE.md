@@ -678,3 +678,8 @@ claims.docx and application.docx join the package, built from the revision text 
 
 docs/REGENERATION.md fixes the contract: a regeneration derives a new run from the base snapshot, records lineage, and never mutates the base run or consumes revisions; section scope re-runs named stages and carries the rest over from committed checkpoints. A test pins the whole-run half: rerun yields a new id, the next version, rerun_of set, and the base run's checkpoints, report and version are byte-identical afterwards; the revision survives unchanged.
 
+
+## Phase B (B5 stage hook, 2026-11-21)
+
+regenerable_stages lists the committed checkpoints of a terminal run, so a section selection can only name stages the base run actually produced; a running run is refused. Tested against a completed feasibility run and against a run still in progress.
+

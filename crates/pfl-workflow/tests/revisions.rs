@@ -338,3 +338,42 @@ async fn a_rerun_creates_a_new_version_and_leaves_the_base_untouched() {
     assert_eq!(revisions[0].id, revision.id);
     assert_eq!(revisions[0].text, "1. An edited claim.");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn only_committed_stages_are_offered_for_regeneration() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+    let project = service.create_project(intake()).await.unwrap();
+
+    let run = service
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Feasibility,
+            "regen".into(),
+            auth(),
+        )
+        .await
+        .unwrap();
+    // A running run offers nothing: a selection cannot name an unproduced stage.
+    let error = service
+        .regenerable_stages(run.id.clone())
+        .await
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("terminal"),
+        "unexpected: {error}"
+    );
+
+    let done = wait(&service, &run.id).await;
+    assert_eq!(done.outcome, RunOutcome::Completed);
+    let stages = service.regenerable_stages(done.id.clone()).await.unwrap();
+    assert_eq!(
+        stages,
+        done.checkpoints.iter().map(|c| c.stage).collect::<Vec<_>>()
+    );
+    assert!(
+        !stages.is_empty(),
+        "a completed run offers its committed stages"
+    );
+}

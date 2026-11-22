@@ -445,6 +445,23 @@ impl WorkflowService {
         self.launch(run).await
     }
 
+    /// The stages of a completed run that a section-scoped regeneration may re-run.
+    /// Only committed checkpoints are offered, so a selection can never name a stage
+    /// the base run never produced.
+    pub async fn regenerable_stages(&self, id: RunId) -> Result<Vec<Stage>> {
+        let run = self.run(id).await?;
+        if !run.outcome.is_terminal() {
+            return Err(Error::Conflict(
+                "the source run must be terminal before it can be regenerated".into(),
+            ));
+        }
+        Ok(run
+            .checkpoints
+            .iter()
+            .map(|checkpoint| checkpoint.stage)
+            .collect())
+    }
+
     /// Starts a dependent workflow against *selected document revisions* rather than
     /// whatever the project happens to have produced last. The selection is recorded
     /// in the immutable upstream snapshot so a review can always name what it read.
