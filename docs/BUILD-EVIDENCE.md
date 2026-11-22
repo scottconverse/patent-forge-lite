@@ -197,3 +197,35 @@ Remaining gate: signing the Windows installer requires `AZURE_CLIENT_ID`, `AZURE
 `scottconverse-signing`, profile `ScottConversePublic`, endpoint `wcus.codesigning.azure.net`).
 With those present the Windows job builds, signs, verifies and the publish step attaches the
 installer to the existing v0.1.0 release.
+## Windows signing, 2026-11-21 (Azure Trusted Signing)
+
+Signed through `scottconverse/civiccast` -> `.github/workflows/sign-native-installer.yml`,
+per the one full signing procedure. Two runs, one per file, in the required order (app binary
+first, then a rebuilt installer that contains it).
+
+| File | Unsigned SHA-256 | Signed SHA-256 | Run |
+| --- | --- | --- | --- |
+| `pfl-desktop.exe` (application) | `9738f5d7…ee423` | `7abf0c77…b8a71` | [44965745433](https://github.com/scottconverse/civiccast/actions/runs/44965745433) |
+| `patent-forge-lite-0.1.0-x64.exe` (installer) | `3cdcdcfa…991f2` | `84da4443…a194edbb` | [44966583618](https://github.com/scottconverse/civiccast/actions/runs/44966583618) |
+
+Both: `Status: Valid`, signer `CN=Scott Converse, O=Scott Converse, L=Longmont, S=co, C=US`,
+issuer `Microsoft ID Verified CS EOC CA 03`, RFC3161 timestamp from `Microsoft Public RSA Time
+Stamping Authority`, and each file's SHA-256 equals `signed_sha256` in its receipt.
+
+The installer was rebuilt only after `target\release\pfl-desktop.exe` was replaced with the signed
+binary, so it embeds the signed executable. Proven by installing it: the installed
+`pfl-desktop.exe` hashes to `7abf0c77…b8a71` and its signature status is `Valid`. Uninstall
+removed the application and preserved the profile.
+
+Draft intake releases created in civiccast, left as drafts and never published:
+
+- `patentforgelite-intake-9738f5d7-20261121-171547` (app)
+- `patentforgelite-intake-3cdcdcfa-20261121-172604` (installer)
+
+Published asset: `patent-forge-lite-0.1.0-x64.exe` (7.86 MB) plus `.sha256` on the v0.1.0
+release, re-downloaded and re-verified after upload.
+
+One process note, recorded because it happened: the first run used an earlier helper script that
+failed to locate the run it had dispatched and stopped. It had already dispatched a successful
+run; that run was recovered from the run list and verified (never re-dispatched). The full
+procedure's script replaced it for the installer and printed `SIGNED OK`.

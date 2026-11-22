@@ -48,10 +48,9 @@ Barlow type. Reports open as a document — not raw markdown.
 [Releases](https://github.com/scottconverse/patent-forge-lite/releases), run it, done. Per-user
 install, no administrator rights. Uninstalling does **not** delete your projects.
 
-The Windows installer is Authenticode-signed with Azure Trusted Signing and the pipeline fails
-closed if the signature does not verify. This repository needs its three Azure secrets configured
-before a Windows asset is published; until then a release ships **macOS and Linux only**, and the
-release notes say so.
+The Windows installer is Authenticode-signed with Azure Trusted Signing (publisher **Scott
+Converse**). The pipeline fails closed if the signature does not verify, and the installer embeds
+the signed application binary.
 
 **macOS / Linux** — download the archive for your platform from Releases and see
 [the user manual](docs/USER-MANUAL.md#macos-and-linux) for the two commands it takes. These
