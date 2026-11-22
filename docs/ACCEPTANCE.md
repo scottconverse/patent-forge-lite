@@ -48,6 +48,8 @@ quality or legal correctness.
 | Cloud selectable in the desktop UI | — | **not implemented** |
 | Lean refuses Local with a clear message | unit (`consent.rs`) | pass |
 | Lean permits Cloud past the profile gate (fails at the provider, not the gate) | unit, loopback 503 | pass |
+| Cost confirmation states *unknown* plus the rates, never a fabricated total | unit (`cost.rs`) | pass |
+| Cost confirmation shown before a paid run in the desktop | — | **not implemented** |
 
 ## 3. Reference lineage and research
 

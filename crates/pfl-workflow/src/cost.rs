@@ -57,6 +57,22 @@ pub fn estimate_run(run: &RunSnapshot, pricing: &Pricing) -> Option<Estimate> {
     estimate(&usage_summary(run), pricing)
 }
 
+/// The text a confirmation screen shows before a paid run.
+///
+/// A run's usage is unknowable in advance, so the honest statement is *unknown*
+/// plus the rates that will be applied — never a fabricated total.
+pub fn confirmation_text(model: &str, pricing: Option<&Pricing>) -> String {
+    match pricing {
+        Some(rates) => format!(
+            "{model}: cost unknown until the run reports usage. Rates applied: {:.2} input and {:.2} output per 1M tokens.",
+            rates.input_per_million, rates.output_per_million
+        ),
+        None => format!(
+            "{model}: cost unknown. No rates are configured for this model, so no total can be stated."
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -66,6 +82,26 @@ mod tests {
             input_per_million: 3.0,
             output_per_million: 15.0,
         }
+    }
+
+    #[test]
+    fn a_confirmation_states_unknown_and_the_rates_rather_than_a_total() {
+        let text = confirmation_text("claude-test", Some(&pricing()));
+        assert!(text.contains("cost unknown until the run reports usage"));
+        assert!(text.contains("3.00 input"));
+        assert!(text.contains("15.00 output"));
+        assert!(
+            !text.contains('$'),
+            "no currency figure may be invented before usage exists"
+        );
+    }
+
+    #[test]
+    fn a_confirmation_without_rates_says_only_unknown() {
+        let text = confirmation_text("claude-test", None);
+        assert!(text.contains("cost unknown"));
+        assert!(text.contains("No rates are configured"));
+        assert!(!text.contains('$'));
     }
 
     #[test]

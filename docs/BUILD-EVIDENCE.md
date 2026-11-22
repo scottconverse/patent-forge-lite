@@ -591,3 +591,8 @@ The session actor gained a Cloud mode and an in-memory key. Selecting Cloud buil
 
 A Lean installation refuses Local with the message naming the profile, and does not refuse Cloud: a Lean Cloud run starts, fails at the loopback provider with 503, and is recorded as Failed rather than being stopped by the profile gate. Two tests in consent.rs, using a loopback endpoint that always answers 503 so no real Cloud host is contacted.
 
+
+## Phase A (A4 cost confirmation text, 2026-11-21)
+
+confirmation_text produces the statement a consent screen shows before a paid run. A run's usage cannot be known in advance, so it states that the cost is unknown until the run reports usage, together with the rates that will be applied; with no configured rates it says only that the cost is unknown. Neither form invents a currency figure. Two tests assert this, including that no dollar sign appears.
+

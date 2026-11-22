@@ -9,7 +9,7 @@ mod export;
 pub mod package;
 pub mod prompts;
 pub mod providers;
-pub use cost::{Estimate, Pricing, estimate, estimate_run};
+pub use cost::{Estimate, Pricing, confirmation_text, estimate, estimate_run};
 mod report;
 pub use report::{UsageSummary, usage_summary};
 mod research;
