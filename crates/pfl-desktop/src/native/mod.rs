@@ -1863,9 +1863,8 @@ impl Render for Desktop {
                             let model = this.cloud_model.read(cx).buffer.text().to_string();
                             let key = this.cloud_key.read(cx).buffer.text().to_string();
                             // The key travels to the session actor and nowhere else.
-                            let _ = this.session.request(Request::SetCloudKey(Some(key)));
                             this.cloud_approved = false;
-                            this.send(Request::Configure(Mode::Cloud { model }), cx);
+                            this.send(Request::ConfigureCloud { model, key }, cx);
                         },
                         cx,
                     ));

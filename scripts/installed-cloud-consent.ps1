@@ -44,6 +44,22 @@ function Record([string]$name, [bool]$ok, [string]$detail = '') {
 function Requests {
     if (Test-Path $log) { (Get-Content $log | Measure-Object).Count } else { 0 }
 }
+function Wait-Until([scriptblock]$test, [int]$seconds = 10) {
+    $deadline = (Get-Date).AddSeconds($seconds)
+    while ((Get-Date) -lt $deadline) {
+        $value = & $test
+        if ($value) { return $value }
+        Start-Sleep -Milliseconds 250
+    }
+    return $null
+}
+function Wait-Element([string]$id) {
+    Wait-Until { Find-ById $id } 10
+}
+function Notice {
+    $node = Find-ById 'status-notice'
+    if ($node) { $node.Current.Name } else { '' }
+}
 function Get-Window {
     if (-not $script:appPid) { return $null }
     $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $script:appPid)
@@ -100,39 +116,40 @@ $null = $win.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System
 Start-Sleep -Milliseconds 800
 
 Activate (Find-Contains 'Setup page')
-Start-Sleep -Milliseconds 500
-# The Cloud card sits below the local runtime card, so scroll it into view before
-# addressing its fields; unrealised elements are invisible to automation.
-$anchor = Find-ById 'input-Local endpoint'
-if ($anchor) { $anchor.SetFocus() }
-for ($i = 0; $i -lt 5; $i++) {
-    [System.Windows.Forms.SendKeys]::SendWait('{PGDN}')
-    Start-Sleep -Milliseconds 350
-}
+$null = Wait-Element 'input-Cloud model name'
 Set-Field 'input-Cloud model name' 'claude-mock'
 Set-Field 'input-Cloud API key' 'sk-ant-session-only-test'
 Activate (Find-Contains 'Configure Cloud with this key')
-Record 'Cloud is configured against the loopback endpoint' ([bool](Find-Contains 'Cloud · paid per run'))
+# The Configured reply is the proof the mode actually changed; wait for it rather
+# than trusting the click.
+$configured = Wait-Until { (Notice) -like '*Execution mode configured*' } 10
+Record 'Cloud is configured (Configured reply observed)' ([bool]$configured) "(notice: $(Notice))"
 
-# Declined: approval left off, start attempted.
+# Declare the data first, so any start refusal is unambiguously about payment.
+Activate (Find-Contains 'Synthetic test data')
+Start-Sleep -Milliseconds 400
+Record 'synthetic data declared' ([bool](Find-Contains '✓  Synthetic test data'))
+
+# Declined: paid approval left off.
 Activate (Find-Contains 'Analysis page')
-Start-Sleep -Milliseconds 600
+Start-Sleep -Milliseconds 700
 Activate (Find-Contains 'Start new version')
-Start-Sleep -Milliseconds 1500
+Start-Sleep -Milliseconds 1800
 $declined = Requests
 Record 'declining sends zero requests' ($declined -eq 0) "(requests: $declined)"
-$notice = Find-Contains 'Approve the paid Cloud request'
-Record 'the refusal names the missing approval' ([bool]$notice)
+Record 'the refusal names the missing approval' ((Notice) -like '*paid Cloud*') "(notice: $(Notice))"
 
-# Approved: toggle the per-run approval and start again.
+# Approved: toggle the per-run approval, then start.
 Activate (Find-Contains 'Setup page')
+Start-Sleep -Milliseconds 500
 Activate (Find-Contains 'Approve paid Cloud request')
+Start-Sleep -Milliseconds 500
+Record 'paid approval recorded' ([bool](Find-Contains '✓  Approve paid Cloud request'))
 Activate (Find-Contains 'Analysis page')
-Start-Sleep -Milliseconds 600
+Start-Sleep -Milliseconds 700
 Activate (Find-Contains 'Start new version')
-Start-Sleep -Seconds 6
-$approved = Requests
-Record 'an approved Cloud run reaches the provider' ($approved -gt 0) "(requests: $approved)"
+$approved = Wait-Until { (Requests) -gt 0 } 25
+Record 'an approved Cloud run reaches the provider' ([bool]$approved) "(requests: $(Requests))"
 
 $results | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $OutDir 'cloud-consent.json')
 Clear-Harness

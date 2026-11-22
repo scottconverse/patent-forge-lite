@@ -618,3 +618,8 @@ A loopback-only verification hook (PFL_CLOUD_ENDPOINT) was added so installed ac
 
 scripts/mock-cloud.ps1 serves a valid SSE stream on loopback and logs every request; scripts/installed-cloud-consent.ps1 drives the app to configure Cloud, decline, then approve. The decline half currently reports zero requests, but the run is not yet trustworthy: two probes showed the Cloud fields intermittently absent from the automation tree and the configure reply not observed, so the approve half is unproven. A5 stays open until the script waits for elements, confirms the Configured reply, and both halves pass repeatedly.
 
+
+## Phase A (A5 diagnosis, 2026-11-21)
+
+The Cloud acceptance script exposed two real defects, both now understood. First, configuring Cloud from the UI sent the key and the mode as two separate requests and the mode was observed as unset at start. Second, the UI send() helper discards the reply, so Reply::Configured never reached the view and the mode stayed None even when the actor had configured it. The actor now has one atomic ConfigureCloud request that installs the key and configures the mode together. Applying the reply in the view is still outstanding; the first attempt did not compile and was reverted rather than left broken. A5 therefore remains open, and the proof script is recorded as not passing.
+

@@ -52,6 +52,12 @@ pub enum Request {
     /// Holds the Cloud key in memory for this session only. A `None` clears it.
     /// The value is never stored, logged, exported or echoed back in a reply.
     SetCloudKey(Option<String>),
+    /// Configures Cloud in one step: the key is installed and the mode is built
+    /// together, so no ordering race can leave the mode unset or the key missing.
+    ConfigureCloud {
+        model: String,
+        key: String,
+    },
     SetProfile(SetupProfile),
     Start {
         project: ProjectId,
@@ -281,6 +287,36 @@ impl Actor {
         self.reply(Reply::Run(snapshot));
     }
 
+    /// Builds the provider for a mode. Cloud accepts only a loopback verification
+    /// endpoint from the environment; anything else is refused, so a real key can
+    /// never be redirected off this machine.
+    fn build_provider(&self, mode: &Mode) -> Result<Arc<dyn Provider>> {
+        Ok(match mode {
+            Mode::Replay => self.replay.clone(),
+            Mode::Local { endpoint, model } => {
+                Arc::new(OllamaProvider::new(endpoint.clone(), model.clone())?)
+            }
+            Mode::Cloud { model } => {
+                let key = self.cloud_key.clone().ok_or_else(|| {
+                    Error::Invalid(
+                        "Cloud needs an API key for this session before a run can start".into(),
+                    )
+                })?;
+                match std::env::var("PFL_CLOUD_ENDPOINT") {
+                    Ok(endpoint) if !endpoint.is_empty() => {
+                        if !is_loopback_endpoint(&endpoint) {
+                            return Err(Error::Invalid(
+                                "PFL_CLOUD_ENDPOINT is for loopback verification only".into(),
+                            ));
+                        }
+                        Arc::new(CloudProvider::with_endpoint(key, model.clone(), endpoint)?)
+                    }
+                    _ => Arc::new(CloudProvider::new(key, model.clone())?),
+                }
+            }
+        })
+    }
+
     async fn handle(&mut self, request: Request) -> Result<()> {
         match request {
             Request::Refresh => self.reply(Reply::Projects(self.service.projects().await?)),
@@ -308,6 +344,27 @@ impl Actor {
                 let snapshot = self.service.run(id).await?;
                 self.selected(snapshot).await;
             }
+            Request::ConfigureCloud { model, key } => {
+                // One step: install the key, then configure. No ordering race and no
+                // second reply.
+                self.cloud_key = Some(key).filter(|value| !value.trim().is_empty());
+                for id in &self.started_runs {
+                    if !self.service.run(id.clone()).await?.outcome.is_terminal() {
+                        return Err(Error::Conflict(
+                            "Finish or cancel active work before changing execution mode".into(),
+                        ));
+                    }
+                }
+                let mode = Mode::Cloud { model };
+                let provider = self.build_provider(&mode)?;
+                self.service = WorkflowService::new(
+                    self.store.clone(),
+                    provider,
+                    tokio::runtime::Handle::current(),
+                );
+                self.mode = Some(mode.clone());
+                self.reply(Reply::Configured(mode));
+            }
             Request::SetCloudKey(key) => {
                 // In memory only. Never logged, stored or echoed back.
                 self.cloud_key = key.filter(|value| !value.trim().is_empty());
@@ -327,40 +384,7 @@ impl Actor {
                         ));
                     }
                 }
-                let provider: Arc<dyn Provider> = match &mode {
-                    Mode::Replay => self.replay.clone(),
-                    Mode::Local { endpoint, model } => {
-                        Arc::new(OllamaProvider::new(endpoint.clone(), model.clone())?)
-                    }
-                    Mode::Cloud { model } => {
-                        let key = self.cloud_key.clone().ok_or_else(|| {
-                            Error::Invalid(
-                                "Cloud needs an API key for this session before a run can start"
-                                    .into(),
-                            )
-                        })?;
-                        // Verification hook: a loopback endpoint may stand in for the
-                        // Cloud host so acceptance can count requests without spending.
-                        // A non-loopback value is refused, so a real key can never be
-                        // redirected off the machine by this variable.
-                        match std::env::var("PFL_CLOUD_ENDPOINT") {
-                            Ok(endpoint) if !endpoint.is_empty() => {
-                                if !is_loopback_endpoint(&endpoint) {
-                                    return Err(Error::Invalid(
-                                        "PFL_CLOUD_ENDPOINT is for loopback verification only"
-                                            .into(),
-                                    ));
-                                }
-                                Arc::new(CloudProvider::with_endpoint(
-                                    key,
-                                    model.clone(),
-                                    endpoint,
-                                )?)
-                            }
-                            _ => Arc::new(CloudProvider::new(key, model.clone())?),
-                        }
-                    }
-                };
+                let provider = self.build_provider(&mode)?;
                 self.service = WorkflowService::new(
                     self.store.clone(),
                     provider,
