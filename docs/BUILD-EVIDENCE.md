@@ -633,3 +633,8 @@ Geometry, not timing, explains why the Cloud configure never fired. At the defau
 
 Scrolling the Setup content area with a real mouse wheel clears the clipping problem: the Cloud card is reached and 'Execution mode configured' is now observed, so the mode really is set. Two checks still fail: the Start invoke on the Analysis page does not change the status notice, and no provider request is seen, so the decline and approve halves remain unproven. A5 stays open.
 
+
+## Phase A (A5 rebuilt proof, 2026-11-21)
+
+scripts/cloud-consent-proof.ps1 replaces the patched harness with helpers copied from ui-acceptance: name-first resolution, wait-for-window, wheel scrolling. It proves Cloud configures against the loopback endpoint (the Configured notice is observed), that synthetic data is declared and that paid approval can be granted. The Start invoke still does not fire, so the decline and approve halves remain vacuous: zero requests is a zero of not starting. A5 stays open.
+
