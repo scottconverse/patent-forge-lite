@@ -103,6 +103,7 @@ quality or legal correctness.
 | --- | --- | --- |
 | Windows installer built, installed, uninstalled, data retained | installed | pass |
 | Azure Trusted Signing of app and installer | Azure run + `Get-AuthenticodeSignature` | pass (v0.1.0) |
+| Licence metadata agrees with the committed licence | run (`cargo metadata` reports `"license":"MIT"`) | pass |
 | macOS / Linux packages | CI artifacts | built; unsigned; **not installed** |
 | Upgrade / rollback | — | **not tested** |
 | Full / Lean package variants | — | **not built** |

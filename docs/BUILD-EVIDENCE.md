@@ -577,3 +577,7 @@ Three tests: the old per-chunk lossy decode is shown to corrupt the character (t
 UTF-8 through `take_sse_line` reassembles as `café 🧪`, and invalid UTF-8 is rejected.
 
 151 workspace tests pass; fmt and clippy clean.
+## Licence reconciliation (2026-11-21)
+
+Decision 3: the application is MIT (LICENSE, commit 42fe5e9); prompt templates stay CC BY-SA 4.0 under LICENSE-PROMPTS. The workspace metadata key that said no licence had been selected is removed and replaced with license = MIT. cargo metadata reports license MIT for the workspace, so the metadata no longer contradicts the file.
+
