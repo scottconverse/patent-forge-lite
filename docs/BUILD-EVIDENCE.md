@@ -713,3 +713,8 @@ Setup now carries a masked PatentsView key field, a Configure control that build
 
 pfl-cli diff --workspace --a --b renders the deterministic diff between two stored revisions, with added/removed counts, and refuses revisions from different projects. Verified end to end: two revisions saved against the claims run, then diffed, producing exactly one removal and two additions.
 
+
+## Phase F (F5 Cloud documentation agreement, 2026-11-21)
+
+Phase A made Cloud selectable in the desktop, which made the README and manual statements that it is unavailable wrong. Both now describe the session-only key, the per-run paid approval and the unknown-until-usage cost line, and the Lean profile is recorded as usable for Cloud and replay. This is the documentation-agreement work F5 requires, applied to the one claim the code had already invalidated.
+

@@ -40,9 +40,9 @@ Barlow type. Reports open as a document — not raw markdown.
     learning the interface and for verifying behaviour deterministically.
   - *Local* — an existing [Ollama](https://ollama.com) installation. You choose the endpoint and
     model; Lite never downloads or starts one for you.
-  - *Cloud* — an Anthropic key and a paid-call authorization. **Not available in the desktop build yet**;
-    the adapter exists and the CLI/API gates are wired, but there is no Cloud selection or key entry in
-    the application.
+  - *Cloud* — an Anthropic key and a paid-call authorization. Available in the desktop: enter the key
+    in Execution setup (session-only, never persisted), approve the paid request for each run, and the
+    cost line states that the figure is unknown until the run reports usage.
 
 ## Install
 
