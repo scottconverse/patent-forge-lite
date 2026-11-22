@@ -333,3 +333,41 @@ Evidence (candidate `f2c0ddeb…aa475`, unsigned, unpublished):
 | Installed acceptance, owned temp profile | **31 passed**, real profile untouched |
 
 Still held: no signing, no publication, no Increment B.
+## Item 1 closure: audit defects + installed Local proof (2026-11-21)
+
+Closed the four remaining audit defects and produced the installed-app evidence the audit asked for.
+
+### Fixes
+
+- **Cloud stream integrity.** A malformed SSE frame is now a provider error instead of a frame to
+  skip, and bytes left in the buffer at EOF (a stream cut mid-frame) are `Incomplete`. Previously
+  either could silently drop text or a stop reason.
+- **Version-correct Compliance resume.** Locked in by a regression test that interrupts a
+  compliance attempt, records a *newer* claims set with distinguishable text, then resumes:
+  every resumed prompt contains the claims version the run recorded and none contains the newer
+  one. The stored upstream was already the source of truth; the test now prevents drift.
+- **PID-bound UI automation.** `Get-Window` matches `ProcessId == the launched process`, so a
+  second window with the same title can never be driven. The single-instance check aborts before
+  launch.
+- **Cleanup on error.** A `trap` plus an explicit `Clear-Harness` restores the environment, stops
+  only the launched process, and removes only a directory the harness created — including when a
+  check throws.
+
+### Installed proof (real provider path, loopback mock)
+
+`scripts/installed-local-proof.ps1` drives the **installed** application through UI Automation
+against `scripts/mock-ollama.ps1` on loopback. No model is contacted, no paid provider is used.
+
+| Check | Result |
+| --- | --- |
+| Real-invention declaration starts a Local run | **Completed, 6 of 6, version 5** |
+| Stream cut after two stages | **Displayed as Truncated, 2 of 6, version 6** |
+| Same run resumed | **Completed, 6 of 6, version 6** |
+| Completed stages are not repeated | first run **6** requests, truncated **3**, resume **4** (exactly the 4 remaining) |
+
+Evidence: `installed-local-proof.json` (exe hash, port, request counts, per-check results) plus
+screenshots, written to a temporary evidence directory.
+
+Installed candidate: `dist\patent-forge-lite-0.1.0-x64.exe`, SHA-256
+`624f731cea661176ae9989bbba6234ee633af3d8b49314e0c151307b340c7f37`, unsigned, unpublished.
+UI acceptance 31/31 and `cargo test --workspace` green on the same revision.

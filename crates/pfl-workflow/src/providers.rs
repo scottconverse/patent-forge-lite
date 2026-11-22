@@ -274,7 +274,16 @@ impl Provider for CloudProvider {
                         "cloud stream interrupted; partial stage not committed".into(),
                     ));
                 }
-                None => break,
+                None => {
+                    // Bytes left in the buffer without a newline mean the stream was
+                    // cut mid-frame; nothing after this can be trusted.
+                    if !pending.trim().is_empty() {
+                        return Err(Error::Incomplete(
+                            "cloud stream ended mid-frame; partial text was not committed".into(),
+                        ));
+                    }
+                    break;
+                }
             }
             while let Some(index) = pending.find('\n') {
                 let line: String = pending.drain(..=index).collect();
@@ -286,8 +295,13 @@ impl Provider for CloudProvider {
                 if data == "[DONE]" {
                     continue;
                 }
+                // A malformed frame is a protocol fault, not a frame to skip: silently
+                // continuing could drop the text or the stop reason that proves the
+                // stage finished.
                 let Ok(frame) = serde_json::from_str::<serde_json::Value>(data) else {
-                    continue;
+                    return Err(Error::Provider(
+                        "cloud stream contained a malformed frame; the stage is not complete".into(),
+                    ));
                 };
                 match frame["type"].as_str() {
                     Some("content_block_delta") => {

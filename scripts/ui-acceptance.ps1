@@ -42,9 +42,35 @@ function Check([string]$name, [bool]$ok, [string]$detail = "") {
     else { $script:fail++; Write-Host ("  FAIL  {0} {1}" -f $name, $detail) -ForegroundColor Red }
 }
 
+$script:appPid = 0
+$script:profileRoot = $null
+$script:ownsProfileRoot = $false
+$script:previousLocalAppData = $env:LOCALAPPDATA
+
+# Only ever binds to the window of the process this harness launched. A second
+# instance with the same title must never be driven.
 function Get-Window {
-    $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Patent Forge Lite')
+    if (-not $script:appPid) { return $null }
+    $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $script:appPid)
     [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
+}
+
+function Clear-Harness {
+    if ($script:appPid) {
+        Stop-Process -Id $script:appPid -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 400
+    }
+    if ($script:previousLocalAppData) { $env:LOCALAPPDATA = $script:previousLocalAppData } else { Remove-Item Env:\LOCALAPPDATA -ErrorAction SilentlyContinue }
+    if ($script:ownsProfileRoot -and $script:profileRoot -and (Test-Path $script:profileRoot)) {
+        Remove-Item $script:profileRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Ensure cleanup happens even when a check throws.
+trap {
+    Write-Host ("`nABORTED: {0}" -f $_.Exception.Message) -ForegroundColor Red
+    Clear-Harness
+    exit 1
 }
 
 function Wait-Window {
@@ -173,6 +199,7 @@ if (-not $NoSeed) {
 }
 
 $proc = Start-Process -FilePath $Exe -ArgumentList '--replay', '--select-latest' -PassThru
+$script:appPid = $proc.Id
 Warm-Up
 Check "window opens" ([bool](Get-Window))
 Check "accessibility tree is published" ((Find-ByType 'Button').Count -ge 6) ("(buttons: {0})" -f (Find-ByType 'Button').Count)
@@ -291,6 +318,7 @@ if ($previousLocalAppData) { $env:LOCALAPPDATA = $previousLocalAppData } else { 
 if (-not $KeepProfile -and $ownsProfileRoot) { Remove-Item $ProfileRoot -Recurse -Force -ErrorAction SilentlyContinue }
 $afterStamp = if ($realProfile -and (Test-Path $realProfile)) { (Get-Item $realProfile).LastWriteTimeUtc } else { $null }
 Check "the operator's real profile was not modified" ($afterStamp -eq $realStamp) ("(before: {0}, after: {1})" -f $realStamp, $afterStamp)
+$script:appPid = 0
 
 Write-Host "`n" ("=" * 60)
 Write-Host ("RESULT: {0} passed, {1} failed" -f $script:pass, $script:fail) -ForegroundColor $(if ($script:fail -eq 0) { 'Green' } else { 'Red' })
