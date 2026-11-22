@@ -767,3 +767,8 @@ scripts/editing-proof.ps1 drives the installed app: Load run text seeds the edit
 
 The first attempt is kept deliberately: it failed only because the check looked for the v1/v2 pills in the automation tree, and those rows are plain divs that are not exposed. The screenshot from that attempt shows both rows with their base run and note, and the check now asserts the announced count instead.
 
+
+## CI flake fixed (2026-11-22)
+
+CI on ec56d13 failed only on macOS: the quit-guard test asserted the active-job count immediately after the Run reply, and on that runner the counter lagged by a scheduling tick. The test now waits for the count, as its neighbouring assertions already did.
+

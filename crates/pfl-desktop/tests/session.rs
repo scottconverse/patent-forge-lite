@@ -474,6 +474,9 @@ fn quit_guard_counts_jobs_owned_by_another_project_or_historical_run() {
         Reply::Run(run) => run,
         _ => unreachable!(),
     };
+    // The counter can lag the Run reply by a scheduling tick, so wait for it rather
+    // than asserting immediately; this failed only on the macOS runner.
+    wait_store(|| session.active_jobs() == 1);
     assert_eq!(session.active_jobs(), 1, "the started job must be counted");
     // Open an unrelated project that has no run. The window no longer shows the
     // active job, but the application still owns it and must still warn on quit.
