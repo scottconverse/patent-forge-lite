@@ -338,7 +338,12 @@ impl WorkflowService {
                     .unwrap_or_default();
             }
         }
-        upstream.prior_art = self.prior_art(&history);
+        // Dependent workflows inherit the reference set their prerequisite recorded.
+        // A fresh feasibility run must not inherit a previous feasibility's set: that
+        // would attach references the operator never chose for this run.
+        if kind != WorkflowKind::Feasibility {
+            upstream.prior_art = self.prior_art(&history);
+        }
         Ok(upstream)
     }
 

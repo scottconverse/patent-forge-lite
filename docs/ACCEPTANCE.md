@@ -154,7 +154,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | B5 execution with carry-over | not implemented | contract in REGENERATION.md |
 | B6 revisions list | pass | run |
 | C1 PatentsView adapter | pass (mock) | unit: 3 tests; live query blocked on key |
-| C2 verified-only references | partial | generic HTTP adapter mock-verified |
+| C2 opt-in research records verified references; opt-out queries nothing | integration (`research_run.rs`) | pass |
 | C3 denied opt-in zero requests | pass | unit: research tests |
 | C4 IDS from records only | pass | unit: lineage test |
 | C5 desktop research entry | not implemented | |

@@ -698,3 +698,8 @@ docs/ACCEPTANCE.md now carries a directive-wide matrix: every A–G item with it
 
 PatentsViewSource posts the documented query to the official search endpoint with X-Api-Key, requests only id, title, date and assignee, and maps records to verified PriorArtItems. A record with neither id nor title is dropped rather than invented; a 403 or malformed body is an error, never an empty result; an empty key is refused at construction. Three tests against a loopback mock; no live query was made and none is claimed.
 
+
+## Phase C (C2 opt-in research wired into a run, 2026-11-21)
+
+With a PatentsView source attached, a run that authorizes research performs exactly one query and records the verified reference in its immutable input; a run without opt-in performs none. The test also exposed a real defect: a fresh feasibility run inherited the reference set of the previous feasibility run, attaching references the operator never chose for that run. upstream() now attaches prior art only for dependent workflows. A failed query fails the run rather than completing with an empty set.
+
