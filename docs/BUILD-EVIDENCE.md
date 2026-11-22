@@ -266,3 +266,40 @@ Scope: make the product truthful and dependable. No release was tagged, no artif
 Not done in this increment: reference lineage, application-revision review, rendered HTML, IDS
 assembly (Increment B); Cloud UI; macOS/Linux installed acceptance (those platforms are now
 described as artifacts only).
+## Increment A — audit fixes (candidate 2, 2026-11-21)
+
+The first Increment A candidate was audited and **not signed or published**. The audit found:
+
+1. **Blocker — real-invention analysis still failed.** The desktop and service accepted the
+   acknowledgement, but `OllamaProvider::generate` and `CloudProvider::generate` still required
+   `synthetic_data`, so every real-declared run was refused at the adapter. The desktop Resume
+   button had the same requirement. The positive "real-data" test named above actually exercised
+   synthetic replay.
+2. **Critical — output limits looked like success.** Both adapters checked that a terminal frame
+   arrived but ignored *why* generation stopped, so a `length` / `max_tokens` stop could be saved
+   as a completed stage.
+3. **Major — the UI harness was destructive.** It stopped every `pfl-desktop` process and replaced
+   the operator's real profile database.
+
+Fixes in this candidate:
+
+- Live adapters require a *recorded data declaration* (synthetic or real) instead of requiring
+  synthetic; replay still refuses real data. The desktop Resume guard accepts either declaration.
+- Completion now requires a natural stop: `length`, `max_tokens` and `max_output_tokens` produce
+  `Error::Incomplete` → `RunOutcome::Truncated`, never `Completed`.
+- `scripts/ui-acceptance.ps1` seeds and runs against a throwaway `LOCALAPPDATA`, refuses to run if
+  another instance is live instead of killing it, stops only the process it launched, and asserts
+  the real profile's timestamp is unchanged.
+
+Evidence (candidate `fb8db64a…510246`, unsigned, unpublished):
+
+| Check | Result |
+| --- | --- |
+| `cargo test --workspace` | **115 passed**, exit 0, no failing suite |
+| Real-invention Local run, loopback Ollama mock | `Completed`, `real_data = true` recorded, report contains the mock text |
+| Truncated stream (no terminal frame) | `RunOutcome::Truncated`, no report |
+| Output limit (`done_reason: "length"`) | `RunOutcome::Truncated`, no report |
+| Installed-build UI acceptance, isolated profile | **31 passed**, including "the operator's real profile was not modified" |
+| Real profile before/after | identical length and timestamp across harness runs |
+
+Still held: no signing run, no publication, no Increment B.

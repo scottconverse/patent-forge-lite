@@ -1426,11 +1426,11 @@ impl Render for Desktop {
                             "resume-run",
                             "Resume this run",
                             move |this, _, cx| {
-                                if !this.synthetic
+                                if (!this.synthetic && !this.real_data)
                                     || (matches!(this.mode, Some(Mode::Local { .. }))
                                         && !this.authorized_local)
                                 {
-                                    this.state.notice = Some("Confirm synthetic data and local authorization in Execution setup before resuming.".into());
+                                    this.state.notice = Some("Declare the data and authorize local inference in Execution setup before resuming.".into());
                                     cx.notify();
                                     return;
                                 }

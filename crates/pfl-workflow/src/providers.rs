@@ -207,12 +207,15 @@ impl Provider for CloudProvider {
         cancellation: CancellationToken,
         deltas: UnboundedSender<String>,
     ) -> Result<ProviderResponse> {
-        if request.input.provider != self.snapshot
-            || !request.input.authorization.synthetic_data
-            || !request.input.authorization.paid_provider
-        {
+        if request.input.provider != self.snapshot || !request.input.authorization.paid_provider {
             return Err(Error::Invalid(
-                "cloud inference requires the exact endpoint/model, synthetic input and explicit paid authorization"
+                "cloud inference requires the exact endpoint/model and explicit paid authorization"
+                    .into(),
+            ));
+        }
+        if !request.input.authorization.synthetic_data && !request.input.authorization.real_data {
+            return Err(Error::Invalid(
+                "the run carries no data declaration; declare synthetic test material or a real invention"
                     .into(),
             ));
         }
@@ -249,6 +252,7 @@ impl Provider for CloudProvider {
         let mut input_tokens = None;
         let mut output_tokens = None;
         let mut complete = false;
+        let mut stop_reason: Option<String> = None;
         loop {
             let item = tokio::select! {
                 biased;
@@ -291,6 +295,9 @@ impl Provider for CloudProvider {
                     }
                     Some("message_delta") => {
                         output_tokens = frame["usage"]["output_tokens"].as_u64();
+                        if let Some(reason) = frame["delta"]["stop_reason"].as_str() {
+                            stop_reason = Some(reason.to_string());
+                        }
                     }
                     Some("message_stop") => complete = true,
                     Some("error") => {
@@ -300,7 +307,7 @@ impl Provider for CloudProvider {
                 }
             }
         }
-        require_terminal_frame(complete, &text, "cloud")?;
+        require_terminal_frame(complete, &text, "cloud", stop_reason.as_deref())?;
         Ok(ProviderResponse {
             text,
             usage: Usage {
@@ -332,11 +339,26 @@ fn take_ndjson_line(pending: &mut Vec<u8>) -> Option<Vec<u8>> {
 
 /// The single rule for "did this provider actually finish": a terminal frame was
 /// seen and the text is not blank. Anything else is incomplete, never Completed.
-fn require_terminal_frame(complete: bool, text: &str, provider: &str) -> Result<()> {
+fn require_terminal_frame(
+    complete: bool,
+    text: &str,
+    provider: &str,
+    stop_reason: Option<&str>,
+) -> Result<()> {
     if !complete {
         return Err(Error::Incomplete(format!(
             "{provider} stream ended before its completion frame; partial text was not committed"
         )));
+    }
+    // A terminal frame is not the same as a complete answer: a model that hit its
+    // output limit stopped, but it did not finish the stage.
+    if let Some(reason) = stop_reason {
+        let limited = matches!(reason, "length" | "max_tokens" | "max_output_tokens");
+        if limited {
+            return Err(Error::Incomplete(format!(
+                "{provider} stopped at its output limit ({reason}); the stage is not complete"
+            )));
+        }
     }
     if text.trim().is_empty() {
         return Err(Error::Provider(format!(
@@ -410,6 +432,10 @@ struct OllamaFrame {
     message: Option<OllamaMessage>,
     #[serde(default)]
     done: bool,
+    /// Why generation stopped: `stop` for a finished answer, `length` when the
+    /// model hit its output limit.
+    #[serde(default)]
+    done_reason: Option<String>,
     prompt_eval_count: Option<u64>,
     eval_count: Option<u64>,
     error: Option<String>,
@@ -435,11 +461,17 @@ impl Provider for OllamaProvider {
         cancellation: CancellationToken,
         deltas: UnboundedSender<String>,
     ) -> Result<ProviderResponse> {
-        if request.input.provider != self.snapshot
-            || !request.input.authorization.synthetic_data
-            || !request.input.authorization.local_inference
-        {
-            return Err(Error::Invalid("local inference requires exact endpoint/model and explicit synthetic local authorization".into()));
+        if request.input.provider != self.snapshot || !request.input.authorization.local_inference {
+            return Err(Error::Invalid(
+                "local inference requires the exact endpoint/model and explicit local authorization"
+                    .into(),
+            ));
+        }
+        if !request.input.authorization.synthetic_data && !request.input.authorization.real_data {
+            return Err(Error::Invalid(
+                "the run carries no data declaration; declare synthetic test material or a real invention"
+                    .into(),
+            ));
         }
         if cancellation.is_cancelled() {
             return Err(Error::Cancelled);
@@ -509,7 +541,12 @@ impl Provider for OllamaProvider {
                         if cancellation.is_cancelled() {
                             return Err(Error::Cancelled);
                         }
-                        require_terminal_frame(true, &text, "Ollama")?;
+                        require_terminal_frame(
+                            true,
+                            &text,
+                            "Ollama",
+                            frame.done_reason.as_deref(),
+                        )?;
                         return Ok(ProviderResponse {
                             text,
                             usage: Usage {
@@ -565,12 +602,32 @@ mod tests {
 
     #[test]
     fn a_stream_without_its_terminal_frame_is_incomplete_not_completed() {
-        let error = require_terminal_frame(false, "partial analysis", "Ollama").unwrap_err();
+        let error = require_terminal_frame(false, "partial analysis", "Ollama", None).unwrap_err();
         assert!(matches!(error, Error::Incomplete(_)));
         // And a terminal frame with no text is its own provider error.
-        let empty = require_terminal_frame(true, "   ", "cloud").unwrap_err();
+        let empty = require_terminal_frame(true, "   ", "cloud", None).unwrap_err();
         assert!(matches!(empty, Error::Provider(_)));
-        assert!(require_terminal_frame(true, "complete analysis", "Ollama").is_ok());
+        assert!(require_terminal_frame(true, "complete analysis", "Ollama", Some("stop")).is_ok());
+    }
+
+    #[test]
+    fn an_output_limit_stop_is_not_a_completed_stage() {
+        // A terminal frame is not enough: the model must have chosen to stop.
+        for reason in ["length", "max_tokens", "max_output_tokens"] {
+            let error = require_terminal_frame(true, "whole answer so far", "Ollama", Some(reason))
+                .unwrap_err();
+            assert!(
+                matches!(error, Error::Incomplete(_)),
+                "{reason} must be incomplete, got {error:?}"
+            );
+            assert!(error.to_string().contains("output limit"));
+        }
+        // Normal stop reasons still complete.
+        for reason in ["stop", "end_turn", "stop_sequence"] {
+            assert!(require_terminal_frame(true, "text", "cloud", Some(reason)).is_ok());
+        }
+        // A missing stop reason is tolerated only when a terminal frame arrived.
+        assert!(require_terminal_frame(true, "text", "cloud", None).is_ok());
     }
     #[test]
     fn streaming_frames_preserve_unicode_and_unknown_usage() {

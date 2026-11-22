@@ -81,11 +81,12 @@ async fn recorded_replay_cannot_claim_a_real_invention() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_recorded_real_invention_acknowledgement_is_accepted_and_stored() {
+async fn synthetic_replay_records_its_declaration() {
     let service = service();
     let id = project(&service).await;
-    // Replay still needs the synthetic declaration, so the positive case here is
-    // that a synthetic run records its declaration faithfully.
+    // Replay is synthetic by construction, so the positive case it can assert is
+    // that the declaration it requires is recorded faithfully. Real-invention
+    // acceptance is exercised against the local adapter in run_outcomes.rs.
     let run = service
         .start_workflow(
             id,

@@ -13,7 +13,11 @@
 param(
     [string]$Exe = "",
     [int]$TimeoutSeconds = 25,
-    [switch]$NoSeed
+    [switch]$NoSeed,
+    # The harness must never touch the operator's real profile. It seeds and runs
+    # against a throwaway LOCALAPPDATA unless -ProfileRoot is given explicitly.
+    [string]$ProfileRoot = "",
+    [switch]$KeepProfile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -130,18 +134,31 @@ Write-Host "`nPatent Forge Lite — automated UI acceptance" -ForegroundColor Wh
 Write-Host ("=" * 60)
 Write-Host ("binary: {0}" -f $Exe)
 
-# Start from a deterministic, known profile so assertions cannot depend on
-# whatever a previous session left behind.
+# Isolation: the app resolves its data directory from LOCALAPPDATA, so the harness
+# points it at a throwaway root for both seeding and the launched process. The
+# operator's real profile is never read, replaced or deleted.
+if (-not $ProfileRoot) {
+    $ProfileRoot = Join-Path ([IO.Path]::GetTempPath()) ("pfl-ui-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+}
+New-Item -ItemType Directory -Force -Path $ProfileRoot | Out-Null
+$previousLocalAppData = $env:LOCALAPPDATA
+# Snapshot the real profile so the harness can prove it did not write to it.
+$realProfile = if ($previousLocalAppData) { Join-Path $previousLocalAppData 'patent-forge-lite\projects.sqlite3' } else { $null }
+$realStamp = if ($realProfile -and (Test-Path $realProfile)) { (Get-Item $realProfile).LastWriteTimeUtc } else { $null }
+$env:LOCALAPPDATA = $ProfileRoot
+Write-Host "`n[0] Isolated profile" -ForegroundColor White
+Write-Host ("  data root: {0}" -f $ProfileRoot)
+
+# Refuse to run if another instance already owns the real profile lock: this
+# harness must not stop a process it did not start.
+$foreign = @(Get-Process -Name 'pfl-desktop' -ErrorAction SilentlyContinue)
+Check "no other Patent Forge Lite instance is running" ($foreign.Count -eq 0) ("(pids: {0})" -f (($foreign | ForEach-Object { $_.Id }) -join ','))
+
 if (-not $NoSeed) {
-    Write-Host "`n[0] Seeding a deterministic profile" -ForegroundColor White
-    Get-Process -Name 'pfl-desktop' -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
-    Start-Sleep -Milliseconds 400
     & (Join-Path $PSScriptRoot 'seed-profile.ps1') -Force | Out-Null
-    Check "profile seeded with four completed runs" ($LASTEXITCODE -eq 0)
+    Check "isolated profile seeded with four completed runs" ($LASTEXITCODE -eq 0)
 }
 
-Get-Process -Name 'pfl-desktop' -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
-Start-Sleep -Milliseconds 600
 $proc = Start-Process -FilePath $Exe -ArgumentList '--replay', '--select-latest' -PassThru
 Warm-Up
 Check "window opens" ([bool](Get-Window))
@@ -254,9 +271,13 @@ Invoke-Element 'Intake page'
 Write-Host "  MANUAL  Tab traversal and the focus ring (see docs/INTERACTIVE-CHECKLIST.md)" -ForegroundColor Yellow
 
 Write-Host "`n[6] Shutdown"
-Stop-Process -Id $proc.Id -Force
+Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 700
 Check "process exits cleanly" (-not [bool](Get-Process -Id $proc.Id -ErrorAction SilentlyContinue))
+if ($previousLocalAppData) { $env:LOCALAPPDATA = $previousLocalAppData } else { Remove-Item Env:\LOCALAPPDATA -ErrorAction SilentlyContinue }
+if (-not $KeepProfile) { Remove-Item $ProfileRoot -Recurse -Force -ErrorAction SilentlyContinue }
+$afterStamp = if ($realProfile -and (Test-Path $realProfile)) { (Get-Item $realProfile).LastWriteTimeUtc } else { $null }
+Check "the operator's real profile was not modified" ($afterStamp -eq $realStamp) ("(before: {0}, after: {1})" -f $realStamp, $afterStamp)
 
 Write-Host "`n" ("=" * 60)
 Write-Host ("RESULT: {0} passed, {1} failed" -f $script:pass, $script:fail) -ForegroundColor $(if ($script:fail -eq 0) { 'Green' } else { 'Red' })
