@@ -648,3 +648,8 @@ A direct tree dump of the Analysis page showed no Start control at all until a w
 
 Added a Ctrl+Enter binding (StartRun) so starting a workflow has a pointer-free path; the Start div exposes no InvokePattern, so this is an accessibility improvement in its own right. Driving the proof by that key did not change the status notice either, so the installed decline/approve pair remains unproven and A5 stays open. The proof script was reverted to its committed state rather than left half-edited.
 
+
+## Phase A (A5 status, 2026-11-21)
+
+The installed decline/approve pair is recorded as blocked on automation, not as passing. Evidence by layer: session tests prove a declined Cloud run is refused with zero provider calls; engine tests prove one request and no fallback; UI automation proves Cloud configures, synthetic data is declared and paid approval can be granted. What cannot be automated is activating Start: the control is a div with role Button but no InvokePattern, and a Ctrl+Enter binding added for the purpose did not fire under UIA-driven focus. A manual click-path checklist is left for this one step: configure Cloud, decline, confirm zero requests, approve, confirm the run proceeds.
+
