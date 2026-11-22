@@ -801,6 +801,7 @@ async fn main() {
                 | "validate-claims"
                 | "package"
                 | "save-revision"
+                | "models"
         ) {
             return Err(invalid("unknown command; only live performs real inference"));
         }
@@ -859,7 +860,7 @@ async fn main() {
         if addr.is_some() != (command == "serve") {
             return Err(invalid("only serve accepts --addr"));
         }
-        if (endpoint.is_some() || model.is_some()) && command != "live" {
+        if (endpoint.is_some() || model.is_some()) && !(command == "live" || command == "models") {
             return Err(invalid("only live accepts --endpoint and --model"));
         }
         if (references.is_some() || research_endpoint.is_some())
@@ -868,6 +869,15 @@ async fn main() {
             return Err(invalid(
                 "only pipeline and live accept --references and --research-endpoint",
             ));
+        }
+        if command == "models" {
+            let endpoint = endpoint.ok_or_else(|| invalid("models requires --endpoint"))?;
+            let models = pfl_workflow::list_local_models(&endpoint).await?;
+            println!(
+                "{}",
+                serde_json::json!({ "endpoint": endpoint, "models": models })
+            );
+            return Ok(());
         }
         if command == "save-revision" {
             let kind = match kind.as_deref() {
