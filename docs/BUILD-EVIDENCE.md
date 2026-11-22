@@ -673,3 +673,8 @@ The package now emits claims.html and application.html alongside the markdown, e
 
 claims.docx and application.docx join the package, built from the revision text with the same heading mapping as the run exporter and titled with kind, version and revision id. A test asserts the file is a real docx container (PK zip magic, over 1 KB) and that the manifest names it.
 
+
+## Phase B (B5 semantics + invariant, 2026-11-21)
+
+docs/REGENERATION.md fixes the contract: a regeneration derives a new run from the base snapshot, records lineage, and never mutates the base run or consumes revisions; section scope re-runs named stages and carries the rest over from committed checkpoints. A test pins the whole-run half: rerun yields a new id, the next version, rerun_of set, and the base run's checkpoints, report and version are byte-identical afterwards; the revision survives unchanged.
+

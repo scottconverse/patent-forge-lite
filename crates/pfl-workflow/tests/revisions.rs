@@ -260,3 +260,81 @@ async fn a_revision_cannot_anchor_a_run_of_another_document_or_project() {
         .expect_err("a claims revision cannot anchor a feasibility run");
     assert!(error.to_string().contains("same project and document"));
 }
+
+/// B5's core invariant: a regeneration makes a new version and leaves the base run
+/// and its revisions exactly as they were.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_rerun_creates_a_new_version_and_leaves_the_base_untouched() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+    let project = service.create_project(intake()).await.unwrap();
+
+    let base = service
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Feasibility,
+            "b5-base".into(),
+            auth(),
+        )
+        .await
+        .unwrap();
+    let base = wait(&service, &base.id).await;
+    assert_eq!(base.outcome, RunOutcome::Completed);
+    let base_checkpoints = base.checkpoints.clone();
+    let base_report = base.report.clone();
+
+    let revision = service
+        .save_revision(
+            project.id.clone(),
+            DocumentKind::Claims,
+            None,
+            "1. An edited claim.".into(),
+            "kept across regeneration".into(),
+        )
+        .await
+        .unwrap();
+
+    let regenerated = service
+        .rerun(
+            base.id.clone(),
+            NewRun {
+                id: RunId::new(),
+                project_id: project.id.clone(),
+                idempotency_key: "b5-rerun".into(),
+                input: base.input.clone(),
+                rerun_of: None,
+                created_at_ms: now_ms(),
+            },
+        )
+        .await
+        .expect("a rerun of a completed run is allowed");
+    assert_ne!(regenerated.id, base.id, "a rerun gets a new identity");
+    assert_eq!(
+        regenerated.rerun_of.as_ref(),
+        Some(&base.id),
+        "lineage is recorded"
+    );
+    assert_eq!(
+        regenerated.version,
+        base.version + 1,
+        "a rerun is the next version"
+    );
+    let regenerated = wait(&service, &regenerated.id).await;
+    assert_eq!(regenerated.outcome, RunOutcome::Completed);
+
+    // The base run is untouched: same checkpoints, same report, same version.
+    let reread = service.run(base.id.clone()).await.unwrap();
+    assert_eq!(reread.checkpoints, base_checkpoints);
+    assert_eq!(reread.report, base_report);
+    assert_eq!(reread.version, base.version);
+
+    // The revision survives, still anchored to whatever it was anchored to.
+    let revisions = service
+        .revisions(project.id.clone(), DocumentKind::Claims)
+        .await
+        .unwrap();
+    assert_eq!(revisions.len(), 1);
+    assert_eq!(revisions[0].id, revision.id);
+    assert_eq!(revisions[0].text, "1. An edited claim.");
+}
