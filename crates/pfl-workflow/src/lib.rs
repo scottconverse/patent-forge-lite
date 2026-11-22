@@ -13,7 +13,7 @@ mod research;
 mod service;
 
 pub use export::{export_docx, export_html, export_markdown};
-pub use providers::{CloudProvider, OllamaProvider, ReplayProvider};
+pub use providers::{CloudProvider, OllamaProvider, ReplayProvider, list_local_models};
 pub use research::{
     DisabledResearchSource, FixtureResearchSource, HttpResearchSource, ResearchSource,
 };

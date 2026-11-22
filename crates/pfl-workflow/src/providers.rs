@@ -732,3 +732,54 @@ mod tests {
         assert!(decode_line(b"not-json").is_err());
     }
 }
+
+/// Lists the models an on-machine Ollama already has, so setup can offer a choice
+/// instead of demanding a typed identifier.
+///
+/// Loopback only, read-only, and no inference: `GET /api/tags` is a catalogue read.
+pub async fn list_local_models(endpoint: &str) -> Result<Vec<String>> {
+    let endpoint = endpoint.trim_end_matches('/');
+    let url = reqwest::Url::parse(endpoint)
+        .map_err(|_| Error::Invalid("invalid Ollama endpoint URL".into()))?;
+    if !is_loopback_host(url.host_str().unwrap_or("")) {
+        return Err(Error::Invalid(
+            "listing models requires a loopback endpoint; remote runtimes are not supported in this build".into(),
+        ));
+    }
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|_| Error::Provider("cannot initialize the Ollama HTTP client".into()))?;
+    let response = client
+        .get(format!("{endpoint}/api/tags"))
+        .send()
+        .await
+        .map_err(|_| {
+            Error::Provider("Ollama is not reachable on the configured endpoint".into())
+        })?;
+    if !response.status().is_success() {
+        return Err(Error::Provider(format!(
+            "Ollama returned HTTP {} for its model list",
+            response.status().as_u16()
+        )));
+    }
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|_| Error::Provider("Ollama returned a malformed model list".into()))?;
+    let mut names: Vec<String> = body["models"]
+        .as_array()
+        .map(|models| {
+            models
+                .iter()
+                .filter_map(|model| model["name"].as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    names.sort();
+    names.dedup();
+    Ok(names)
+}

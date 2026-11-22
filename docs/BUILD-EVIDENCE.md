@@ -516,3 +516,15 @@ The package's `compliance-findings.md` is the project's saved compliance report,
 `references` is 0 because this pipeline run supplied none — both correct for this input.
 
 Gate with real exit codes: build 0, fmt 0, clippy -D warnings 0, workspace tests 0.
+## Item 4 (start): loopback model discovery (2026-11-21)
+
+`pfl_workflow::list_local_models(endpoint)` reads an on-machine Ollama's `GET /api/tags`
+catalogue: loopback only, read-only, no inference, no runtime start or install. Names are sorted and
+deduplicated. A remote endpoint is refused before any request.
+
+Four tests against a loopback mock: sorted/deduplicated listing, empty catalogue as a successful
+read, malformed body as an error, remote endpoint refused.
+
+The `pfl-cli models` command was drafted and **reverted** this round: its allowlist edit did not
+apply and clippy flagged the unused dispatch, so the CLI surface is not shipped. The library
+function and its tests are.
