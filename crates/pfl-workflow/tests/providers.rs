@@ -342,6 +342,7 @@ async fn lean_setup_refuses_a_local_runtime_but_full_setup_allows_it() {
             local_endpoint: None,
             local_model: None,
             research_endpoint: None,
+            profile_chosen: true,
         })
         .unwrap();
     let provider: Arc<dyn Provider> =
@@ -391,6 +392,7 @@ async fn lean_setup_refuses_a_local_runtime_but_full_setup_allows_it() {
             local_endpoint: None,
             local_model: None,
             research_endpoint: None,
+            profile_chosen: true,
         })
         .unwrap();
     let local: Arc<dyn Provider> =

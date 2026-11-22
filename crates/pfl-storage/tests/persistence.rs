@@ -146,6 +146,7 @@ fn project_edits_settings_and_run_inputs_survive_reopening() {
         local_model: Some("fixture-existing".into()),
         local_endpoint: None,
         research_endpoint: None,
+        profile_chosen: true,
     };
     store.save_settings(&settings).unwrap();
     drop(store);

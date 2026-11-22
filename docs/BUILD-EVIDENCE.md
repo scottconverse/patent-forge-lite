@@ -822,3 +822,8 @@ Two supporting changes: the Ollama mock now serves /api/tags, and the app accept
 
 A fresh profile asks Full or Lean before showing anything else, and the choice is recorded so a relaunch does not ask again. Lean refuses a local runtime with its own message (checked before any field validation, so the reason is the profile and not a missing model name); Full accepts the same runtime and configures it. 6/6, twice, evidence under docs/evidence/first-run/.
 
+
+## Gate slip, corrected (2026-11-22)
+
+The first-run commit (f0e029d) was pushed while clippy and the test build were failing: three test files built Settings literally and so missed the new profile_chosen field. The literals are fixed and the full gate now passes (fmt, clippy, tests, native clippy). The commit that follows supersedes it; CI on f0e029d is expected to be red and is not claimed.
+
