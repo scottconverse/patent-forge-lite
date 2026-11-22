@@ -17,19 +17,52 @@ fn strip_headings(text: &str) -> String {
         .to_string()
 }
 
+fn cell(value: &str) -> String {
+    let text = value.replace('|', "/").replace('\n', " ");
+    text.trim().to_string()
+}
+
+/// The Information Disclosure Statement is assembled only from the recorded
+/// reference set — never from model prose — so every listed record is one the
+/// operator supplied or a provider returned.
 fn ids_table(prior_art: &[PriorArtItem]) -> String {
     if prior_art.is_empty() {
         return "No prior art references were supplied for this application.".into();
     }
-    let mut table = String::from("| Reference | Relevance |\n| --- | --- |\n");
+    let mut table = String::from(
+        "| Reference | Title | Dates | Assignee | CPC | Source | Status | Relevance |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n",
+    );
     for item in prior_art {
         let reference = if item.reference.trim().is_empty() {
-            "Unspecified reference"
+            if item.publication_number.trim().is_empty() {
+                "Unspecified reference"
+            } else {
+                item.publication_number.trim()
+            }
         } else {
             item.reference.trim()
         };
-        let relevance = item.relevance.replace('|', "/").replace('\n', " ");
-        table.push_str(&format!("| {reference} | {} |\n", relevance.trim()));
+        let dates = match (item.filing_date.trim(), item.grant_date.trim()) {
+            ("", "") => String::new(),
+            (filed, "") => format!("Filed {filed}"),
+            ("", granted) => format!("Granted {granted}"),
+            (filed, granted) => format!("Filed {filed}; granted {granted}"),
+        };
+        let status = if item.verified {
+            "Verified"
+        } else {
+            "Unverified"
+        };
+        table.push_str(&format!(
+            "| {} | {} | {} | {} | {} | {} | {status} | {} |\n",
+            cell(reference),
+            cell(&item.title),
+            cell(&dates),
+            cell(&item.assignee),
+            cell(&item.cpc),
+            cell(&item.source),
+            cell(&item.relevance),
+        ));
     }
     table
 }
@@ -160,6 +193,7 @@ mod tests {
             prior_art: vec![PriorArtItem {
                 reference: "US 1".into(),
                 relevance: "same field".into(),
+                ..Default::default()
             }],
             ..Default::default()
         };

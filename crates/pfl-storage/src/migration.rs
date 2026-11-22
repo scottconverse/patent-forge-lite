@@ -550,6 +550,8 @@ impl SqliteStore {
                         .or_else(|| record.get("ollamaModel"))
                         .and_then(Value::as_str)
                         .map(str::to_string),
+                    // Legacy settings never carried a research endpoint.
+                    research_endpoint: None,
                 };
                 tx.execute("INSERT INTO settings VALUES(1,?1)", [encode(&settings)?])
                     .map_err(db)?;

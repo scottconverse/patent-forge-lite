@@ -12,5 +12,7 @@ mod service;
 
 pub use export::{export_docx, export_html, export_markdown};
 pub use providers::{CloudProvider, OllamaProvider, ReplayProvider};
-pub use research::{DisabledResearchSource, FixtureResearchSource, ResearchSource};
+pub use research::{
+    DisabledResearchSource, FixtureResearchSource, HttpResearchSource, ResearchSource,
+};
 pub use service::WorkflowService;

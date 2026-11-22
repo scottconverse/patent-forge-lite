@@ -144,6 +144,7 @@ fn project_edits_settings_and_run_inputs_survive_reopening() {
         profile: SetupProfile::Full,
         local_model: Some("fixture-existing".into()),
         local_endpoint: None,
+        research_endpoint: None,
     };
     store.save_settings(&settings).unwrap();
     drop(store);

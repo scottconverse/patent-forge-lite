@@ -98,6 +98,7 @@ async fn service_at(base: &str) -> (Arc<WorkflowService>, Project) {
             profile: SetupProfile::Full,
             local_endpoint: Some(base.to_string()),
             local_model: Some("mock-model".into()),
+            research_endpoint: None,
         })
         .await
         .expect("full profile");

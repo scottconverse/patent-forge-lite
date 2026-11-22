@@ -133,6 +133,10 @@ pub struct Settings {
     pub profile: SetupProfile,
     pub local_endpoint: Option<String>,
     pub local_model: Option<String>,
+    /// Opt-in research endpoint. Absent means research is not configured, and an
+    /// authorized run refuses rather than silently searching nothing.
+    #[serde(default)]
+    pub research_endpoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -392,6 +396,28 @@ pub struct PriorArtItem {
     pub reference: String,
     #[serde(default)]
     pub relevance: String,
+    /// Human-readable title of the reference, when known.
+    #[serde(default)]
+    pub title: String,
+    /// Where the record came from: a provider name, or "Manual".
+    #[serde(default)]
+    pub source: String,
+    #[serde(default)]
+    pub publication_number: String,
+    #[serde(default)]
+    pub filing_date: String,
+    #[serde(default)]
+    pub grant_date: String,
+    #[serde(default)]
+    pub assignee: String,
+    #[serde(default)]
+    pub cpc: String,
+    #[serde(default)]
+    pub url: String,
+    /// True only when the record was retrieved from a provider or entered by the
+    /// operator; a model assertion never sets this.
+    #[serde(default)]
+    pub verified: bool,
 }
 
 /// Immutable upstream text a dependent workflow reads. Snapshotted at run

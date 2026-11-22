@@ -371,3 +371,40 @@ screenshots, written to a temporary evidence directory.
 Installed candidate: `dist\patent-forge-lite-0.1.0-x64.exe`, SHA-256
 `624f731cea661176ae9989bbba6234ee633af3d8b49314e0c151307b340c7f37`, unsigned, unpublished.
 UI acceptance 31/31 and `cargo test --workspace` green on the same revision.
+## Item 2 (engine): reference lineage, deterministic IDS, opt-in research (2026-11-21)
+
+### Reference lineage
+
+`PriorArtItem` is now a structured record — reference, title, source, publication number, filing
+and grant dates, assignee, CPC, URL, relevance and a `verified` flag — every field serde-defaulted
+so pre-change snapshots still deserialize.
+
+The lineage defect is fixed at its root: `prior_art()` was a stub returning `Vec::new()`. It now
+harvests the reference set recorded by the most recent completed feasibility run, so every
+dependent workflow inherits exactly the set the operator supplied, and a resume cannot re-query or
+drift.
+
+`tests/reference_lineage.rs` proves a supplied two-record set reaches claims, compliance and
+application unchanged, and that the generated Information Disclosure Statement lists exactly those
+two records with title, dates, assignee, CPC, source and verification status.
+
+### Deterministic IDS
+
+The IDS is assembled only from recorded records (`report::ids_table`), never from model prose. The
+rendered table now carries the structured columns, and an empty set still says so explicitly.
+
+### Opt-in live research
+
+`HttpResearchSource` implements one documented contract (`GET {endpoint}?q=&limit=`, optional
+bearer key, JSON array) so a provider adapter or local proxy can sit behind it. It is opt-in: only
+consulted when the run authorizes research and an endpoint is configured.
+
+`tests/research_http.rs` verifies, against a loopback mock: retrieved records are structured and
+marked verified; an empty array is a successful search that found nothing; a malformed body and an
+HTTP 503 are errors; an invalid endpoint is refused before any request. No external network, no key,
+no cost.
+
+`Settings` gained `research_endpoint` (serde-defaulted, migration sets `None`).
+
+Still to do for Item 2: desktop entry for manual references and the research endpoint, and a real
+provider adapter chosen with Scott (API key/terms decision).

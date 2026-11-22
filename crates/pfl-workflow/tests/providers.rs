@@ -193,6 +193,7 @@ async fn supplied_research_reaches_the_prior_art_stage_and_is_snapshotted() {
         Arc::new(FixtureResearchSource::new(vec![PriorArtItem {
             reference: "US 7654321 B2".into(),
             relevance: "Synthetic fixture reference for the research seam.".into(),
+            ..Default::default()
         }]));
     let service = WorkflowService::new_with_research(
         store.clone(),
@@ -263,6 +264,7 @@ async fn supplied_research_reaches_the_prior_art_stage_and_is_snapshotted() {
     let quiet: Arc<dyn ResearchSource> = Arc::new(FixtureResearchSource::new(vec![PriorArtItem {
         reference: "US 9999999 B2".into(),
         relevance: "must not appear".into(),
+        ..Default::default()
     }]));
     let other_store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
     let quiet_service = WorkflowService::new_with_research(
@@ -338,6 +340,7 @@ async fn lean_setup_refuses_a_local_runtime_but_full_setup_allows_it() {
             profile: SetupProfile::Lean,
             local_endpoint: None,
             local_model: None,
+            research_endpoint: None,
         })
         .unwrap();
     let provider: Arc<dyn Provider> =
@@ -386,6 +389,7 @@ async fn lean_setup_refuses_a_local_runtime_but_full_setup_allows_it() {
             profile: SetupProfile::Full,
             local_endpoint: None,
             local_model: None,
+            research_endpoint: None,
         })
         .unwrap();
     let local: Arc<dyn Provider> =

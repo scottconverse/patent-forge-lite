@@ -229,6 +229,7 @@ async fn application_run_composes_a_full_draft_with_supplied_claims_and_prior_ar
             vec![PriorArtItem {
                 reference: "US 1234567 B2".into(),
                 relevance: "Synthetic reference used only for the IDS table.".into(),
+                ..Default::default()
             }],
         )
         .await

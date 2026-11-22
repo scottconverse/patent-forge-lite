@@ -69,6 +69,7 @@ mod tests {
         let source = FixtureResearchSource::new(vec![PriorArtItem {
             reference: "US 1".into(),
             relevance: "fixture".into(),
+            ..Default::default()
         }]);
         let items = source
             .prior_art(&Intake::default(), CancellationToken::new())
@@ -85,5 +86,137 @@ mod tests {
             .await
             .unwrap_err();
         assert!(error.to_string().contains("not authorized"));
+    }
+}
+
+/// An opt-in HTTP research source.
+///
+/// It speaks one documented contract so any provider adapter (or a local proxy)
+/// can sit behind it:
+///
+///   GET {endpoint}?q={url-encoded technical field}&limit={n}
+///   Authorization: Bearer {key}          (only when a key is configured)
+///
+/// expecting a JSON array of records:
+///   [{ "reference": "...", "title": "...", "assignee": "...", "filing_date": "...",
+///      "grant_date": "...", "cpc": "...", "url": "...", "relevance": "..." }]
+///
+/// Failure modes are distinct on purpose: a transport/HTTP error is an error, an
+/// empty array is a successful search that found nothing, and a malformed body is
+/// an error. "Search failed" is never reported as "no prior art exists".
+pub struct HttpResearchSource {
+    endpoint: String,
+    api_key: Option<String>,
+    client: reqwest::Client,
+}
+
+impl HttpResearchSource {
+    pub fn new(endpoint: impl Into<String>, api_key: Option<String>) -> Result<Self> {
+        let endpoint = endpoint.into();
+        let url = reqwest::Url::parse(&endpoint)
+            .map_err(|_| Error::Invalid("invalid research endpoint URL".into()))?;
+        if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+            return Err(Error::Invalid(
+                "research endpoint must be an HTTP(S) URL with a host".into(),
+            ));
+        }
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|_| Error::Provider("cannot initialize the research HTTP client".into()))?;
+        Ok(Self {
+            endpoint,
+            api_key,
+            client,
+        })
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct ResearchRecord {
+    #[serde(default)]
+    reference: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    assignee: String,
+    #[serde(default)]
+    filing_date: String,
+    #[serde(default)]
+    grant_date: String,
+    #[serde(default)]
+    cpc: String,
+    #[serde(default)]
+    url: String,
+    #[serde(default)]
+    relevance: String,
+}
+
+#[async_trait]
+impl ResearchSource for HttpResearchSource {
+    async fn prior_art(
+        &self,
+        intake: &Intake,
+        cancellation: CancellationToken,
+    ) -> Result<Vec<PriorArtItem>> {
+        if cancellation.is_cancelled() {
+            return Err(Error::Cancelled);
+        }
+        let query = if intake.technical_field.trim().is_empty() {
+            intake.title.clone()
+        } else {
+            intake.technical_field.clone()
+        };
+        let mut request = self
+            .client
+            .get(&self.endpoint)
+            .query(&[("q", query.as_str()), ("limit", "10")]);
+        if let Some(key) = &self.api_key {
+            request = request.header("authorization", format!("Bearer {key}"));
+        }
+        let response = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(Error::Cancelled),
+            result = request.send() => result.map_err(|_| Error::Provider(
+                "research request failed; no prior-art set was recorded".into(),
+            ))?,
+        };
+        if !response.status().is_success() {
+            return Err(Error::Provider(format!(
+                "research provider returned HTTP {}; no prior-art set was recorded",
+                response.status().as_u16()
+            )));
+        }
+        let body = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(Error::Cancelled),
+            result = response.text() => result.map_err(|_| Error::Provider(
+                "research response could not be read".into(),
+            ))?,
+        };
+        let records: Vec<ResearchRecord> = serde_json::from_str(&body).map_err(|_| {
+            Error::Provider(
+                "research provider returned a malformed body; nothing was recorded".into(),
+            )
+        })?;
+        Ok(records
+            .into_iter()
+            .filter(|record| !record.reference.trim().is_empty() || !record.title.trim().is_empty())
+            .map(|record| PriorArtItem {
+                reference: record.reference,
+                title: record.title,
+                assignee: record.assignee,
+                filing_date: record.filing_date,
+                grant_date: record.grant_date,
+                cpc: record.cpc,
+                url: record.url,
+                relevance: record.relevance,
+                source: "HTTP".into(),
+                verified: true,
+                ..Default::default()
+            })
+            .collect())
     }
 }

@@ -292,8 +292,18 @@ impl WorkflowService {
     /// Live research is not implemented in this product yet, so a project run
     /// records no prior-art sources of its own. Callers can still supply explicit
     /// references when starting a dependent workflow.
-    fn prior_art(&self, _history: &[RunSnapshot]) -> Vec<PriorArtItem> {
-        Vec::new()
+    /// The reference set a dependent workflow inherits: whatever the most recent
+    /// completed feasibility run recorded. Stored in the run input, so it can never
+    /// drift or be re-queried on resume.
+    fn prior_art(&self, history: &[RunSnapshot]) -> Vec<PriorArtItem> {
+        history
+            .iter()
+            .filter(|run| {
+                run.input.kind == WorkflowKind::Feasibility && run.outcome == RunOutcome::Completed
+            })
+            .max_by_key(|run| run.version)
+            .map(|run| run.input.upstream.prior_art.clone())
+            .unwrap_or_default()
     }
     pub async fn start_workflow_with_prior_art(
         self: &Arc<Self>,
