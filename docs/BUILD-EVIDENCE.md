@@ -484,3 +484,17 @@ Five unit tests: file set and manifest hashes, CSV quoting of commas and quotes,
 only when supplied, empty selection refused, wrong-kind slot refused.
 
 141 workspace tests pass; fmt and clippy clean.
+## Item 3: CLI surfaces for validation and packaging (2026-11-21)
+
+`pfl-cli validate-claims --file <path>` prints the deterministic structural report as JSON and exits
+non-zero when the set contains errors, so it can gate a pipeline.
+
+`pfl-cli package --workspace <ws> --out <dir> [--claims <id>] [--application <id>]` writes the
+handoff package from the stored revisions, using the reference set and compliance findings already
+recorded for the project.
+
+Verified by real runs: a well-formed set reports no issues and exits 0; a broken set reports three
+structural errors and exits 1; `package` on a workspace with no revisions refuses with
+"at least one selected revision" (correct — the pipeline creates runs, not edits). Creating a
+revision still requires the library API; a CLI/desktop edit command is the next step, and until it
+exists the successful package path is covered by `package::tests` rather than an end-to-end run.

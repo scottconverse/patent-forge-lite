@@ -788,7 +788,19 @@ async fn main() {
         let command = args.first().map(String::as_str).ok_or_else(|| invalid(
             "usage: pfl-cli <replay|import-replay|pause-fixture|resume|pipeline|serve|live|inspect> --workspace <directory> [--stage <1..6>] [--addr <host:port>] [--endpoint <url> --model <name>] [--database <path>]"
         ))?;
-        if !matches!(command, "replay" | "import-replay" | "pause-fixture" | "resume" | "pipeline" | "serve" | "live" | "inspect") {
+        if !matches!(
+            command,
+            "replay"
+                | "import-replay"
+                | "pause-fixture"
+                | "resume"
+                | "pipeline"
+                | "serve"
+                | "live"
+                | "inspect"
+                | "validate-claims"
+                | "package"
+        ) {
             return Err(invalid("unknown command; only live performs real inference"));
         }
         let mut workspace = None;
@@ -799,6 +811,10 @@ async fn main() {
         let mut database = None;
         let mut references = None;
         let mut research_endpoint = None;
+        let mut file = None;
+        let mut claims_revision = None;
+        let mut application_revision = None;
+        let mut out = None;
         let mut i = 1;
         while i < args.len() {
             match (args[i].as_str(), args.get(i + 1)) {
@@ -811,6 +827,14 @@ async fn main() {
                 ("--research-endpoint", Some(value)) if research_endpoint.is_none() => {
                     research_endpoint = Some(value.to_string())
                 }
+                ("--file", Some(value)) if file.is_none() => file = Some(PathBuf::from(value)),
+                ("--claims", Some(value)) if claims_revision.is_none() => {
+                    claims_revision = Some(RevisionId(value.to_string()))
+                }
+                ("--application", Some(value)) if application_revision.is_none() => {
+                    application_revision = Some(RevisionId(value.to_string()))
+                }
+                ("--out", Some(value)) if out.is_none() => out = Some(PathBuf::from(value)),
                 ("--stage", Some(value)) if stage.is_none() => {
                     stage = Some(value.parse::<usize>().map_err(|_| invalid("invalid pause stage"))?);
                 }
@@ -835,6 +859,18 @@ async fn main() {
             return Err(invalid(
                 "only pipeline and live accept --references and --research-endpoint",
             ));
+        }
+        if command == "validate-claims" {
+            return validate_claims(file.ok_or_else(|| invalid("validate-claims requires --file"))?);
+        }
+        if command == "package" {
+            return write_package(
+                workspace.ok_or_else(|| invalid("--workspace is required"))?,
+                claims_revision,
+                application_revision,
+                out.ok_or_else(|| invalid("package requires --out"))?,
+            )
+            .await;
         }
         if command == "inspect" {
             return inspect(
@@ -899,4 +935,104 @@ mod tests {
         assert_eq!(items[0].assignee, "A");
         assert!(items[0].verified);
     }
+}
+
+/// Prints a deterministic structural report for a claim file. Exits non-zero when
+/// the set contains errors, so it can gate a pipeline.
+fn validate_claims(path: PathBuf) -> Result<()> {
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| Error::Io(format!("cannot read {}: {e}", path.display())))?;
+    let report = pfl_workflow::claims::validate(&text);
+    println!("{}", serde_json::to_string_pretty(&report).map_err(|e| Error::Invalid(e.to_string()))?);
+    if report.errors() > 0 {
+        return Err(Error::Invalid(format!(
+            "{} structural claim error(s)",
+            report.errors()
+        )));
+    }
+    Ok(())
+}
+
+/// Writes the handoff package for the selected revisions, using the reference set
+/// and any compliance findings already recorded for this project.
+async fn write_package(
+    workspace: PathBuf,
+    claims: Option<RevisionId>,
+    application: Option<RevisionId>,
+    out: PathBuf,
+) -> Result<()> {
+    let marker = read_marker(&workspace)?;
+    let database = workspace.join(&marker.database);
+    let _profile_lock = take_profile_lock(&database)?;
+    let open = database.clone();
+    let store: Arc<dyn Store> = Arc::new(
+        tokio::task::spawn_blocking(move || SqliteStore::open(open))
+            .await
+            .map_err(|e| Error::Storage(e.to_string()))??,
+    );
+    let provider: Arc<dyn Provider> = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+    let project_id = marker
+        .project_id
+        .clone()
+        .ok_or_else(|| invalid("this workspace has no project yet"))?;
+    let project = service.project(project_id.clone()).await?;
+
+    let claims_revision = match claims {
+        Some(id) => Some(service.revision(id).await?),
+        None => service
+            .revisions(project_id.clone(), DocumentKind::Claims)
+            .await?
+            .pop(),
+    };
+    let application_revision = match application {
+        Some(id) => Some(service.revision(id).await?),
+        None => service
+            .revisions(project_id.clone(), DocumentKind::Application)
+            .await?
+            .pop(),
+    };
+
+    let history = service.history(project_id.clone()).await?;
+    let references = history
+        .iter()
+        .filter(|run| run.input.kind == WorkflowKind::Feasibility)
+        .max_by_key(|run| run.version)
+        .map(|run| run.input.upstream.prior_art.clone())
+        .unwrap_or_default();
+    let findings = history
+        .iter()
+        .filter(|run| {
+            run.input.kind == WorkflowKind::Compliance && run.outcome == RunOutcome::Completed
+        })
+        .max_by_key(|run| run.version)
+        .and_then(|run| run.report.as_ref())
+        .map(|report| report.markdown.clone());
+
+    let files = pfl_workflow::package::build_package(
+        &project.intake.title,
+        claims_revision.as_ref(),
+        application_revision.as_ref(),
+        &references,
+        findings.as_deref(),
+    )?;
+    std::fs::create_dir_all(&out).map_err(|e| Error::Io(e.to_string()))?;
+    let mut written = Vec::new();
+    for file in &files {
+        let path = out.join(&file.name);
+        std::fs::write(&path, &file.bytes).map_err(|e| Error::Io(e.to_string()))?;
+        written.push(serde_json::json!({ "file": file.name, "bytes": file.bytes.len() }));
+    }
+    service.shutdown().await?;
+    println!(
+        "{}",
+        serde_json::json!({
+            "out": out.display().to_string(),
+            "files": written,
+            "references": references.len(),
+            "claims_revision": claims_revision.as_ref().map(|r| r.id.0.clone()),
+            "application_revision": application_revision.as_ref().map(|r| r.id.0.clone()),
+        })
+    );
+    Ok(())
 }
