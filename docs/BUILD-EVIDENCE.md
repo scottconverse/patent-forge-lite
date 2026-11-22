@@ -581,3 +581,8 @@ UTF-8 through `take_sse_line` reassembles as `café 🧪`, and invalid UTF-8 is 
 
 Decision 3: the application is MIT (LICENSE, commit 42fe5e9); prompt templates stay CC BY-SA 4.0 under LICENSE-PROMPTS. The workspace metadata key that said no licence had been selected is removed and replaced with license = MIT. cargo metadata reports license MIT for the workspace, so the metadata no longer contradicts the file.
 
+
+## Phase A (A2/A3 plumbing, 2026-11-21)
+
+The session actor gained a Cloud mode and an in-memory key. Selecting Cloud builds no provider until a key exists; configuring without one is refused with a message naming the key, and no provider call occurs. A Cloud run requires explicit paid approval; without it the start is refused before any provider work. The key is held only in the actor for the session and is never written to settings, snapshots, events or exports. Two session tests prove both refusals with a provider call count of zero.
+

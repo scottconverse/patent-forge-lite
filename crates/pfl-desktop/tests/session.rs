@@ -495,3 +495,79 @@ fn quit_guard_counts_jobs_owned_by_another_project_or_historical_run() {
     );
     stop(&session);
 }
+
+#[test]
+fn cloud_without_a_key_is_refused_and_sends_nothing() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ControlledReplay::new(false));
+    let session = ApplicationSession::with_replay_provider(store, provider.clone()).unwrap();
+    until(&session, |r| matches!(r, Reply::Projects(_)));
+
+    // Configuring Cloud is where the missing key is caught: no provider is built,
+    // no run exists and no request can leave the process.
+    let configured = session.request(Request::Configure(Mode::Cloud {
+        model: "claude-test".into(),
+    }));
+    assert!(configured.is_ok());
+    match until(&session, |r| {
+        matches!(r, Reply::Configured(_) | Reply::Error(_))
+    }) {
+        Reply::Error(message) => assert!(
+            message.contains("API key"),
+            "the refusal must name the missing key: {message}"
+        ),
+        other => panic!("Cloud without a key must be refused, got {other:?}"),
+    }
+    assert_eq!(
+        provider.calls.load(Ordering::SeqCst),
+        0,
+        "no provider call may happen while configuring"
+    );
+    stop(&session);
+}
+
+#[test]
+fn cloud_start_requires_explicit_paid_approval() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ControlledReplay::new(false));
+    let session = ApplicationSession::with_replay_provider(store, provider.clone()).unwrap();
+    until(&session, |r| matches!(r, Reply::Projects(_)));
+    let project = create(&session);
+
+    session
+        .request(Request::SetCloudKey(Some("session-only-test-key".into())))
+        .unwrap();
+    until(&session, |r| matches!(r, Reply::Settings(_)));
+    session
+        .request(Request::Configure(Mode::Cloud {
+            model: "claude-test".into(),
+        }))
+        .unwrap();
+    until(&session, |r| matches!(r, Reply::Configured(_)));
+
+    // No paid approval: refused before any provider work.
+    session
+        .request(Request::Start {
+            project: project.id.clone(),
+            kind: WorkflowKind::Feasibility,
+            idempotency_key: "cloud-unapproved".into(),
+            authorization: Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    match until(&session, |r| matches!(r, Reply::Error(_) | Reply::Run(_))) {
+        Reply::Error(message) => assert!(
+            message.contains("paid Cloud"),
+            "the refusal must name the missing approval: {message}"
+        ),
+        other => panic!("an unapproved Cloud run must be refused, got {other:?}"),
+    }
+    assert_eq!(
+        provider.calls.load(Ordering::SeqCst),
+        0,
+        "a refused Cloud run must send nothing"
+    );
+    stop(&session);
+}

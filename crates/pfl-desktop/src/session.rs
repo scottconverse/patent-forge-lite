@@ -1,7 +1,9 @@
 //! App-lifetime async bridge. Only explicit requests can create or resume jobs.
 use pfl_domain::*;
 use pfl_storage::SqliteStore;
-use pfl_workflow::{OllamaProvider, ReplayProvider, WorkflowService, export_html, export_markdown};
+use pfl_workflow::{
+    CloudProvider, OllamaProvider, ReplayProvider, WorkflowService, export_html, export_markdown,
+};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -23,6 +25,13 @@ pub enum Mode {
         endpoint: String,
         model: String,
     },
+    /// Anthropic Messages. Selecting this sends nothing; it only records which
+    /// provider family a later run may use. The key lives in memory for the
+    /// session and is never written to the profile, a snapshot, an event or an
+    /// export.
+    Cloud {
+        model: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -40,6 +49,9 @@ pub enum Request {
     Save(ProjectId, Intake),
     SelectRun(RunId),
     Configure(Mode),
+    /// Holds the Cloud key in memory for this session only. A `None` clears it.
+    /// The value is never stored, logged, exported or echoed back in a reply.
+    SetCloudKey(Option<String>),
     SetProfile(SetupProfile),
     Start {
         project: ProjectId,
@@ -138,6 +150,7 @@ impl ApplicationSession {
                 stopped: stopped.clone(),
                 active_jobs: active_jobs.clone(),
                 replay,
+                cloud_key: None,
             }
             .run(),
         );
@@ -191,6 +204,8 @@ struct Actor {
     stopped: Arc<AtomicBool>,
     active_jobs: Arc<AtomicUsize>,
     replay: Arc<dyn Provider>,
+    /// In-memory only, for this session. Never persisted, never logged.
+    cloud_key: Option<String>,
 }
 
 impl Actor {
@@ -277,6 +292,11 @@ impl Actor {
                 let snapshot = self.service.run(id).await?;
                 self.selected(snapshot).await;
             }
+            Request::SetCloudKey(key) => {
+                // In memory only. Never logged, stored or echoed back.
+                self.cloud_key = key.filter(|value| !value.trim().is_empty());
+                self.reply(Reply::Settings(self.service.settings().await?));
+            }
             Request::SetProfile(profile) => {
                 let mut settings = self.service.settings().await?;
                 settings.profile = profile;
@@ -295,6 +315,15 @@ impl Actor {
                     Mode::Replay => self.replay.clone(),
                     Mode::Local { endpoint, model } => {
                         Arc::new(OllamaProvider::new(endpoint.clone(), model.clone())?)
+                    }
+                    Mode::Cloud { model } => {
+                        let key = self.cloud_key.clone().ok_or_else(|| {
+                            Error::Invalid(
+                                "Cloud needs an API key for this session before a run can start"
+                                    .into(),
+                            )
+                        })?;
+                        Arc::new(CloudProvider::new(key, model.clone())?)
                     }
                 };
                 self.service = WorkflowService::new(
@@ -327,6 +356,11 @@ impl Actor {
                             "Authorize the local inference request before starting".into(),
                         ));
                     }
+                    Mode::Cloud { .. } if !authorization.paid_provider => {
+                        return Err(Error::Invalid(
+                            "Approve the paid Cloud request for this run before starting".into(),
+                        ));
+                    }
                     _ => {}
                 }
                 let snapshot = self
@@ -349,6 +383,8 @@ impl Actor {
                     (Some(Mode::Local { endpoint, model }), ProviderKind::Local)
                         if Some(endpoint) == snapshot.input.provider.endpoint.as_ref()
                             && model == &snapshot.input.provider.model => {}
+                    (Some(Mode::Cloud { model }), ProviderKind::Cloud)
+                        if model == &snapshot.input.provider.model => {}
                     _ => {
                         return Err(Error::Invalid(
                             "Resume must use the original provider, endpoint and model".into(),

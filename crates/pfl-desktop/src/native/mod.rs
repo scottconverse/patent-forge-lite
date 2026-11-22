@@ -857,6 +857,9 @@ impl Desktop {
             Some(Mode::Local { .. }) => {
                 theme::pill("Local inference · explicit", theme::WARN, 0x33280f)
             }
+            Some(Mode::Cloud { .. }) => {
+                theme::pill("Cloud · paid per run", theme::VIOLET, 0x2a2340)
+            }
         }
     }
 

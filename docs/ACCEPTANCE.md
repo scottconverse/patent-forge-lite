@@ -43,7 +43,9 @@ quality or legal correctness.
 | Output-limit stop → `Truncated`, no report | unit + installed run | pass |
 | Malformed / mid-frame cloud stream → error | unit | pass |
 | Split UTF-8 across SSE chunks reassembles; invalid UTF-8 is an error, not U+FFFD | unit | pass |
-| Cloud reachable from the desktop | — | **not implemented** |
+| Cloud mode at the session layer; key held in memory for the session only | unit (session tests) | pass |
+| Cloud start refused without explicit paid approval, zero provider calls | unit (session tests) | pass |
+| Cloud selectable in the desktop UI | — | **not implemented** |
 
 ## 3. Reference lineage and research
 
