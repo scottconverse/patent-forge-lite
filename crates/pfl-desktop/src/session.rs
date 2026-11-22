@@ -88,6 +88,22 @@ pub enum Reply {
 }
 
 /// The runtime and runner outlive individual GPUI windows and navigation.
+/// True only for a loopback HTTP endpoint. Used to keep the verification hook from
+/// redirecting a real Cloud key anywhere but this machine.
+fn is_loopback_endpoint(endpoint: &str) -> bool {
+    let Some(rest) = endpoint.strip_prefix("http://") else {
+        return false;
+    };
+    let authority = rest.split('/').next().unwrap_or("");
+    let authority = authority.rsplit('@').next().unwrap_or(authority);
+    let host = if let Some(inner) = authority.strip_prefix('[') {
+        inner.split(']').next().unwrap_or("")
+    } else {
+        authority.split(':').next().unwrap_or("")
+    };
+    matches!(host, "127.0.0.1" | "localhost" | "::1")
+}
+
 pub struct ApplicationSession {
     runtime: Arc<tokio::runtime::Runtime>,
     sender: tokio::sync::mpsc::UnboundedSender<Request>,
@@ -323,7 +339,26 @@ impl Actor {
                                     .into(),
                             )
                         })?;
-                        Arc::new(CloudProvider::new(key, model.clone())?)
+                        // Verification hook: a loopback endpoint may stand in for the
+                        // Cloud host so acceptance can count requests without spending.
+                        // A non-loopback value is refused, so a real key can never be
+                        // redirected off the machine by this variable.
+                        match std::env::var("PFL_CLOUD_ENDPOINT") {
+                            Ok(endpoint) if !endpoint.is_empty() => {
+                                if !is_loopback_endpoint(&endpoint) {
+                                    return Err(Error::Invalid(
+                                        "PFL_CLOUD_ENDPOINT is for loopback verification only"
+                                            .into(),
+                                    ));
+                                }
+                                Arc::new(CloudProvider::with_endpoint(
+                                    key,
+                                    model.clone(),
+                                    endpoint,
+                                )?)
+                            }
+                            _ => Arc::new(CloudProvider::new(key, model.clone())?),
+                        }
                     }
                 };
                 self.service = WorkflowService::new(

@@ -606,3 +606,10 @@ TextInput gained a masked mode for the Cloud key field. The mask replaces every 
 
 The Setup page now carries a Cloud section: a masked session-only key field, a Cloud model field, the honest cost statement from confirmation_text, a Configure Cloud button that sends the key to the session actor and configures the mode, and a per-run paid approval control. The run start refuses without that approval, so declining sends nothing. The UI harness checks the key field and the approval control (33 checks). The cost sentence is plain text that the accessibility tree does not expose, so it is covered by unit tests rather than an automation check.
 
+
+## Phase A (A6 no fallback, 2026-11-21)
+
+A failed Cloud call makes exactly one request (mock counter) and records no checkpoint; the service holds one provider, so there is no second destination to fall back to and the test asserts the count is 1 rather than 6.
+
+A loopback-only verification hook (PFL_CLOUD_ENDPOINT) was added so installed acceptance can stand a local mock in for the Cloud host and count requests without spending. A non-loopback value is refused at provider construction, so the variable cannot redirect a real key off the machine.
+

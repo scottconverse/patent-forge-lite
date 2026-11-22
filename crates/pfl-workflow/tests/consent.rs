@@ -277,3 +277,84 @@ async fn lean_permits_cloud_past_the_profile_gate() {
         "the provider's 503 must surface as a failed run, not a Lean refusal"
     );
 }
+
+/// A failing Cloud call must not be retried, and must not fall back to another
+/// provider. The service holds one provider, so the observable guarantee is one
+/// request for the failed stage and no further attempts.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_failed_cloud_call_is_not_retried_or_rerouted() {
+    use axum::{Router, http::StatusCode, routing::post};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counter = calls.clone();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new().route(
+                "/v1/messages",
+                post(move || {
+                    let counter = counter.clone();
+                    async move {
+                        counter.fetch_add(1, Ordering::SeqCst);
+                        (StatusCode::SERVICE_UNAVAILABLE, "unavailable")
+                    }
+                }),
+            ),
+        )
+        .await
+        .unwrap();
+    });
+
+    let base = format!("http://{address}");
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(CloudProvider::with_endpoint("key", "model", &base).unwrap());
+    let service = WorkflowService::new(store, provider, Handle::current());
+    let mut settings = service.settings().await.unwrap();
+    settings.profile = SetupProfile::Full;
+    service.save_settings(settings).await.unwrap();
+    let project = service.create_project(intake()).await.unwrap();
+
+    let run = service
+        .start_workflow(
+            project.id,
+            WorkflowKind::Feasibility,
+            "no-fallback".into(),
+            Authorization {
+                synthetic_data: true,
+                paid_provider: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("the run starts");
+
+    let finished = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+        loop {
+            let current = service.run(run.id.clone()).await.unwrap();
+            if current.outcome.is_terminal() {
+                return current;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the run reaches a terminal outcome");
+
+    assert_eq!(finished.outcome, RunOutcome::Failed);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "a failed Cloud call must make exactly one request and fall back to nothing"
+    );
+    assert_eq!(
+        finished.checkpoints.len(),
+        0,
+        "a failed stage must not be recorded as a checkpoint"
+    );
+}

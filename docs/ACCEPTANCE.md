@@ -47,6 +47,8 @@ quality or legal correctness.
 | Cloud start refused without explicit paid approval, zero provider calls | unit (session tests) | pass |
 | Cloud selectable in the desktop UI | installed, UI automation | pass (33 checks) |
 | Paid Cloud approval control present; run refused without it | installed, UI automation | pass |
+| No fallback: a failed Cloud call makes exactly one request, no checkpoint | unit (`consent.rs`) | pass |
+| Loopback-only verification hook for the Cloud endpoint (non-loopback refused) | unit (build) + code review | pass |
 | Lean refuses Local with a clear message | unit (`consent.rs`) | pass |
 | Lean permits Cloud past the profile gate (fails at the provider, not the gate) | unit, loopback 503 | pass |
 | Cost confirmation states *unknown* plus the rates, never a fabricated total | unit (`cost.rs`) | pass |
