@@ -1,0 +1,294 @@
+//! Revision-aware export package.
+//!
+//! A package is a set of named files plus a manifest that records exactly which
+//! revisions and reference records it contains, with a SHA-256 for every file. It
+//! is built from stored revisions, never regenerated from a model, so the package
+//! always describes the revisions the operator selected.
+use crate::*;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PackageFile {
+    pub name: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManifestEntry {
+    pub name: String,
+    pub sha256: String,
+    pub bytes: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManifestRevision {
+    pub kind: String,
+    pub revision_id: String,
+    pub version: u32,
+    #[serde(default)]
+    pub base_run_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PackageManifest {
+    pub project_title: String,
+    pub revisions: Vec<ManifestRevision>,
+    pub references: usize,
+    pub files: Vec<ManifestEntry>,
+}
+
+fn hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// Escapes one CSV field: quote when needed, double embedded quotes.
+fn csv_field(value: &str) -> String {
+    let needs_quotes = value.contains([',', '"', '\n', '\r']);
+    let escaped = value.replace('"', "\"\"");
+    if needs_quotes {
+        format!("\"{escaped}\"")
+    } else {
+        escaped
+    }
+}
+
+/// The reference inventory as CSV, with a header a spreadsheet can read.
+fn references_csv(references: &[PriorArtItem]) -> String {
+    let mut out = String::from(
+        "reference,title,assignee,filing_date,grant_date,cpc,source,verified,relevance,url\n",
+    );
+    for item in references {
+        let row = [
+            item.reference.as_str(),
+            item.title.as_str(),
+            item.assignee.as_str(),
+            item.filing_date.as_str(),
+            item.grant_date.as_str(),
+            item.cpc.as_str(),
+            item.source.as_str(),
+            if item.verified { "yes" } else { "no" },
+            item.relevance.as_str(),
+            item.url.as_str(),
+        ];
+        out.push_str(
+            &row.iter()
+                .map(|field| csv_field(field))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+        out.push('\n');
+    }
+    out
+}
+
+fn revision_markdown(revision: &DocumentRevision) -> String {
+    let base = revision
+        .base_run_id
+        .as_ref()
+        .map(|id| format!(", edited from run {id}"))
+        .unwrap_or_default();
+    let note = if revision.note.trim().is_empty() {
+        String::new()
+    } else {
+        format!("\n> Edit note: {}\n", revision.note.trim())
+    };
+    format!(
+        "<!-- {} revision {} ({}{}) -->\n\n{}{}\n",
+        revision.kind.slug(),
+        revision.version,
+        revision.id,
+        base,
+        note,
+        revision.text.trim_end()
+    )
+}
+
+/// Builds the package for the selected revisions.
+///
+/// `compliance` is the saved findings text, when a review was run against these
+/// revisions. Nothing here contacts a provider or regenerates text.
+pub fn build_package(
+    project_title: &str,
+    claims: Option<&DocumentRevision>,
+    application: Option<&DocumentRevision>,
+    references: &[PriorArtItem],
+    compliance: Option<&str>,
+) -> Result<Vec<PackageFile>> {
+    if claims.is_none() && application.is_none() {
+        return Err(Error::Invalid(
+            "a package needs at least one selected revision".into(),
+        ));
+    }
+    let mut files = Vec::new();
+    let mut revisions = Vec::new();
+
+    if let Some(revision) = claims {
+        if revision.kind != DocumentKind::Claims {
+            return Err(Error::Invalid(
+                "the claims slot needs a claims revision".into(),
+            ));
+        }
+        files.push(PackageFile {
+            name: "claims.md".into(),
+            bytes: revision_markdown(revision).into_bytes(),
+        });
+        revisions.push(ManifestRevision {
+            kind: "claims".into(),
+            revision_id: revision.id.0.clone(),
+            version: revision.version,
+            base_run_id: revision.base_run_id.as_ref().map(|id| id.0.clone()),
+        });
+    }
+    if let Some(revision) = application {
+        if revision.kind != DocumentKind::Application {
+            return Err(Error::Invalid(
+                "the application slot needs an application revision".into(),
+            ));
+        }
+        files.push(PackageFile {
+            name: "application.md".into(),
+            bytes: revision_markdown(revision).into_bytes(),
+        });
+        revisions.push(ManifestRevision {
+            kind: "application".into(),
+            revision_id: revision.id.0.clone(),
+            version: revision.version,
+            base_run_id: revision.base_run_id.as_ref().map(|id| id.0.clone()),
+        });
+    }
+    files.push(PackageFile {
+        name: "references.csv".into(),
+        bytes: references_csv(references).into_bytes(),
+    });
+    if let Some(findings) = compliance {
+        files.push(PackageFile {
+            name: "compliance-findings.md".into(),
+            bytes: findings.as_bytes().to_vec(),
+        });
+    }
+
+    let manifest = PackageManifest {
+        project_title: project_title.to_string(),
+        revisions,
+        references: references.len(),
+        files: files
+            .iter()
+            .map(|file| ManifestEntry {
+                name: file.name.clone(),
+                sha256: hex(&file.bytes),
+                bytes: file.bytes.len(),
+            })
+            .collect(),
+    };
+    let manifest_bytes = serde_json::to_vec_pretty(&manifest)
+        .map_err(|e| Error::Invalid(format!("cannot serialize the package manifest: {e}")))?;
+    files.push(PackageFile {
+        name: "manifest.json".into(),
+        bytes: manifest_bytes,
+    });
+    Ok(files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn revision(kind: DocumentKind, version: u32, text: &str) -> DocumentRevision {
+        DocumentRevision {
+            id: RevisionId::new(),
+            project_id: ProjectId::new(),
+            kind,
+            version,
+            base_run_id: Some(RunId::new()),
+            text: text.into(),
+            note: "edited by hand".into(),
+            created_at_ms: 0,
+        }
+    }
+
+    fn reference() -> PriorArtItem {
+        PriorArtItem {
+            reference: "US-1".into(),
+            title: "A container, with a comma".into(),
+            assignee: "Acme \"Sensors\"".into(),
+            verified: true,
+            source: "Manual".into(),
+            ..Default::default()
+        }
+    }
+
+    fn file<'a>(files: &'a [PackageFile], name: &str) -> &'a PackageFile {
+        files.iter().find(|file| file.name == name).expect("file")
+    }
+
+    #[test]
+    fn a_package_names_the_selected_revisions_and_hashes_every_file() {
+        let claims = revision(DocumentKind::Claims, 3, "1. A thing.");
+        let application = revision(DocumentKind::Application, 2, "# Title\n\nBody.");
+        let files = build_package(
+            "Fixture",
+            Some(&claims),
+            Some(&application),
+            &[reference()],
+            None,
+        )
+        .unwrap();
+
+        assert!(files.iter().any(|f| f.name == "claims.md"));
+        assert!(files.iter().any(|f| f.name == "application.md"));
+        assert!(files.iter().any(|f| f.name == "references.csv"));
+
+        let claims_file = file(&files, "claims.md");
+        let text = String::from_utf8(claims_file.bytes.clone()).unwrap();
+        assert!(text.contains(&claims.id.0), "the file names its revision");
+        assert!(text.contains("revision 3"));
+
+        let manifest: PackageManifest =
+            serde_json::from_slice(&file(&files, "manifest.json").bytes).unwrap();
+        assert_eq!(manifest.revisions.len(), 2);
+        assert_eq!(manifest.revisions[0].version, 3);
+        assert_eq!(manifest.revisions[1].kind, "application");
+        assert_eq!(manifest.references, 1);
+        for entry in &manifest.files {
+            let actual = file(&files, &entry.name);
+            assert_eq!(entry.sha256, hex(&actual.bytes), "hash for {}", entry.name);
+            assert_eq!(entry.bytes, actual.bytes.len());
+        }
+    }
+
+    #[test]
+    fn references_csv_quotes_commas_and_quotes() {
+        let claims = revision(DocumentKind::Claims, 1, "1. A thing.");
+        let files = build_package("Fixture", Some(&claims), None, &[reference()], None).unwrap();
+        let csv = String::from_utf8(file(&files, "references.csv").bytes.clone()).unwrap();
+        assert!(csv.starts_with("reference,title,assignee,"));
+        assert!(csv.contains("\"A container, with a comma\""));
+        assert!(csv.contains("\"Acme \"\"Sensors\"\"\""));
+        assert!(csv.contains(",yes,"), "verified flag is recorded");
+    }
+
+    #[test]
+    fn findings_are_included_only_when_supplied() {
+        let claims = revision(DocumentKind::Claims, 1, "1. A thing.");
+        let without = build_package("Fixture", Some(&claims), None, &[], None).unwrap();
+        assert!(!without.iter().any(|f| f.name == "compliance-findings.md"));
+        let with =
+            build_package("Fixture", Some(&claims), None, &[], Some("## Findings\n")).unwrap();
+        assert!(with.iter().any(|f| f.name == "compliance-findings.md"));
+    }
+
+    #[test]
+    fn an_empty_selection_is_refused() {
+        let error = build_package("Fixture", None, None, &[], None).unwrap_err();
+        assert!(error.to_string().contains("at least one selected revision"));
+    }
+
+    #[test]
+    fn a_slot_with_the_wrong_document_kind_is_refused() {
+        let claims = revision(DocumentKind::Claims, 1, "1. A thing.");
+        let error = build_package("Fixture", None, Some(&claims), &[], None).unwrap_err();
+        assert!(error.to_string().contains("application revision"));
+    }
+}

@@ -469,3 +469,18 @@ self-reference, ranges and lists, and empty/unnumbered text.
 
 Still open for Item 3: CLI/desktop surfacing of the check, revision comparison, targeted
 regeneration, revision-aware export package.
+## Item 3: revision-aware export package (2026-11-21)
+
+`pfl_workflow::package::build_package` assembles a handoff package from **stored revisions**:
+`claims.md` and `application.md` (each naming its revision id, version and base run), a
+`references.csv` inventory with correct quoting, `compliance-findings.md` when a review was run, and
+a `manifest.json` recording every file's SHA-256 and size plus the revision ids/versions and the
+reference count.
+
+Nothing is regenerated: the package describes exactly the revisions selected, and a slot holding the
+wrong document kind, or an empty selection, is refused.
+
+Five unit tests: file set and manifest hashes, CSV quoting of commas and quotes, findings inclusion
+only when supplied, empty selection refused, wrong-kind slot refused.
+
+141 workspace tests pass; fmt and clippy clean.

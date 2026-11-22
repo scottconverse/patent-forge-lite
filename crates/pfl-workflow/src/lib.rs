@@ -5,6 +5,7 @@ pub use pfl_domain::*;
 pub mod claims;
 mod context;
 mod export;
+pub mod package;
 pub mod prompts;
 pub mod providers;
 mod report;
