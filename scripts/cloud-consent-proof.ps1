@@ -160,6 +160,8 @@ Record 'synthetic data declared' ([bool](Find-Contains '✓  Synthetic test data
 # Declined: paid approval deliberately left off.
 Invoke-Element 'Analysis page'
 Start-Sleep -Milliseconds 700
+# The Start control only exists once a workflow tab is selected.
+Invoke-Element 'Feasibility analysis'
 Invoke-Element 'Start new version'
 Start-Sleep -Milliseconds 1800
 Record 'declining sends zero requests' ((Requests) -eq 0) "(requests: $(Requests))"
@@ -172,7 +174,9 @@ Invoke-Element '○  Approve paid Cloud request (this run)'
 Record 'paid approval recorded' ([bool](Find-Contains '✓  Approve paid Cloud request'))
 Invoke-Element 'Analysis page'
 Start-Sleep -Milliseconds 700
+Invoke-Element 'Feasibility analysis'
 Invoke-Element 'Start new version'
+Start-Sleep -Milliseconds 900
 $deadline = (Get-Date).AddSeconds(25)
 while ((Get-Date) -lt $deadline -and (Requests) -eq 0) { Start-Sleep -Milliseconds 300 }
 Record 'approved Cloud run reaches the provider' ((Requests) -gt 0) "(requests: $(Requests))"

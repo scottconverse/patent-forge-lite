@@ -638,3 +638,8 @@ Scrolling the Setup content area with a real mouse wheel clears the clipping pro
 
 scripts/cloud-consent-proof.ps1 replaces the patched harness with helpers copied from ui-acceptance: name-first resolution, wait-for-window, wheel scrolling. It proves Cloud configures against the loopback endpoint (the Configured notice is observed), that synthetic data is declared and that paid approval can be granted. The Start invoke still does not fire, so the decline and approve halves remain vacuous: zero requests is a zero of not starting. A5 stays open.
 
+
+## Phase A (A5 diagnosis: Start control resolution, 2026-11-21)
+
+A direct tree dump of the Analysis page showed no Start control at all until a workflow tab is selected; adding the tab click made the control resolvable. It still does not fire: the resolved element has no InvokePattern, and the focus fallback fails with 'Target element cannot receive focus'. The installed decline/approve pair is therefore still unproven. Session-level tests already prove both refusals with zero provider calls; the remaining gap is purely automation of the same path through the window.
+
