@@ -784,3 +784,10 @@ Build hygiene: the native UI now builds into target/native, separate from the wo
 
 Each revision row offers 'Use vN for compliance'; the Compliance page shows what will be reviewed and starts the run through StartSelected. A session test proves the selected claims revision id and its text are recorded in the run's immutable input. The installed proof reaches eight checks and passes twice: it selects v2, starts compliance, and the screenshot shows a NEW run -- v5 compliance, 4/4, Completed -- with the panel reading 'Claims: the selected claims revision'.
 
+
+## Phase B (B4 exports, 2026-11-22)
+
+The revision panel exports the selected revisions as a package into the data directory's exports folder, and the proof confirms six files on disk: claims.md, claims.html, claims.docx, references.csv, compliance-findings.md and manifest.json. 11/11, twice.
+
+Word determinism, measured rather than assumed: two separate pfl-cli processes building the same revision produced byte-identical claims.docx (sha256 c7193ae08ba93df1...), claims.html, claims.md, references.csv and manifest.json. A unit test now asserts docx byte-equality for the same revision, and a first measurement across a second boundary was also identical, so docx-rs writes no volatile entry metadata here.
+

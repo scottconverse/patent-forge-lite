@@ -421,6 +421,21 @@ mod tests {
         );
     }
     #[test]
+    fn word_export_repeatability_is_measured() {
+        let claims = revision(DocumentKind::Claims, 2, "1. A thing.\n2. Another.");
+        let first = build_package("Fixture", Some(&claims), None, &[], None).unwrap();
+
+        let second = build_package("Fixture", Some(&claims), None, &[], None).unwrap();
+        let a = file(&first, "claims.docx").bytes.clone();
+        let b = file(&second, "claims.docx").bytes.clone();
+        // docx-rs writes no volatile metadata here, so the same revision produces the
+        // same container. A cross-process check is recorded in BUILD-EVIDENCE.
+        assert_eq!(
+            a, b,
+            "the same revision must export to identical Word bytes"
+        );
+    }
+    #[test]
     fn an_empty_selection_is_refused() {
         let error = build_package("Fixture", None, None, &[], None).unwrap_err();
         assert!(error.to_string().contains("at least one selected revision"));

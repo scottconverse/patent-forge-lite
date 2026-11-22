@@ -154,7 +154,8 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | B2 `pfl-cli diff` between stored revisions | pass | run |
 | B2 revision rows with a compare action and an inline diff, in the window | installed, 5/5 twice | pass |
 | B3 revision selection for compliance from the window, run completes as a new version | installed, 8/8 twice | pass |
-| B4 revision exports md/html/docx/csv/manifest | pass | unit: 7 tests |
+| B4 export the selected revisions from the window (md, html, docx, csv, manifest) | installed, 11/11 twice | pass |
+| B4 Word byte-stability | two separate processes | pass |
 | B5 semantics + plan | pass | doc + unit: 5 tests |
 | B5 execution | decided — not built | suffix regeneration ("regenerate from here onward"), per the chosen semantics in REGENERATION.md |
 | B6 revisions list | pass | run |

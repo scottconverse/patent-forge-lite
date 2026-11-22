@@ -485,6 +485,9 @@ impl Desktop {
                     self.state.notice =
                         Some("Execution mode configured. No inference request was sent.".into());
                 }
+                Reply::PackageExported(path) => {
+                    self.state.notice = Some(format!("Package written to {}", path.display()));
+                }
                 Reply::Revision(revision) => {
                     self.revisions.push(revision.clone());
                     self.state.notice = Some(format!(
@@ -1640,6 +1643,35 @@ impl Render for Desktop {
                             }
                             panel = panel.child(block);
                         }
+                        let claims_selection = self.compliance_claims.clone();
+                        let specification_selection = self.compliance_specification.clone();
+                        panel = panel.child(self.button(
+                            "export-package",
+                            "Export revisions package",
+                            move |this, _, cx| {
+                                let Some(project) =
+                                    this.state.selected_project.as_ref().map(|p| p.id.clone())
+                                else {
+                                    this.state.notice =
+                                        Some("Open a project before exporting.".into());
+                                    return;
+                                };
+                                let stamp = pfl_domain::now_ms();
+                                let dir = data_directory()
+                                    .map(|root| root.join("exports").join(stamp.to_string()))
+                                    .unwrap_or_else(|_| std::env::temp_dir().join("pfl-exports"));
+                                this.send(
+                                    Request::ExportPackage {
+                                        project,
+                                        claims: claims_selection.clone(),
+                                        application: specification_selection.clone(),
+                                        dir,
+                                    },
+                                    cx,
+                                );
+                            },
+                            cx,
+                        ));
                         content = content.child(panel);
                     }
                 }

@@ -77,6 +77,14 @@ pub enum Request {
         path: PathBuf,
         format: ExportFormat,
     },
+    /// Writes the package for the chosen revisions (md, html, docx, csv, manifest) into
+    /// a directory and reports it.
+    ExportPackage {
+        project: ProjectId,
+        claims: Option<RevisionId>,
+        application: Option<RevisionId>,
+        dir: PathBuf,
+    },
     /// Starts a dependent workflow against explicitly selected document revisions.
     StartSelected {
         project: ProjectId,
@@ -116,6 +124,7 @@ pub enum Reply {
     Settings(Settings),
     Exported(PathBuf),
     Revision(DocumentRevision),
+    PackageExported(PathBuf),
     Revisions(Vec<DocumentRevision>),
     Recovered(Vec<RunId>),
     Error(String),
@@ -396,6 +405,60 @@ impl Actor {
                 );
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));
+            }
+            Request::ExportPackage {
+                project,
+                claims,
+                application,
+                dir,
+            } => {
+                let claims_revision = match claims {
+                    Some(id) => Some(self.service.revision(id).await?),
+                    None => self
+                        .service
+                        .revisions(project.clone(), DocumentKind::Claims)
+                        .await?
+                        .pop(),
+                };
+                let application_revision = match application {
+                    Some(id) => Some(self.service.revision(id).await?),
+                    None => self
+                        .service
+                        .revisions(project.clone(), DocumentKind::Application)
+                        .await?
+                        .pop(),
+                };
+                let history = self.service.history(project.clone()).await?;
+                let references = history
+                    .iter()
+                    .filter(|run| run.input.kind == WorkflowKind::Feasibility)
+                    .max_by_key(|run| run.version)
+                    .map(|run| run.input.upstream.prior_art.clone())
+                    .unwrap_or_default();
+                let findings = history
+                    .iter()
+                    .filter(|run| {
+                        run.input.kind == WorkflowKind::Compliance
+                            && run.outcome == RunOutcome::Completed
+                    })
+                    .max_by_key(|run| run.version)
+                    .and_then(|run| run.report.as_ref())
+                    .map(|report| report.markdown.clone());
+                let project_record = self.service.project(project).await?;
+                let files = pfl_workflow::package::build_package(
+                    &project_record.intake.title,
+                    claims_revision.as_ref(),
+                    application_revision.as_ref(),
+                    &references,
+                    findings.as_deref(),
+                )?;
+                std::fs::create_dir_all(&dir)
+                    .map_err(|e| Error::Io(format!("cannot create {}: {e}", dir.display())))?;
+                for file in &files {
+                    std::fs::write(dir.join(&file.name), &file.bytes)
+                        .map_err(|e| Error::Io(e.to_string()))?;
+                }
+                self.reply(Reply::PackageExported(dir));
             }
             Request::StartSelected {
                 project,

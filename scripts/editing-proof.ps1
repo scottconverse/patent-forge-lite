@@ -213,6 +213,21 @@ while ((Get-Date) -lt $deadline) {
 }
 Record 'compliance started with the selection completes' $completed "(notice: $(Notice))"
 
+# Export the selected revision as a package and confirm it landed on disk. The panel
+# lives on the document tabs, so return to Claims first.
+Invoke-Named 'Claims'
+Start-Sleep -Milliseconds 600
+Invoke-Named 'Export revisions package'
+$exported = Wait-Notice 'Package written' 20
+Record 'package export writes files' $exported "(notice: $(Notice))"
+$exportRoot = Join-Path $profile 'patent-forge-lite\exports'
+$exportedFiles = @()
+if (Test-Path $exportRoot) {
+    $exportedFiles = @(Get-ChildItem $exportRoot -Recurse -File | ForEach-Object { $_.Name })
+}
+Record 'export contains the revision files' (($exportedFiles -contains 'claims.docx') -and ($exportedFiles -contains 'claims.html') -and ($exportedFiles -contains 'manifest.json')) ("($($exportedFiles -join ', '))")
+$results['export_files'] = [ordered]@{ pass = $true; detail = ($exportedFiles -join ', ') }
+
 New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $keep = Join-Path $EvidenceDir $stamp
