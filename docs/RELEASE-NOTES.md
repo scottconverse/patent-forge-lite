@@ -1,3 +1,44 @@
+# Candidate 0.2.0 — built, not released
+
+Built from revision `27dbd52`. Nothing here is published, tagged or signed; the artifact
+and its SHA-256 are recorded in `docs/RELEASE-MANIFEST.md`.
+
+## New since 0.1.0
+
+- **Editing that versions** — edit the selected stage's text in the window, save it as the
+  next numbered revision anchored to the completed run, and list the series back.
+- **Revision comparison** — every revision row offers a comparison against the previous
+  one, rendered from the deterministic line diff.
+- **Choose what compliance reviews** — pick a specific claims or application revision and
+  start the compliance run against it; the chosen revision is recorded in the run's input.
+- **Export exact revisions** — Markdown, HTML, Word and CSV with a hash manifest naming the
+  revision; re-exporting the same revision produces identical bytes, measured across
+  separate processes.
+- **Regenerate from here onward** — re-run a chosen stage and everything after it, carrying
+  the earlier stages byte-identically from the base run. Suffix only; the interface never
+  promises a single stage.
+- **Research with consent** — USPTO PatentsView behind a session-only key and a per-run
+  opt-in, with the recorded references shown on the run. An opted-out run queries nothing.
+- **Setup that asks** — first run asks Full or Lean before anything else; the model picker
+  lists what the runtime actually reports and says plainly when it cannot ask.
+- **Honest cost line** — the window states the model, that the total is unknown until
+  usage arrives, and the rates that will apply.
+- **Lifecycle** — a second launch is refused with exit code 3; quit closes when nothing is
+  pending.
+- **Migration** — copy-first import from a legacy database, with a preview of what would
+  move, provenance warnings, preserved archive-only records, re-runnability, and
+  credentials redacted so no secret crosses over.
+- **Windows upgrade and rollback** — install 0.1.0, upgrade, roll back, with the workspace
+  inventory unchanged at each step.
+
+## Not verified in this candidate
+
+- A live PatentsView query (no key).
+- A migration of a real legacy database (needs authorization and a copy).
+- Installed acceptance on macOS and Linux (no hardware); see `docs/PLATFORM-RUNBOOK.md`.
+- HTTP write endpoints; only the read surface is verified (`docs/API-CONTRACTS.md`).
+- Nav items are announced as buttons that assistive technology cannot press — a known,
+  tracked defect.
 # PatentForge Lite 0.1.0
 
 The first public release: a standalone, native patent research and drafting workspace.

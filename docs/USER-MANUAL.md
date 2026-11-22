@@ -384,7 +384,7 @@ you also want the data gone.
 | "Finish or cancel active work before changing execution mode" | A run is live | Wait, or cancel it, then change mode |
 | "cloud/paid providers require explicit paid-provider authorization" | Cloud run without consent | A Cloud run is refused by design; authorize paid use or use local |
 | A stage fails with `Ollama HTTP 5xx` | Provider rejected the call | Check the endpoint/model and the runtime's own log; nothing is retried and no fallback is attempted |
-| Cloud mode is missing | Not implemented in the desktop | The engine has the adapter; the UI does not expose it yet |
+| Cloud mode is missing | The Cloud card is below the fold in Execution setup | Scroll the page; enter a model and key, then configure |
 | Stage fails on macOS/Linux: "could not open display" / Vulkan error | No usable GPU/display in that session | Run inside a real desktop session, not a headless one |
 | Word shows a repair prompt | Genuine bug in `.docx` writing | Send the file; this path is tested |
 | macOS: "app is damaged" | Quarantine on an unsigned build | `xattr -dr com.apple.quarantine "Patent Forge Lite.app"` |
@@ -465,7 +465,7 @@ JSON array. A failed search is an error, never an empty result.
 
 ## 14. Known limits
 
-- macOS and Linux builds are **unsigned**. Windows is signed with Azure Trusted Signing.
+- Windows, macOS and Linux candidate builds are **unsigned**. The accepted v0.1.0 Windows release was signed with Azure Trusted Signing; a new revision is not signed without approval.
 - macOS and Linux are offered as **artifacts**, not verified support: no installed or interactive
   acceptance has been performed on either platform.
 - Cloud execution is **available in the desktop** with a session-only key and per-run paid approval; `pfl-cli serve` remains **replay-only**.
@@ -477,6 +477,6 @@ JSON array. A failed search is an error, never an empty result.
   Completed; the partial text is not committed as a result.
 - Cloud inference is fail-closed and has only been verified against a mock, not a live endpoint.
 - Live research is USPTO PatentsView with a session-only key and per-run opt-in; the generic HTTP\n  contract and the fixture source remain for local use. No live query has been verified from this\n  build yet, so treat retrieval as unproven until one is.
-- One tray/background lifecycle is not implemented; closing the window closes the application.
+- There is no tray-resident background mode: closing the window closes the application, and a second launch is refused (exit code 3) because only one instance may write to the workspace.
 - Real PatentForge data migration is intentionally not in this version.
 - A single user profile per machine; there is no multi-user or team mode.

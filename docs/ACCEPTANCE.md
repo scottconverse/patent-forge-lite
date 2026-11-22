@@ -174,10 +174,11 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | E2 real database import | blocked | authorization + database needed |
 | E3 credentials are redacted at import (archive records the column, never the value) and re-entered per session | unit + run | pass — 16/16 proof run scans the activated database |
 | E4 read API contracts verified over loopback; CLI matrix and DSH compatibility documented | run, 13/13 twice | pass — `docs/API-CONTRACTS.md`, `docs/evidence/api/` (write endpoints explicitly unverified) |
-| F1 one installer per platform | partial | Windows built; macOS/Linux artifacts built unsigned |
+| F1 Windows installer from one revision with SHA-256 recorded; both profiles in one package | run | pass — `docs/RELEASE-MANIFEST.md` (rev `27dbd52`) |
+| F1 macOS/Linux artifacts | — | **blocked — hardware**; runbook delivered (`docs/PLATFORM-RUNBOOK.md`) |
 | F2 Windows install/upgrade/uninstall | partial | install/uninstall/data retained proven; upgrade not tested |
-| F3 macOS/Linux installed | blocked | hardware |
+| F3 macOS/Linux installed acceptance | — | **blocked — hardware**; scripted runbook in `docs/PLATFORM-RUNBOOK.md` |
 | F4 signature status | pass | v0.1.0 signed and verified; candidate unsigned by design |
-| F5 documentation agreement | partial | Cloud and research claims corrected to match the implemented paths; full pass owed at the release revision |
+| F5 documentation agreement at this revision | review | pass — manual, packaging and release notes corrected; candidate notes added; unverified items listed |
 | G completion matrix | partial | this section; full matrix at release |
 

@@ -857,3 +857,12 @@ E3: a credential is never carried across a migration, not even into the opaque a
 
 E4: docs/API-CONTRACTS.md records the HTTP surface measured over loopback (health, projects, project, history, run, events, report, export, and a 404 for an unknown project) plus the CLI behaviour matrix and the DSH compatibility basis. Write endpoints are listed as unverified, because they change state and nothing here exercised them. scripts/api-proof.ps1 re-runs the measurement (13/13, twice, evidence under docs/evidence/api/).
 
+
+## Phase F (F1, F2, F3, F5, 2026-11-22)
+
+F1: the Windows installer is built from 27dbd52 as a 0.2.0 candidate, with SHA-256 5fc41eb0... and 10,573,590 bytes recorded in docs/RELEASE-MANIFEST.md alongside the unchanged 0.1.0 artifact. macOS and Linux have no artifact from this revision: their installed acceptance is blocked on hardware and docs/PLATFORM-RUNBOOK.md is the deliverable.
+
+The version skew is recorded rather than hidden: the installer is named 0.2.0 by overriding AppVersion, while the crates still declare 0.1.0, because re-issuing an artifact called 0.1.0 from a later revision would silently replace a published file. Choosing the next version is Scott's decision.
+
+F5: the manual no longer says Cloud is missing (the card is below the fold), no longer claims a tray lifecycle exists, and no longer says Windows is signed for a candidate revision. Packaging points at the manifest and the verified upgrade run. Release notes gain a clearly-marked candidate section listing what is new and what remains unverified.
+
