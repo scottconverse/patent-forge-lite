@@ -50,6 +50,7 @@ quality or legal correctness.
 | Lean permits Cloud past the profile gate (fails at the provider, not the gate) | unit, loopback 503 | pass |
 | Cost confirmation states *unknown* plus the rates, never a fabricated total | unit (`cost.rs`) | pass |
 | Cost confirmation shown before a paid run in the desktop | — | **not implemented** |
+| Masked input field (mask preserves byte offsets; secret never painted) | unit (`masking_tests`) | pass |
 
 ## 3. Reference lineage and research
 

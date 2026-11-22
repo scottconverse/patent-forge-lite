@@ -596,3 +596,8 @@ A Lean installation refuses Local with the message naming the profile, and does 
 
 confirmation_text produces the statement a consent screen shows before a paid run. A run's usage cannot be known in advance, so it states that the cost is unknown until the run reports usage, together with the rates that will be applied; with no configured rates it says only that the cost is unknown. Neither form invents a currency figure. Two tests assert this, including that no dollar sign appears.
 
+
+## Phase A (A3 masked field support, 2026-11-21)
+
+TextInput gained a masked mode for the Cloud key field. The mask replaces every byte with an asterisk while preserving byte length exactly, so cursor and selection offsets do not move; newlines are kept so wrapping is unchanged. Two tests assert offset preservation, that the secret is not painted, and newline handling. The field is not yet placed on the Setup page.
+

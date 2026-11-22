@@ -148,6 +148,9 @@ impl TextLayout {
 
 pub struct TextInput {
     pub buffer: TextBuffer,
+    /// When set, the field paints a mask instead of the text. Byte offsets are
+    /// preserved exactly, so cursor and selection mapping are unaffected.
+    masked: bool,
     /// Accessible name for this field, also used as its stable element id.
     label: SharedString,
     focus: FocusHandle,
@@ -171,7 +174,15 @@ impl TextInput {
             last_bounds: None,
             scroll: ScrollHandle::new(),
             reveal: false,
+            masked: false,
         }
+    }
+
+    /// Paints a mask instead of the text while keeping byte offsets identical, so
+    /// cursor and selection behaviour is unchanged.
+    pub fn masked(mut self, masked: bool) -> Self {
+        self.masked = masked;
+        self
     }
 
     /// Names the field for assistive technology and gives it a unique
@@ -502,6 +513,7 @@ impl Element for InputElement {
         cx: &mut App,
     ) -> (LayoutId, ()) {
         let buffer = self.input.read(cx).buffer.clone();
+        let masked = self.input.read(cx).masked;
         let style = window.text_style();
         let layout = self.layout.clone();
         let mut element_style = Style::default();
@@ -548,7 +560,14 @@ impl Element for InputElement {
                 let shaped = window
                     .text_system()
                     .shape_text(
-                        SharedString::from(text.clone()),
+                        SharedString::from(if masked {
+                            // One mask byte per input byte keeps every offset identical.
+                            text.bytes()
+                                .map(|byte| if byte == b'\n' { '\n' } else { '*' })
+                                .collect::<String>()
+                        } else {
+                            text.clone()
+                        }),
                         px(14.),
                         &runs,
                         Some(width),
@@ -649,5 +668,24 @@ impl Element for InputElement {
             input.last_layout = Some(layout);
             input.last_bounds = Some(bounds);
         });
+    }
+}
+
+#[cfg(test)]
+mod masking_tests {
+    use super::mask_bytes;
+
+    #[test]
+    fn a_mask_preserves_byte_offsets_and_hides_the_secret() {
+        let secret = "sk-ant-session-only";
+        let masked = mask_bytes(secret);
+        assert_eq!(masked.len(), secret.len(), "offsets must not move");
+        assert!(!masked.contains("sk-ant"), "the secret must not be painted");
+        assert_eq!(masked, "*".repeat(secret.len()));
+    }
+
+    #[test]
+    fn newlines_survive_masking() {
+        assert_eq!(mask_bytes("a\nb"), "*\n*");
     }
 }
