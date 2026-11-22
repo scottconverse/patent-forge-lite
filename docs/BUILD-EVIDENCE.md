@@ -623,3 +623,8 @@ scripts/mock-cloud.ps1 serves a valid SSE stream on loopback and logs every requ
 
 The Cloud acceptance script exposed two real defects, both now understood. First, configuring Cloud from the UI sent the key and the mode as two separate requests and the mode was observed as unset at start. Second, the UI send() helper discards the reply, so Reply::Configured never reached the view and the mode stayed None even when the actor had configured it. The actor now has one atomic ConfigureCloud request that installs the key and configures the mode together. Applying the reply in the view is still outstanding; the first attempt did not compile and was reverted rather than left broken. A5 therefore remains open, and the proof script is recorded as not passing.
 
+
+## Phase A (A5 root cause, 2026-11-21)
+
+Geometry, not timing, explains why the Cloud configure never fired. At the default window size the Setup page renders the Cloud card below the viewport: the 'Configure Cloud with this key' button reports a rectangle at y=1260 while the window rectangle ends at y=1227. An Invoke on an element outside the window does nothing, which is why the notice never changed and the mode stayed unset. This is also a user-facing defect: the Cloud controls cannot be reached without scrolling, and the page currently does not scroll. The earlier 'pass (33 checks)' row was wrong -- those checks asserted presence in the automation tree, not reachability -- and is corrected to partial.
+

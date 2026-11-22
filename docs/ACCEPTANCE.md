@@ -45,7 +45,7 @@ quality or legal correctness.
 | Split UTF-8 across SSE chunks reassembles; invalid UTF-8 is an error, not U+FFFD | unit | pass |
 | Cloud mode at the session layer; key held in memory for the session only | unit (session tests) | pass |
 | Cloud start refused without explicit paid approval, zero provider calls | unit (session tests) | pass |
-| Cloud selectable in the desktop UI | installed, UI automation | pass (33 checks) |
+| Cloud selectable in the desktop UI | installed, UI automation | **partial** — controls exist but the Cloud card is clipped below the window (button at y=1260, window ends y=1227) |
 | Paid Cloud approval control present; run refused without it | installed, UI automation | pass |
 | No fallback: a failed Cloud call makes exactly one request, no checkpoint | unit (`consent.rs`) | pass |
 | Loopback-only verification hook for the Cloud endpoint (non-loopback refused) | unit (build) + code review | pass |
