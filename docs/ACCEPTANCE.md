@@ -147,6 +147,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | A7 Lean refuses Local | pass | unit: refuses Local, permits Cloud |
 | B1 desktop editing to revision | not implemented | engine save_revision exists |
 | B2 diff engine | pass | unit: 6 tests |
+| `pfl-cli diff` between two revisions | run | pass |
 | B2 diff in desktop | not implemented | |
 | B3 revision selection in desktop | not implemented | engine selection exists |
 | B4 revision exports md/html/docx/csv/manifest | pass | unit: 7 tests |

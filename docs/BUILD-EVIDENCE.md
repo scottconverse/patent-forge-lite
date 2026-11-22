@@ -708,3 +708,8 @@ With a PatentsView source attached, a run that authorizes research performs exac
 
 Setup now carries a masked PatentsView key field, a Configure control that builds the research source in the session actor, and a per-run Use PatentsView research toggle that sets the run's research authorization. The key is session-only, and a loopback override (PFL_RESEARCH_ENDPOINT) is refused for anything but loopback so a real key cannot be redirected. UI harness still passes 33 checks. No live query is claimed.
 
+
+## Phase B (B2 diff CLI, 2026-11-21)
+
+pfl-cli diff --workspace --a --b renders the deterministic diff between two stored revisions, with added/removed counts, and refuses revisions from different projects. Verified end to end: two revisions saved against the claims run, then diffed, producing exactly one removal and two additions.
+

@@ -804,6 +804,7 @@ async fn main() {
                 | "models"
                 | "usage"
                 | "revisions"
+                | "diff"
         ) {
             return Err(invalid("unknown command; only live performs real inference"));
         }
@@ -822,6 +823,8 @@ async fn main() {
         let mut kind = None;
         let mut from_run = None;
         let mut note = None;
+        let mut diff_a = None;
+        let mut diff_b = None;
         let mut i = 1;
         while i < args.len() {
             match (args[i].as_str(), args.get(i + 1)) {
@@ -847,6 +850,8 @@ async fn main() {
                     from_run = Some(RunId(value.to_string()))
                 }
                 ("--note", Some(value)) if note.is_none() => note = Some(value.to_string()),
+                ("--a", Some(value)) if diff_a.is_none() => diff_a = Some(RevisionId(value.to_string())),
+                ("--b", Some(value)) if diff_b.is_none() => diff_b = Some(RevisionId(value.to_string())),
                 ("--stage", Some(value)) if stage.is_none() => {
                     stage = Some(value.parse::<usize>().map_err(|_| invalid("invalid pause stage"))?);
                 }
@@ -871,6 +876,40 @@ async fn main() {
             return Err(invalid(
                 "only pipeline and live accept --references and --research-endpoint",
             ));
+        }
+        if command == "diff" {
+            let workspace = workspace.ok_or_else(|| invalid("--workspace is required"))?;
+            let a = diff_a.ok_or_else(|| invalid("diff requires --a <revision>"))?;
+            let b = diff_b.ok_or_else(|| invalid("diff requires --b <revision>"))?;
+            let marker = read_marker(&workspace)?;
+            let database = workspace.join(&marker.database);
+            let _profile_lock = take_profile_lock(&database)?;
+            let open = database.clone();
+            let store: Arc<dyn Store> = Arc::new(
+                tokio::task::spawn_blocking(move || SqliteStore::open(open))
+                    .await
+                    .map_err(|e| Error::Storage(e.to_string()))??,
+            );
+            let provider: Arc<dyn Provider> = Arc::new(ReplayProvider::all_workflows());
+            let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+            let before = service.revision(a).await?;
+            let after = service.revision(b).await?;
+            if before.project_id != after.project_id {
+                return Err(invalid("both revisions must belong to the same project"));
+            }
+            let diff = pfl_workflow::diff::diff_text(&before.text, &after.text);
+            service.shutdown().await?;
+            println!(
+                "{}",
+                serde_json::json!({
+                    "a": before.id.0,
+                    "b": after.id.0,
+                    "added": diff.added,
+                    "removed": diff.removed,
+                    "diff": pfl_workflow::diff::render(&diff),
+                })
+            );
+            return Ok(());
         }
         if command == "revisions" {
             let workspace = workspace.ok_or_else(|| invalid("--workspace is required"))?;
