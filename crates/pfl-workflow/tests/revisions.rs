@@ -377,3 +377,49 @@ async fn only_committed_stages_are_offered_for_regeneration() {
         "a completed run offers its committed stages"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_regeneration_plan_is_validated_and_ordered_by_the_base_run() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+    let project = service.create_project(intake()).await.unwrap();
+    let run = service
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Feasibility,
+            "plan".into(),
+            auth(),
+        )
+        .await
+        .unwrap();
+    let done = wait(&service, &run.id).await;
+    let committed: Vec<Stage> = done.checkpoints.iter().map(|c| c.stage).collect();
+
+    // An empty selection is refused.
+    let empty = service
+        .plan_regeneration(done.id.clone(), Vec::new())
+        .await
+        .unwrap_err();
+    assert!(empty.to_string().contains("at least one stage"));
+
+    // A stage the base never produced is refused.
+    let foreign_stage = WorkflowKind::Claims.stages()[0];
+    assert!(
+        !committed.contains(&foreign_stage),
+        "the probe stage must not be a feasibility stage"
+    );
+    let foreign = service
+        .plan_regeneration(done.id.clone(), vec![foreign_stage])
+        .await
+        .unwrap_err();
+    assert!(foreign.to_string().contains("not part of the base run"));
+
+    // A valid selection comes back in the base run's order, deduplicated.
+    let selection = vec![committed[2], committed[0], committed[2]];
+    let plan = service
+        .plan_regeneration(done.id.clone(), selection)
+        .await
+        .unwrap();
+    assert_eq!(plan, vec![committed[0], committed[2]]);
+}

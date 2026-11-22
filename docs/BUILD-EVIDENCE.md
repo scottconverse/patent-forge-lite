@@ -683,3 +683,8 @@ docs/REGENERATION.md fixes the contract: a regeneration derives a new run from t
 
 regenerable_stages lists the committed checkpoints of a terminal run, so a section selection can only name stages the base run actually produced; a running run is refused. Tested against a completed feasibility run and against a run still in progress.
 
+
+## Phase B (B5 plan validation, 2026-11-21)
+
+plan_regeneration validates a section selection against a completed run: an empty selection is refused, a stage the base never produced is refused (probed with a claims stage against a feasibility run), and a valid selection is returned in the base run's own order with duplicates removed, so the plan is deterministic. Execution with carried-over checkpoints is still to build.
+

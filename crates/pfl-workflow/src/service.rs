@@ -445,6 +445,33 @@ impl WorkflowService {
         self.launch(run).await
     }
 
+    /// Validates a section selection against a completed run and returns the plan a
+    /// regeneration would execute. Nothing runs here: the plan only names stages the
+    /// base actually produced, in the base's own order.
+    pub async fn plan_regeneration(&self, source: RunId, stages: Vec<Stage>) -> Result<Vec<Stage>> {
+        if stages.is_empty() {
+            return Err(Error::Invalid(
+                "a regeneration must name at least one stage".into(),
+            ));
+        }
+        let available = self.regenerable_stages(source).await?;
+        for stage in &stages {
+            if !available.contains(stage) {
+                return Err(Error::Invalid(format!(
+                    "stage {stage:?} is not part of the base run"
+                )));
+            }
+        }
+        // Deduplicate and keep the base run's order, so a plan is deterministic.
+        let mut plan: Vec<Stage> = Vec::new();
+        for stage in available {
+            if stages.contains(&stage) && !plan.contains(&stage) {
+                plan.push(stage);
+            }
+        }
+        Ok(plan)
+    }
+
     /// The stages of a completed run that a section-scoped regeneration may re-run.
     /// Only committed checkpoints are offered, so a selection can never name a stage
     /// the base run never produced.
