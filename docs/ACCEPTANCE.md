@@ -142,7 +142,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | A2 Cloud mode at session layer | pass | unit: session tests |
 | A3 memory-only key, masked field | pass | unit: masking tests; installed: field present |
 | A4 cost confirmation text | pass | unit: 2 tests |
-| A5 decline sends zero (installed) | partial | Start IS invokable (Local proof clicks it 5/5); the Cloud decline script still needs fixing, so the zero-request claim is unproven |
+| A5 decline sends zero; approval reaches the provider | installed + mock, 7/7 twice | pass |
 | A6 no fallback | pass | unit: 1 request, no checkpoint |
 | A7 Lean refuses Local | pass | unit: refuses Local, permits Cloud |
 | B1 desktop editing to revision | not implemented | engine save_revision exists |

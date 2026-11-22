@@ -728,3 +728,10 @@ The manual still said research was disabled and live retrieval was only a seam. 
 
 The premise was wrong. With a native build the Start control is exposed as ControlType.Button with InvokePattern, and installed-local-proof.ps1 invokes it successfully five times (5/5 pass). The earlier 'no InvokePattern' and 'cannot receive focus' findings came from a non-native stub binary that a workspace test had written over the native build; the stub exits immediately with 'requires a native build'. A guard was added to the Cloud proof, and the trap is recorded in HANDOFF. A5 is therefore partial, not blocked on the UI toolkit: the Cloud decline script itself still needs fixing.
 
+
+## Phase A (A5 closed, 2026-11-21)
+
+The Cloud consent proof now passes 7/7, twice in a row, against the native build and a loopback mock: Cloud configures with a session-only key, declining sends zero requests and names the missing paid approval, granting approval lets the run reach the provider (6 requests for the feasibility run) and complete.
+
+Four script defects had to be fixed, none of them product defects: the stub-binary guard launched a window instead of probing with an invalid page; nav buttons expose no InvokePattern and need a foregrounded coordinate click; Invoke and clicks both do nothing on an element outside the window, so every action now scrolls it into view; and the completion check read the status bar instead of the run summary. The earlier 'no InvokePattern' diagnosis was wrong -- a workspace build had overwritten the native binary with a stub.
+
