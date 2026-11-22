@@ -498,3 +498,21 @@ structural errors and exits 1; `package` on a workspace with no revisions refuse
 "at least one selected revision" (correct — the pipeline creates runs, not edits). Creating a
 revision still requires the library API; a CLI/desktop edit command is the next step, and until it
 exists the successful package path is covered by `package::tests` rather than an end-to-end run.
+## Item 3: the edit → validate → package chain is runnable (2026-11-21)
+
+`pfl-cli save-revision --workspace <ws> --kind claims|application --from-run <id> --file <md>
+[--note <text>]` stores an edited document as the next numbered revision of the project.
+
+Verified as one real chain, not three commands:
+
+1. `pipeline` created all four runs (19 stages).
+2. The claims text was edited into a 3-claim set; `validate-claims` reported no issues.
+3. `save-revision` returned revision `2c4cfc1f…`, version 1, anchored to claims run
+   `cadbeac0…`.
+4. `package --claims <id>` wrote `claims.md`, `references.csv`, `compliance-findings.md` and
+   `manifest.json`; the manifest names that revision id and version 1.
+
+The package's `compliance-findings.md` is the project's saved compliance report, and
+`references` is 0 because this pipeline run supplied none — both correct for this input.
+
+Gate with real exit codes: build 0, fmt 0, clippy -D warnings 0, workspace tests 0.
