@@ -68,8 +68,11 @@ function Clear-Harness {
 
 # Ensure cleanup happens even when a check throws.
 trap {
+    # The guard above runs before the helper functions are defined, so clean up
+    # inline rather than calling a function that may not exist yet.
     Write-Host ("`nABORTED: {0}" -f $_.Exception.Message) -ForegroundColor Red
-    Clear-Harness
+    if ($script:appPid) { Stop-Process -Id $script:appPid -Force -ErrorAction SilentlyContinue }
+    if ($script:previousLocalAppData) { $env:LOCALAPPDATA = $script:previousLocalAppData }
     exit 1
 }
 
@@ -312,7 +315,17 @@ Invoke-Element 'Intake page'
 # keeps it as a manual step.
 Write-Host "  MANUAL  Tab traversal and the focus ring (see docs/INTERACTIVE-CHECKLIST.md)" -ForegroundColor Yellow
 
-Write-Host "`n[6] Shutdown"
+Write-Host "`n[6] Editing surface"
+Invoke-Element 'Analysis page'
+Start-Sleep -Milliseconds 500
+Invoke-Element 'Claims'
+Start-Sleep -Milliseconds 600
+Check "revision text field is present" ([bool](Find-ById 'input-Revision text'))
+Check "save revision action is present" ([bool](Find-ByName 'Save revision'))
+Check "list revisions action is present" ([bool](Find-ByName 'List revisions'))
+Check "load run text action is present" ([bool](Find-ByName 'Load run text'))
+
+Write-Host "`n[7] Shutdown"
 Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 700
 Check "process exits cleanly" (-not [bool](Get-Process -Id $proc.Id -ErrorAction SilentlyContinue))

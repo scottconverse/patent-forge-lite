@@ -212,6 +212,7 @@ struct Desktop {
     research_key: Entity<TextInput>,
     research_authorized: bool,
     revisions: Vec<DocumentRevision>,
+    revision_text: Entity<TextInput>,
     pending: bool,
     start_key: Option<String>,
     pending_open: Option<ProjectId>,
@@ -270,6 +271,9 @@ impl Desktop {
         let cloud_model = cx.new(|cx| {
             TextInput::new(TextBuffer::new("", false), 42., cx).labelled("Cloud model name")
         });
+        let revision_text = cx.new(|cx| {
+            TextInput::new(TextBuffer::new("", true), 160., cx).labelled("Revision text")
+        });
         let research_key = cx.new(|cx| {
             TextInput::new(TextBuffer::new("", false), 42., cx)
                 .labelled("PatentsView API key")
@@ -324,6 +328,7 @@ impl Desktop {
             research_key,
             research_authorized: false,
             revisions: Vec::new(),
+            revision_text,
             pending: false,
             start_key: None,
             pending_open: None,
@@ -1334,6 +1339,140 @@ impl Render for Desktop {
                     tabs = tabs.child(self.workflow_tab(kind, kind == self.workflow, cx));
                 }
                 content = content.child(tabs);
+
+                // Editing surface: only the two document workflows can be edited. A run
+                // is immutable; an edit becomes the next numbered revision anchored to
+                // the latest completed run of that kind.
+                let editable = match self.workflow {
+                    WorkflowKind::Claims => Some(DocumentKind::Claims),
+                    WorkflowKind::Application => Some(DocumentKind::Application),
+                    _ => None,
+                };
+                if let (Some(kind), true) = (editable, self.state.selected_project.is_some()) {
+                    {
+                        let mut panel =
+                            theme::panel()
+                                .id("revision-panel")
+                                .accessibility_id("revision-panel")
+                                .p_5()
+                                .flex()
+                                .flex_col()
+                                .gap_3()
+                                .child(theme::micro("EDITIONS OF THIS DOCUMENT"))
+                                .child(self.labelled("REVISION TEXT", self.revision_text.clone()))
+                                .child(
+                                    div()
+                                        .flex()
+                                        .flex_row()
+                                        .gap_2()
+                                        .child(self.button(
+                                            "load-run-text",
+                                            "Load run text",
+                                            |this, _, cx| {
+                                                let text = this
+                                                    .state
+                                                    .run
+                                                    .as_ref()
+                                                    .and_then(|view| {
+                                                        view.snapshot.checkpoints.last().map(
+                                                            |checkpoint| checkpoint.text.clone(),
+                                                        )
+                                                    })
+                                                    .unwrap_or_default();
+                                                this.revision_text
+                                                    .update(cx, |input, cx| input.load(text, cx));
+                                                this.state.notice = Some(
+                                                    "Loaded the run's final stage into the editor."
+                                                        .into(),
+                                                );
+                                                cx.notify();
+                                            },
+                                            cx,
+                                        ))
+                                        .child(self.primary_button(
+                                            "save-revision",
+                                            "Save revision",
+                                            move |this, _, cx| {
+                                                let text = this
+                                                    .revision_text
+                                                    .read(cx)
+                                                    .buffer
+                                                    .text()
+                                                    .to_string();
+                                                let project = this
+                                                    .state
+                                                    .selected_project
+                                                    .as_ref()
+                                                    .map(|project| project.id.clone());
+                                                match project {
+                                                    Some(project) => this.send(
+                                                        Request::SaveRevision {
+                                                            project,
+                                                            kind,
+                                                            text,
+                                                            note: "edited in the app".into(),
+                                                        },
+                                                        cx,
+                                                    ),
+                                                    None => this.state.notice = Some(
+                                                        "Open a project before saving a revision."
+                                                            .into(),
+                                                    ),
+                                                }
+                                            },
+                                            cx,
+                                        ))
+                                        .child(self.button(
+                                            "list-revisions",
+                                            "List revisions",
+                                            move |this, _, cx| {
+                                                let project = this
+                                                    .state
+                                                    .selected_project
+                                                    .as_ref()
+                                                    .map(|project| project.id.clone());
+                                                if let Some(project) = project {
+                                                    this.send(
+                                                        Request::ListRevisions { project, kind },
+                                                        cx,
+                                                    );
+                                                }
+                                            },
+                                            cx,
+                                        )),
+                                );
+                        for revision in self
+                            .revisions
+                            .iter()
+                            .filter(|revision| revision.kind == kind)
+                        {
+                            let base = revision
+                                .base_run_id
+                                .as_ref()
+                                .map(|run| run.0.chars().take(8).collect::<String>())
+                                .unwrap_or_else(|| "manual".into());
+                            panel = panel.child(
+                                div()
+                                    .flex()
+                                    .flex_row()
+                                    .items_center()
+                                    .gap_2()
+                                    .child(theme::pill(
+                                        format!("v{}", revision.version),
+                                        theme::ACCENT,
+                                        0x3a2418,
+                                    ))
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(rgb(theme::MUTED))
+                                            .child(format!("base {base} · {}", revision.note)),
+                                    ),
+                            );
+                        }
+                        content = content.child(panel);
+                    }
+                }
 
                 if let Some(view) = &self.state.run {
                     let total = view.snapshot.input.kind.stage_count();

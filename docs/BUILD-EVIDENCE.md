@@ -755,3 +755,8 @@ SaveRevision and ListRevisions are now session requests. SaveRevision resolves t
 
 CI failed on 0d0a364 because the native view matched on Reply without the new Revision/Revisions arms: my local gate never compiled --features native, so a whole feature-gated module went unchecked. The arms are added (revisions are held in the view and announced), and two pre-existing native-only clippy lints are fixed. The gate now includes cargo clippy -p pfl-desktop --features native -D warnings.
 
+
+## Phase B (B1 editing surface, 2026-11-22)
+
+The Analysis page now carries the editions panel for the Claims and Application workflows: a multiline revision field, Load run text (seeds it from the run's final stage), Save revision (sends SaveRevision with the workflow's document kind) and List revisions. The UI harness reaches the panel and confirms all four controls (37/37). Also fixed: ui-acceptance's trap called Clear-Harness, which is not defined when the early stub guard throws, so a failed run crashed while reporting; cleanup is now inline.
+
