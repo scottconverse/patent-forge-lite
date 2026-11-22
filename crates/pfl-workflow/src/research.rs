@@ -220,3 +220,126 @@ impl ResearchSource for HttpResearchSource {
             .collect())
     }
 }
+
+/// USPTO PatentsView adapter.
+///
+/// Uses the official search endpoint with the documented `X-Api-Key` header and
+/// requests only the fields the disclosure record needs. Response parsing is
+/// defensive: a record without an id or title is dropped rather than invented, and
+/// a non-200 response is an error, never an empty result.
+pub struct PatentsViewSource {
+    endpoint: String,
+    api_key: String,
+    client: reqwest::Client,
+}
+
+impl PatentsViewSource {
+    /// Production endpoint. The key is held by the caller for the session only.
+    pub fn new(api_key: impl Into<String>) -> Result<Self> {
+        Self::with_endpoint(api_key, "https://search.patentsview.org/api/v1/patent/")
+    }
+
+    /// Endpoint override for deterministic local fixtures.
+    pub fn with_endpoint(api_key: impl Into<String>, endpoint: impl Into<String>) -> Result<Self> {
+        let api_key = api_key.into();
+        if api_key.trim().is_empty() {
+            return Err(Error::Invalid("PatentsView requires an API key".into()));
+        }
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|_| Error::Provider("cannot initialize the PatentsView client".into()))?;
+        Ok(Self {
+            endpoint: endpoint.into(),
+            api_key,
+            client,
+        })
+    }
+}
+
+#[async_trait]
+impl ResearchSource for PatentsViewSource {
+    async fn prior_art(
+        &self,
+        intake: &Intake,
+        cancellation: CancellationToken,
+    ) -> Result<Vec<PriorArtItem>> {
+        if cancellation.is_cancelled() {
+            return Err(Error::Cancelled);
+        }
+        let query = if intake.technical_field.trim().is_empty() {
+            intake.title.clone()
+        } else {
+            intake.technical_field.clone()
+        };
+        let body = serde_json::json!({
+            "q": { "_text_any": { "patent_title": query, "patent_abstract": query } },
+            "f": ["patent_id", "patent_title", "patent_date", "assignee_organization"],
+            "o": { "per_page": 10 }
+        });
+        let request = self
+            .client
+            .post(&self.endpoint)
+            .header("X-Api-Key", &self.api_key)
+            .json(&body);
+        let response = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(Error::Cancelled),
+            result = request.send() => result.map_err(|_| Error::Provider(
+                "PatentsView request failed; no prior-art set was recorded".into(),
+            ))?,
+        };
+        if !response.status().is_success() {
+            return Err(Error::Provider(format!(
+                "PatentsView returned HTTP {}; no prior-art set was recorded",
+                response.status().as_u16()
+            )));
+        }
+        let payload: serde_json::Value = response.json().await.map_err(|_| {
+            Error::Provider("PatentsView returned a malformed body; nothing was recorded".into())
+        })?;
+        let records = payload["patents"].as_array().cloned().unwrap_or_default();
+        Ok(records
+            .into_iter()
+            .filter_map(|record| {
+                let number = record["patent_id"]
+                    .as_str()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                let title = record["patent_title"]
+                    .as_str()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                if number.is_empty() && title.is_empty() {
+                    return None;
+                }
+                Some(PriorArtItem {
+                    reference: if number.is_empty() {
+                        title.clone()
+                    } else {
+                        number.clone()
+                    },
+                    publication_number: number,
+                    title,
+                    grant_date: record["patent_date"]
+                        .as_str()
+                        .unwrap_or("")
+                        .trim()
+                        .to_string(),
+                    assignee: record["assignee_organization"]
+                        .as_str()
+                        .unwrap_or("")
+                        .trim()
+                        .to_string(),
+                    source: "USPTO PatentsView".into(),
+                    relevance: String::new(),
+                    verified: true,
+                    ..Default::default()
+                })
+            })
+            .collect())
+    }
+}

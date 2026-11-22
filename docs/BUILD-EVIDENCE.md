@@ -693,3 +693,8 @@ plan_regeneration validates a section selection against a completed run: an empt
 
 docs/ACCEPTANCE.md now carries a directive-wide matrix: every A–G item with its status and the evidence class that proves it, or the concrete gap. Blocked rows name their blocker (automation for A5, authorization for E2, hardware for F3).
 
+
+## Phase C (C1 PatentsView adapter, 2026-11-21)
+
+PatentsViewSource posts the documented query to the official search endpoint with X-Api-Key, requests only id, title, date and assignee, and maps records to verified PriorArtItems. A record with neither id nor title is dropped rather than invented; a 403 or malformed body is an error, never an empty result; an empty key is refused at construction. Three tests against a loopback mock; no live query was made and none is claimed.
+

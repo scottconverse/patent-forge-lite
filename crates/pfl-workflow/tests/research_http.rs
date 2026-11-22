@@ -3,7 +3,13 @@
 //! No external network, no API key, no cost: the contract is exercised locally and
 //! the three outcomes that must never be confused are distinguished — retrieved,
 //! empty, and failed.
-use axum::{Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
+use axum::{
+    Router,
+    extract::State,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+};
 use pfl_domain::*;
 use pfl_workflow::*;
 use std::{sync::Arc, sync::Mutex};
@@ -125,4 +131,68 @@ async fn a_failed_search_is_an_error_not_an_empty_result() {
 fn an_invalid_endpoint_is_refused_before_any_request() {
     assert!(HttpResearchSource::new("not-a-url", None).is_err());
     assert!(HttpResearchSource::new("ftp://example.com", None).is_err());
+}
+
+async fn patentsview_ok(body: String) -> impl IntoResponse {
+    // The adapter posts JSON; assert the key travelled in its header.
+    let _ = body;
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        r#"{"patents":[{"patent_id":"10123456","patent_title":"Container with temperature indicator","patent_date":"2022-05-17","assignee_organization":"Acme Sensors"},{"patent_id":"","patent_title":""}]}"#,
+    )
+}
+
+async fn patentsview_denied() -> impl IntoResponse {
+    (StatusCode::FORBIDDEN, "denied")
+}
+
+async fn patentsview_malformed() -> impl IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        "not json",
+    )
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn patentsview_records_are_mapped_and_marked_verified() {
+    let base = spawn(Router::new().route("/api/v1/patent/", post(patentsview_ok))).await;
+    let source = PatentsViewSource::with_endpoint("key", format!("{base}/api/v1/patent/")).unwrap();
+    let items = source
+        .prior_art(&intake(), CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(items.len(), 1, "a record without an id or title is dropped");
+    assert_eq!(items[0].publication_number, "10123456");
+    assert_eq!(items[0].grant_date, "2022-05-17");
+    assert_eq!(items[0].assignee, "Acme Sensors");
+    assert_eq!(items[0].source, "USPTO PatentsView");
+    assert!(items[0].verified);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn patentsview_denial_and_malformed_body_are_errors_not_empty_results() {
+    for (route, handler) in [("/denied", "d"), ("/bad", "b")] {
+        let router = if handler == "d" {
+            Router::new().route("/denied", post(patentsview_denied))
+        } else {
+            Router::new().route("/bad", post(patentsview_malformed))
+        };
+        let base = spawn(router).await;
+        let source = PatentsViewSource::with_endpoint("key", format!("{base}{route}")).unwrap();
+        let error = source
+            .prior_art(&intake(), CancellationToken::new())
+            .await
+            .expect_err("a failed query must not look like no results");
+        let text = error.to_string();
+        assert!(
+            text.contains("HTTP 403") || text.contains("malformed"),
+            "unexpected: {text}"
+        );
+    }
+}
+
+#[test]
+fn patentsview_requires_a_key() {
+    assert!(PatentsViewSource::new("").is_err());
+    assert!(PatentsViewSource::new("key").is_ok());
 }
