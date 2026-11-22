@@ -827,3 +827,10 @@ A fresh profile asks Full or Lean before showing anything else, and the choice i
 
 The first-run commit (f0e029d) was pushed while clippy and the test build were failing: three test files built Settings literally and so missed the new profile_chosen field. The literals are fixed and the full gate now passes (fmt, clippy, tests, native clippy). The commit that follows supersedes it; CI on f0e029d is expected to be red and is not claimed.
 
+
+## Phase D (D3 single instance and quit, 2026-11-22)
+
+A second launch is refused with exit code 3 and the message 'another Patent Forge Lite window is already using this data location; use that window, because only one instance may write to the workspace', and the first window keeps running and stays usable. Quitting with nothing pending closes the window. 5/5, twice, evidence under docs/evidence/lifecycle/.
+
+Not claimed: the confirmation that refuses a quit while a run is active or edits are unsaved is proven by the session tests (quit_guard_...), not by this installed proof. The attempt to drive it through the window did not produce a dirty state, so that half is recorded as session-level only.
+

@@ -181,7 +181,11 @@ impl ApplicationSession {
             .open(database.with_extension("lock"))
             .map_err(|e| Error::Io(e.to_string()))?;
         lock.try_lock().map_err(|_| {
-            Error::Conflict("Patent Forge Lite is already using this data location".into())
+            Error::Conflict(
+                "another Patent Forge Lite window is already using this data location; \
+                 use that window, because only one instance may write to the workspace"
+                    .into(),
+            )
         })?;
         let store: Arc<dyn Store> = Arc::new(SqliteStore::open(database)?);
         let mut session = Self::with_store(store)?;
