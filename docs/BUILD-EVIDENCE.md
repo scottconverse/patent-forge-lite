@@ -750,3 +750,8 @@ Three corrections, all accepted. (1) The acceptance row for Cloud selection was 
 
 SaveRevision and ListRevisions are now session requests. SaveRevision resolves the base run itself -- the latest completed run of that document kind -- and refuses an empty edit; ListRevisions returns the stored series. The test drives feasibility and claims to terminal with a reply-draining helper that folds drained replies into state, which is the fix for the earlier attempt that raced until() and panicked on intermediate errors: revisions come back as version 1 and 2, both anchored to the claims run, listed in order, with the empty edit refused.
 
+
+## Gate correction after CI failure (2026-11-22)
+
+CI failed on 0d0a364 because the native view matched on Reply without the new Revision/Revisions arms: my local gate never compiled --features native, so a whole feature-gated module went unchecked. The arms are added (revisions are held in the view and announced), and two pre-existing native-only clippy lints are fixed. The gate now includes cargo clippy -p pfl-desktop --features native -D warnings.
+

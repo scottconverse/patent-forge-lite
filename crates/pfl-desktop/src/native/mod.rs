@@ -211,6 +211,7 @@ struct Desktop {
     cloud_key: Entity<TextInput>,
     research_key: Entity<TextInput>,
     research_authorized: bool,
+    revisions: Vec<DocumentRevision>,
     pending: bool,
     start_key: Option<String>,
     pending_open: Option<ProjectId>,
@@ -322,6 +323,7 @@ impl Desktop {
             cloud_key,
             research_key,
             research_authorized: false,
+            revisions: Vec::new(),
             pending: false,
             start_key: None,
             pending_open: None,
@@ -470,6 +472,19 @@ impl Desktop {
                     self.state.notice =
                         Some("Execution mode configured. No inference request was sent.".into());
                 }
+                Reply::Revision(revision) => {
+                    self.revisions.push(revision.clone());
+                    self.state.notice = Some(format!(
+                        "Saved revision {} of {} document.",
+                        revision.version,
+                        revision.kind.slug()
+                    ));
+                }
+                Reply::Revisions(list) => {
+                    self.revisions = list;
+                    self.state.notice =
+                        Some(format!("{} stored revision(s).", self.revisions.len()));
+                }
                 Reply::Exported(_) => {
                     self.state.notice = Some("Saved report exported to the selected file.".into())
                 }
@@ -590,7 +605,6 @@ impl Desktop {
                 local_inference: self.authorized_local,
                 paid_provider: self.cloud_approved,
                 research: self.research_authorized,
-                ..Default::default()
             },
         };
         self.pending = true;
@@ -1629,7 +1643,7 @@ impl Render for Desktop {
                                 0x3a2418,
                             ))
                             .child(theme::pill(
-                                format!("{id}").chars().take(18).collect::<String>(),
+                                id.chars().take(18).collect::<String>(),
                                 theme::MUTED,
                                 0x1b3247,
                             ))
