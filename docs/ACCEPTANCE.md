@@ -157,7 +157,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | B4 export the selected revisions from the window (md, html, docx, csv, manifest) | installed, 11/11 twice | pass |
 | B4 Word byte-stability | two separate processes | pass |
 | B5 semantics + plan | pass | doc + unit: 5 tests |
-| B5 execution | decided — not built | suffix regeneration ("regenerate from here onward"), per the chosen semantics in REGENERATION.md |
+| B5 execute "regenerate from here onward": new version, earlier stages byte-identical | unit (`revisions.rs`) + installed 12/12 twice | pass — v5 regenerated from Definiteness onward as v6, completed |
 | B6 revisions list | pass | run |
 | C1 PatentsView adapter | pass (mock) | unit: 3 tests; live query blocked on key |
 | C2 opt-in research records verified references; opt-out queries nothing | pass | integration (`research_run.rs`) |

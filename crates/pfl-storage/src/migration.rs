@@ -468,6 +468,7 @@ impl SqliteStore {
                             sha256: String::new(),
                         },
                         authorization: Authorization::default(),
+                        regeneration: None,
                         upstream: Upstream::default(),
                     },
                     rerun_of: None,

@@ -1676,6 +1676,39 @@ impl Render for Desktop {
                     }
                 }
 
+                // Suffix regeneration: offer a restart point at each committed stage. The
+                // copy never says "single stage"; everything from the choice onward re-runs.
+                if let Some(view) = self
+                    .state
+                    .run
+                    .as_ref()
+                    .filter(|view| view.snapshot.outcome.is_terminal())
+                {
+                    {
+                        let run_id = view.snapshot.id.clone();
+                        let mut row = div().flex().flex_row().flex_wrap().gap_2();
+                        for checkpoint in &view.snapshot.checkpoints {
+                            let stage = checkpoint.stage;
+                            let run = run_id.clone();
+                            row = row.child(self.button(
+                                format!("regen-{}", stage.number()),
+                                format!("Regenerate from {} onward", stage.label()),
+                                move |this, _, cx| {
+                                    this.send(
+                                        Request::RegenerateFrom {
+                                            run: run.clone(),
+                                            stage,
+                                        },
+                                        cx,
+                                    );
+                                },
+                                cx,
+                            ));
+                        }
+                        content = content.child(row);
+                    }
+                }
+
                 if let Some(view) = &self.state.run {
                     let total = view.snapshot.input.kind.stage_count();
                     let done = view.snapshot.checkpoints.len();

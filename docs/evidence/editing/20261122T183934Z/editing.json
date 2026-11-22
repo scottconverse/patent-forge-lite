@@ -1,0 +1,50 @@
+{
+  "run text loads into the editor": {
+    "pass": true,
+    "detail": "(notice: Loaded the run's final stage into the editor.)"
+  },
+  "revision 1 saved": {
+    "pass": true,
+    "detail": "(notice: Saved revision 1 of claims document.)"
+  },
+  "revision 2 saved": {
+    "pass": true,
+    "detail": "(notice: Saved revision 2 of claims document.)"
+  },
+  "both revisions are listed (2 stored)": {
+    "pass": true,
+    "detail": "(notice: 2 stored revision(s).)"
+  },
+  "revision comparison reports the change": {
+    "pass": true,
+    "detail": "(notice: Diff v1 to v2: 1 added, 1 removed)"
+  },
+  "compliance selection recorded": {
+    "pass": true,
+    "detail": "(notice: Compliance will review claims revision 2.)"
+  },
+  "replay configured and data declared": {
+    "pass": true,
+    "detail": "(notice: Execution mode configured. No inference request was sent.)"
+  },
+  "compliance started with the selection completes": {
+    "pass": true,
+    "detail": "(notice: Execution mode configured. No inference request was sent.)"
+  },
+  "package export writes files": {
+    "pass": true,
+    "detail": "(notice: Package written to C:\\Users\\scott\\AppData\\Local\\Temp\\pfl-edit-139541\\profile\\patent-forge-lite\\exports\\1795372767783)"
+  },
+  "export contains the revision files": {
+    "pass": true,
+    "detail": "(claims.docx, claims.html, claims.md, compliance-findings.md, manifest.json, references.csv)"
+  },
+  "export_files": {
+    "pass": true,
+    "detail": "claims.docx, claims.html, claims.md, compliance-findings.md, manifest.json, references.csv"
+  },
+  "regeneration produces a new completed version": {
+    "pass": true,
+    "detail": "(before: Run status: Completed, 4 of 4 checkpoints, version 5, 0 stages left | after: Run status: Completed, 4 of 4 checkpoints, version 6, 0 stages left)"
+  }
+}

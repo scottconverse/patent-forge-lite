@@ -77,6 +77,12 @@ pub enum Request {
         path: PathBuf,
         format: ExportFormat,
     },
+    /// Re-runs the given stage and every later stage of that run, carrying the earlier
+    /// stages from the base run. Suffix only.
+    RegenerateFrom {
+        run: RunId,
+        stage: Stage,
+    },
     /// Writes the package for the chosen revisions (md, html, docx, csv, manifest) into
     /// a directory and reports it.
     ExportPackage {
@@ -405,6 +411,18 @@ impl Actor {
                 );
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));
+            }
+            Request::RegenerateFrom { run, stage } => {
+                for id in &self.started_runs {
+                    if !self.service.run(id.clone()).await?.outcome.is_terminal() {
+                        return Err(Error::Conflict(
+                            "Finish or cancel active work before regenerating".into(),
+                        ));
+                    }
+                }
+                let regenerated = self.service.regenerate_from(run, stage).await?;
+                self.started_runs.insert(regenerated.id.clone());
+                self.selected(regenerated).await;
             }
             Request::ExportPackage {
                 project,

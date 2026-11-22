@@ -423,3 +423,114 @@ async fn a_regeneration_plan_is_validated_and_ordered_by_the_base_run() {
         .unwrap();
     assert_eq!(plan, vec![committed[0], committed[2]]);
 }
+
+/// B5: "regenerate from here onward" re-runs the chosen stage and everything after
+/// it, carrying the earlier stages from the base run byte-identically.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn regenerating_from_a_stage_carries_the_earlier_stages() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+    let project = service.create_project(intake()).await.unwrap();
+
+    let base = service
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Feasibility,
+            "b5-base".into(),
+            auth(),
+        )
+        .await
+        .unwrap();
+    let base = wait(&service, &base.id).await;
+    assert_eq!(base.outcome, RunOutcome::Completed);
+    let stages = base.input.kind.stages();
+    let restart = stages[3];
+
+    // An edit made before regenerating must survive untouched.
+    let revision = service
+        .save_revision(
+            project.id.clone(),
+            DocumentKind::Claims,
+            None,
+            "1. An edited claim kept across regeneration.".into(),
+            "kept".into(),
+        )
+        .await
+        .unwrap();
+
+    let regenerated = service
+        .regenerate_from(base.id.clone(), restart)
+        .await
+        .expect("a completed run can be regenerated");
+    assert_ne!(regenerated.id, base.id);
+    assert_eq!(regenerated.rerun_of.as_ref(), Some(&base.id));
+    assert_eq!(
+        regenerated
+            .input
+            .regeneration
+            .as_ref()
+            .map(|plan| plan.from_stage),
+        Some(restart)
+    );
+    let regenerated = wait(&service, &regenerated.id).await;
+    assert_eq!(regenerated.outcome, RunOutcome::Completed);
+
+    // Every stage before the restart point is byte-identical to the base run.
+    let carried_base: Vec<(Stage, String, u64)> = base
+        .checkpoints
+        .iter()
+        .filter(|checkpoint| {
+            stages
+                .iter()
+                .position(|stage| *stage == checkpoint.stage)
+                .unwrap()
+                < 3
+        })
+        .map(|checkpoint| {
+            (
+                checkpoint.stage,
+                checkpoint.text.clone(),
+                checkpoint.usage.input_tokens.unwrap_or(0),
+            )
+        })
+        .collect();
+    let carried_new: Vec<(Stage, String, u64)> = regenerated
+        .checkpoints
+        .iter()
+        .filter(|checkpoint| {
+            stages
+                .iter()
+                .position(|stage| *stage == checkpoint.stage)
+                .unwrap()
+                < 3
+        })
+        .map(|checkpoint| {
+            (
+                checkpoint.stage,
+                checkpoint.text.clone(),
+                checkpoint.usage.input_tokens.unwrap_or(0),
+            )
+        })
+        .collect();
+    assert_eq!(
+        carried_base, carried_new,
+        "carried stages must be identical"
+    );
+    assert_eq!(regenerated.checkpoints.len(), base.checkpoints.len());
+
+    // The base run and the revision are untouched.
+    let reread = service.run(base.id.clone()).await.unwrap();
+    assert_eq!(reread.checkpoints, base.checkpoints);
+    assert_eq!(reread.version, base.version);
+    let revisions = service
+        .revisions(project.id.clone(), DocumentKind::Claims)
+        .await
+        .unwrap();
+    assert_eq!(revisions.len(), 1);
+    assert_eq!(revisions[0].id, revision.id);
+    assert_eq!(
+        revisions[0].text,
+        "1. An edited claim kept across regeneration."
+    );
+}

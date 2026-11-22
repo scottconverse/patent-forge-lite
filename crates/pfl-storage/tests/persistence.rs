@@ -49,6 +49,7 @@ fn request() -> NewRun {
                 ..Default::default()
             },
             upstream: Upstream::default(),
+            regeneration: None,
         },
         rerun_of: None,
         created_at_ms: 2,

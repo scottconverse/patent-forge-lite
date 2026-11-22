@@ -228,6 +228,28 @@ if (Test-Path $exportRoot) {
 Record 'export contains the revision files' (($exportedFiles -contains 'claims.docx') -and ($exportedFiles -contains 'claims.html') -and ($exportedFiles -contains 'manifest.json')) ("($($exportedFiles -join ', '))")
 $results['export_files'] = [ordered]@{ pass = $true; detail = ($exportedFiles -join ', ') }
 
+# Suffix regeneration: restart at the third stage and expect a new version that
+# completes, with the earlier stages carried.
+Invoke-Named 'Analysis page'
+Invoke-Named 'Feasibility analysis'
+Start-Sleep -Milliseconds 800
+$before = ''
+$summary = Wait-ById 'run-summary'
+if ($summary) { $before = $summary.Current.Name }
+Invoke-Named 'Regenerate from Definiteness onward'
+Start-Sleep -Seconds 2
+$after = ''
+$deadline = (Get-Date).AddSeconds(40)
+while ((Get-Date) -lt $deadline) {
+    $node = Wait-ById 'run-summary'
+    if ($node) {
+        $after = $node.Current.Name
+        if ($after -and $after -ne $before -and $after -like '*Completed*') { break }
+    }
+    Start-Sleep -Milliseconds 400
+}
+Record 'regeneration produces a new completed version' (($after -ne $before) -and ($after -like '*Completed*')) "(before: $before | after: $after)"
+
 New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $keep = Join-Path $EvidenceDir $stamp

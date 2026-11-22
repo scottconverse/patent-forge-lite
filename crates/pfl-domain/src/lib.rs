@@ -523,6 +523,14 @@ pub struct Authorization {
     pub research: bool,
 }
 
+/// "Regenerate from here onward": the new run re-runs `from_stage` and everything
+/// after it, carrying the earlier stages from `base_run`. Suffix only, by decision.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegenerationPlan {
+    pub base_run: RunId,
+    pub from_stage: Stage,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunInput {
     #[serde(default)]
@@ -533,6 +541,9 @@ pub struct RunInput {
     pub authorization: Authorization,
     #[serde(default)]
     pub upstream: Upstream,
+    /// Present only on a regeneration run.
+    #[serde(default)]
+    pub regeneration: Option<RegenerationPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

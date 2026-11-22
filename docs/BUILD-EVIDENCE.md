@@ -791,3 +791,10 @@ The revision panel exports the selected revisions as a package into the data dir
 
 Word determinism, measured rather than assumed: two separate pfl-cli processes building the same revision produced byte-identical claims.docx (sha256 c7193ae08ba93df1...), claims.html, claims.md, references.csv and manifest.json. A unit test now asserts docx byte-equality for the same revision, and a first measurement across a second boundary was also identical, so docx-rs writes no volatile entry metadata here.
 
+
+## Phase B (B5 suffix regeneration, 2026-11-22)
+
+Regeneration is suffix-only, as decided: a new run re-runs the chosen stage and every later stage, carrying the earlier ones from the base run verbatim so they stay byte-identical. No copy in the UI or docs promises single-stage regeneration; the buttons read 'Regenerate from <stage> onward'.
+
+Unit test: regenerating from the fourth stage yields a new id and version with rerun_of set, every carried stage identical to the base run, the base run and its revision untouched. Installed proof: the window regenerates the compliance run from Definiteness onward, producing version 6 from base version 5 and completing (12/12, twice).
+

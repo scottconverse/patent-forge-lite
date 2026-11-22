@@ -84,6 +84,7 @@ fn request(project: &Project, provider: &dyn Provider, key: &str) -> NewRun {
             prompts: prompts::snapshot(WorkflowKind::Feasibility),
             authorization: authorization(),
             upstream: Upstream::default(),
+            regeneration: None,
         },
         rerun_of: None,
         created_at_ms: now_ms(),
@@ -103,6 +104,7 @@ fn run_input(intake: Intake) -> RunInput {
         prompts: prompts::snapshot(WorkflowKind::Feasibility),
         authorization: authorization(),
         upstream: Upstream::default(),
+        regeneration: None,
     }
 }
 async fn terminal(service: &WorkflowService, id: &RunId) -> RunSnapshot {

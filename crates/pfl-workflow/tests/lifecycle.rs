@@ -98,6 +98,7 @@ fn request(project: &Project, provider: &ReplayProvider, key: &str) -> NewRun {
                 ..Default::default()
             },
             upstream: Upstream::default(),
+            regeneration: None,
         },
         rerun_of: None,
         created_at_ms: 1,

@@ -285,6 +285,7 @@ impl WorkflowService {
                 prompts: prompts::snapshot(kind),
                 authorization,
                 upstream,
+                regeneration: None,
             },
             rerun_of: None,
             created_at_ms: now_ms(),
@@ -392,6 +393,7 @@ impl WorkflowService {
                 prompts: prompts::snapshot(kind),
                 authorization,
                 upstream,
+                regeneration: None,
             },
             rerun_of: None,
             created_at_ms: now_ms(),
@@ -550,6 +552,7 @@ impl WorkflowService {
                 prompts: prompts::snapshot(kind),
                 authorization,
                 upstream,
+                regeneration: None,
             },
             rerun_of: None,
             created_at_ms: now_ms(),
@@ -719,6 +722,50 @@ impl WorkflowService {
                 ));
             }
         }
+        // "Regenerate from here onward": stages before the restart point are carried
+        // from the base run verbatim, so they stay byte-identical and are never
+        // re-generated. The prefix stays contiguous, which the resume guarantee needs.
+        if let Some(plan) = run.input.regeneration.clone() {
+            let Some(restart) = stages.iter().position(|stage| *stage == plan.from_stage) else {
+                return Err(Error::Invalid(
+                    "the restart stage is not part of this workflow".into(),
+                ));
+            };
+            let base = self.run(plan.base_run.clone()).await?;
+            let mut carried: Vec<Checkpoint> = base
+                .checkpoints
+                .iter()
+                .filter(|checkpoint| {
+                    stages
+                        .iter()
+                        .position(|stage| *stage == checkpoint.stage)
+                        .map(|index| index < restart)
+                        .unwrap_or(false)
+                })
+                .cloned()
+                .collect();
+            carried.sort_by_key(|checkpoint| checkpoint.stage);
+            if carried.len() != restart {
+                return Err(Error::Conflict(
+                    "the base run did not complete every stage before the restart point".into(),
+                ));
+            }
+            for original in carried {
+                let checkpoint = Checkpoint {
+                    stage: original.stage,
+                    attempt_id: attempt.id.clone(),
+                    text: original.text,
+                    usage: original.usage,
+                    completed_at_ms: original.completed_at_ms,
+                };
+                let id = run.id.clone();
+                let aid = attempt.id.clone();
+                let cp = checkpoint.clone();
+                self.db(move |s| s.commit_checkpoint(&id, &aid, &cp))
+                    .await?;
+                checkpoints.push(checkpoint);
+            }
+        }
         for stage in stages.iter().copied().skip(checkpoints.len()) {
             if cancellation.is_cancelled() {
                 return Err(Error::Cancelled);
@@ -795,6 +842,51 @@ impl WorkflowService {
             version: run.version,
             markdown,
         })
+    }
+
+    /// "Regenerate from here onward": a new run that re-runs `from_stage` and every
+    /// later stage of the workflow, carrying the earlier stages from the base run.
+    /// Suffix only -- there is no single-stage regeneration, by decision.
+    pub async fn regenerate_from(
+        self: &Arc<Self>,
+        source: RunId,
+        from_stage: Stage,
+    ) -> Result<RunSnapshot> {
+        let _commands = self.commands.lock().await;
+        let base = self.run(source.clone()).await?;
+        if !base.outcome.is_terminal() {
+            return Err(Error::Conflict(
+                "the base run must be terminal before it can be regenerated".into(),
+            ));
+        }
+        if !base.input.kind.stages().contains(&from_stage) {
+            return Err(Error::Invalid(
+                "the restart stage is not part of this workflow".into(),
+            ));
+        }
+        if !base
+            .checkpoints
+            .iter()
+            .any(|checkpoint| checkpoint.stage == from_stage)
+        {
+            return Err(Error::Invalid(
+                "the base run did not complete the restart stage".into(),
+            ));
+        }
+        let mut input = base.input.clone();
+        input.regeneration = Some(RegenerationPlan {
+            base_run: source.clone(),
+            from_stage,
+        });
+        self.start_locked(NewRun {
+            id: RunId::new(),
+            project_id: base.project_id.clone(),
+            idempotency_key: format!("regenerate:{}", RunId::new().0),
+            input,
+            rerun_of: Some(source),
+            created_at_ms: now_ms(),
+        })
+        .await
     }
 
     /// Returns only after the owned provider future is stopped and a durable

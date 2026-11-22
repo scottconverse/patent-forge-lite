@@ -33,6 +33,7 @@ fn request(stage: Stage) -> ProviderRequest {
                 ..Default::default()
             },
             upstream: Upstream::default(),
+            regeneration: None,
         },
         system_prompt: "system".into(),
         user_prompt: "user".into(),
