@@ -13,7 +13,11 @@
 ; and implies no decision. Add SignTool directives only after that choice.
 
 #define AppName "Patent Forge Lite"
-#define AppVersion "0.1.0"
+; The version can be overridden from the command line (ISCC /DAppVersion=...), so a
+; candidate can be built and an upgrade exercised without editing this file.
+#ifndef AppVersion
+  #define AppVersion "0.1.0"
+#endif
 #define AppPublisher "Scott Converse"
 #define AppId "com.scottconverse.patentforgelite"
 #define AppExe "pfl-desktop.exe"

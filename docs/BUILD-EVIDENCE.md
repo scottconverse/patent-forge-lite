@@ -834,3 +834,12 @@ A second launch is refused with exit code 3 and the message 'another Patent Forg
 
 Not claimed: the confirmation that refuses a quit while a run is active or edits are unsaved is proven by the session tests (quit_guard_...), not by this installed proof. The attempt to drive it through the window did not produce a dirty state, so that half is recorded as session-level only.
 
+
+## Phase D (D4 upgrade and rollback, 2026-11-22)
+
+Installs v0.1.0 into a directory the script owns, seeds the application's own database, starts the old build on it, upgrades to the candidate, starts that, rolls back to v0.1.0, starts it again, and uninstalls. The installer version is now overridable (ISCC /DAppVersion), so the candidate is a real 0.2.0 rather than a same-version reinstall.
+
+After each step the binary hash changes (or returns) and the workspace inventory is unchanged: 11/11, twice. Evidence under docs/evidence/upgrade/.
+
+Two things learned the hard way: Inno resolves {localappdata} from the shell folder rather than the environment, so an early attempt installed into the real per-user location; that copy was removed immediately and the script now always passes /DIR and uninstalls at the end. And pfl-cli writes patent-forge-lite.sqlite for its synthetic workspace while the application uses projects.sqlite3, so retention is seeded through seed-profile.ps1, which writes the database the app actually reads.
+

@@ -1,0 +1,51 @@
+{
+  "v0.1.0 installs": {
+    "pass": true,
+    "detail": "(sha256: 69282e7ada2e84ceaa407ed44d392bf8ceed6a9a551525bda665bb53c47f70ad)"
+  },
+  "the installed v0.1.0 starts": {
+    "pass": true,
+    "detail": ""
+  },
+  "using it creates the workspace data": {
+    "pass": false,
+    "detail": "(data sha256: )"
+  },
+  "the upgrade replaces the binary": {
+    "pass": true,
+    "detail": "(sha256: 14eda08fcbdf08414dce059ea8139a3c72b2efe5c5aee92d459e9b7755c3886d)"
+  },
+  "the data survives the upgrade": {
+    "pass": true,
+    "detail": "(data: )"
+  },
+  "the upgraded build starts on the existing data": {
+    "pass": true,
+    "detail": ""
+  },
+  "the rollback restores the older binary": {
+    "pass": true,
+    "detail": "(sha256: 69282e7ada2e84ceaa407ed44d392bf8ceed6a9a551525bda665bb53c47f70ad)"
+  },
+  "the data survives the rollback": {
+    "pass": true,
+    "detail": "(data: )"
+  },
+  "the rolled-back build starts on the existing data": {
+    "pass": true,
+    "detail": ""
+  },
+  "the test install is removed afterwards": {
+    "pass": true,
+    "detail": ""
+  },
+  "hashes": {
+    "pass": true,
+    "detail": {
+      "old": "69282e7ada2e84ceaa407ed44d392bf8ceed6a9a551525bda665bb53c47f70ad",
+      "new": "14eda08fcbdf08414dce059ea8139a3c72b2efe5c5aee92d459e9b7755c3886d",
+      "rolled_back": "69282e7ada2e84ceaa407ed44d392bf8ceed6a9a551525bda665bb53c47f70ad",
+      "data": ""
+    }
+  }
+}
