@@ -558,3 +558,8 @@ understates a bill and zero reads as free. A genuinely zero run with no unknowns
 
 Three unit tests: known usage priced from the supplied rates, unknown usage yielding no estimate,
 and zero-with-no-unknowns being a real zero.
+## Cross-platform CI (2026-11-21)
+
+`native-manual.yml` on `e980d0f`: Windows x64, macOS arm64, Linux x86_64 — all **success**.
+Acceptance record moved to this revision with the cost estimator recorded as passing and the Cloud
+selection UI still marked not implemented.
