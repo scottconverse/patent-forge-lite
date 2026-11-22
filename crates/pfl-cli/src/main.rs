@@ -803,6 +803,7 @@ async fn main() {
                 | "save-revision"
                 | "models"
                 | "usage"
+                | "revisions"
         ) {
             return Err(invalid("unknown command; only live performs real inference"));
         }
@@ -870,6 +871,40 @@ async fn main() {
             return Err(invalid(
                 "only pipeline and live accept --references and --research-endpoint",
             ));
+        }
+        if command == "revisions" {
+            let workspace = workspace.ok_or_else(|| invalid("--workspace is required"))?;
+            let marker = read_marker(&workspace)?;
+            let database = workspace.join(&marker.database);
+            let _profile_lock = take_profile_lock(&database)?;
+            let open = database.clone();
+            let store: Arc<dyn Store> = Arc::new(
+                tokio::task::spawn_blocking(move || SqliteStore::open(open))
+                    .await
+                    .map_err(|e| Error::Storage(e.to_string()))??,
+            );
+            let provider: Arc<dyn Provider> = Arc::new(ReplayProvider::all_workflows());
+            let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+            let project_id = marker
+                .project_id
+                .clone()
+                .ok_or_else(|| invalid("this workspace has no project yet"))?;
+            let mut rows = Vec::new();
+            for kind in [DocumentKind::Claims, DocumentKind::Application] {
+                for revision in service.revisions(project_id.clone(), kind).await? {
+                    rows.push(serde_json::json!({
+                        "kind": revision.kind.slug(),
+                        "revision_id": revision.id.0,
+                        "version": revision.version,
+                        "base_run_id": revision.base_run_id.map(|id| id.0),
+                        "note": revision.note,
+                        "created_at_ms": revision.created_at_ms,
+                    }));
+                }
+            }
+            service.shutdown().await?;
+            println!("{}", serde_json::json!({ "revisions": rows }));
+            return Ok(());
         }
         if command == "usage" {
             let workspace = workspace.ok_or_else(|| invalid("--workspace is required"))?;

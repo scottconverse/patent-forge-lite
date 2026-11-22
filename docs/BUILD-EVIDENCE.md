@@ -653,3 +653,8 @@ Added a Ctrl+Enter binding (StartRun) so starting a workflow has a pointer-free 
 
 The installed decline/approve pair is recorded as blocked on automation, not as passing. Evidence by layer: session tests prove a declined Cloud run is refused with zero provider calls; engine tests prove one request and no fallback; UI automation proves Cloud configures, synthetic data is declared and paid approval can be granted. What cannot be automated is activating Start: the control is a div with role Button but no InvokePattern, and a Ctrl+Enter binding added for the purpose did not fire under UIA-driven focus. A manual click-path checklist is left for this one step: configure Cloud, decline, confirm zero requests, approve, confirm the run proceeds.
 
+
+## Phase B (B6 revisions list, 2026-11-21)
+
+pfl-cli revisions prints every stored revision for a workspace with its kind, id, version, base run, note and creation time. Verified end to end: pipeline created a claims run, save-revision stored version 1 against it, and revisions listed exactly that record.
+

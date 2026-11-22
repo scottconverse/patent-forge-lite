@@ -75,6 +75,7 @@ quality or legal correctness.
 | Claim structure validation (numbering, dependencies, references) | unit + CLI run | pass |
 | Edit → validate → save → package chain | run | pass |
 | Revision comparison / targeted regeneration | — | **not implemented** |
+| `pfl-cli revisions list` (id, kind, version, base run, note) | run | pass |
 | Desktop editing surface | — | **not implemented** |
 
 ## 5. Desktop and accessibility
