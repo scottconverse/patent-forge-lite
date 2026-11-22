@@ -116,6 +116,18 @@ $null = $win.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System
 Start-Sleep -Milliseconds 800
 
 Activate (Find-Contains 'Setup page')
+# The Setup content area scrolls; bring the Cloud card into view before addressing
+# it, because an element outside the window ignores Invoke.
+$content = Wait-Element 'main-content'
+if ($content) {
+    $r = (Get-Window).Current.BoundingRectangle
+    [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point ([int]($r.X + $r.Width / 2)), ([int]($r.Y + $r.Height / 2))
+    Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Wheel{[DllImport("user32.dll")]public static extern void mouse_event(int flags,int dx,int dy,int data,IntPtr extra);}'
+    for ($i = 0; $i -lt 6; $i++) {
+        [Wheel]::mouse_event(0x0800, 0, 0, -120, [IntPtr]::Zero)
+        Start-Sleep -Milliseconds 150
+    }
+}
 $null = Wait-Element 'input-Cloud model name'
 Set-Field 'input-Cloud model name' 'claude-mock'
 Set-Field 'input-Cloud API key' 'sk-ant-session-only-test'

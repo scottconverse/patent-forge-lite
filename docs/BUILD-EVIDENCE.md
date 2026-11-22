@@ -626,5 +626,10 @@ The Cloud acceptance script exposed two real defects, both now understood. First
 
 ## Phase A (A5 root cause, 2026-11-21)
 
-Geometry, not timing, explains why the Cloud configure never fired. At the default window size the Setup page renders the Cloud card below the viewport: the 'Configure Cloud with this key' button reports a rectangle at y=1260 while the window rectangle ends at y=1227. An Invoke on an element outside the window does nothing, which is why the notice never changed and the mode stayed unset. This is also a user-facing defect: the Cloud controls cannot be reached without scrolling, and the page currently does not scroll. The earlier 'pass (33 checks)' row was wrong -- those checks asserted presence in the automation tree, not reachability -- and is corrected to partial.
+Geometry, not timing, explains why the Cloud configure never fired. At the default window size the Setup page renders the Cloud card below the viewport: the 'Configure Cloud with this key' button reports a rectangle at y=1260 while the window rectangle ends at y=1227. An Invoke on an element outside the window does nothing, which is why the notice never changed and the mode stayed unset. The Setup content area does scroll (main-content carries overflow_y_scroll), so a user can reach the card; the automation did not scroll, which is a harness defect rather than a product one. The earlier 'pass (33 checks)' row was wrong -- those checks asserted presence in the automation tree, not reachability -- and is corrected to partial.
+
+
+## Phase A (A5 partial progress, 2026-11-21)
+
+Scrolling the Setup content area with a real mouse wheel clears the clipping problem: the Cloud card is reached and 'Execution mode configured' is now observed, so the mode really is set. Two checks still fail: the Start invoke on the Analysis page does not change the status notice, and no provider request is seen, so the decline and approve halves remain unproven. A5 stays open.
 
