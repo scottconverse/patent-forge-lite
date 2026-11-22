@@ -779,3 +779,8 @@ Each revision row now carries 'Compare vN with v(N-1)'. The comparison is comput
 
 Build hygiene: the native UI now builds into target/native, separate from the workspace target, because three times a test run in the same shell overwrote target/session with the non-native stub.
 
+
+## Phase B (B3 selection from the window, 2026-11-22)
+
+Each revision row offers 'Use vN for compliance'; the Compliance page shows what will be reviewed and starts the run through StartSelected. A session test proves the selected claims revision id and its text are recorded in the run's immutable input. The installed proof reaches eight checks and passes twice: it selects v2, starts compliance, and the screenshot shows a NEW run -- v5 compliance, 4/4, Completed -- with the panel reading 'Claims: the selected claims revision'.
+

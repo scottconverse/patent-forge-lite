@@ -77,6 +77,15 @@ pub enum Request {
         path: PathBuf,
         format: ExportFormat,
     },
+    /// Starts a dependent workflow against explicitly selected document revisions.
+    StartSelected {
+        project: ProjectId,
+        kind: WorkflowKind,
+        idempotency_key: String,
+        authorization: Authorization,
+        claims_revision: Option<RevisionId>,
+        specification_revision: Option<RevisionId>,
+    },
     /// Saves edited document text as the next revision, anchored to the latest
     /// completed run of that document's kind.
     SaveRevision {
@@ -387,6 +396,38 @@ impl Actor {
                 );
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));
+            }
+            Request::StartSelected {
+                project,
+                kind,
+                idempotency_key,
+                authorization,
+                claims_revision,
+                specification_revision,
+            } => {
+                for id in &self.started_runs {
+                    if !self.service.run(id.clone()).await?.outcome.is_terminal() {
+                        return Err(Error::Conflict(
+                            "Finish or cancel active work before starting another run".into(),
+                        ));
+                    }
+                }
+                let run = self
+                    .service
+                    .start_workflow_with_selection(
+                        project,
+                        kind,
+                        idempotency_key,
+                        authorization,
+                        Vec::new(),
+                        claims_revision,
+                        specification_revision,
+                    )
+                    .await?;
+                self.started_runs.insert(run.id.clone());
+                // Subscribe the new run, exactly as the plain start path does, or no
+                // progress updates arrive and the run looks stuck.
+                self.selected(run).await;
             }
             Request::SaveRevision {
                 project,

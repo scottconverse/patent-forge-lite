@@ -193,6 +193,26 @@ Record 'both revisions are listed (2 stored)' $listed "(notice: $(Notice))"
 Invoke-Named 'Compare v2 with v1'
 Record 'revision comparison reports the change' (Wait-Notice 'Diff v1 to v2') "(notice: $(Notice))"
 
+# Select v2 for compliance and start the review against it.
+Invoke-Named 'Use v2 for compliance'
+Record 'compliance selection recorded' (Wait-Notice 'Compliance will review claims revision 2') "(notice: $(Notice))"
+# A run needs a mode and a data declaration; both live on Setup.
+Invoke-Named 'Setup page'
+Invoke-Named 'Use synthetic recorded replay'
+Invoke-Named 'Synthetic test data'
+Record 'replay configured and data declared' ([bool](Find-Contains '✓  Synthetic test data')) "(notice: $(Notice))"
+Invoke-Named 'Analysis page'
+Invoke-Named 'Compliance review'
+Invoke-Named 'Start compliance with selected revisions'
+# The run's outcome appears in the summary panel, not the status bar.
+$deadline = (Get-Date).AddSeconds(40)
+$completed = $false
+while ((Get-Date) -lt $deadline) {
+    if (Find-Contains 'Completed') { $completed = $true; break }
+    Start-Sleep -Milliseconds 300
+}
+Record 'compliance started with the selection completes' $completed "(notice: $(Notice))"
+
 New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $keep = Join-Path $EvidenceDir $stamp

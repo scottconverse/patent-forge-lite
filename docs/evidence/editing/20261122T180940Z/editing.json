@@ -1,0 +1,30 @@
+{
+  "run text loads into the editor": {
+    "pass": true,
+    "detail": "(notice: Loaded the run's final stage into the editor.)"
+  },
+  "revision 1 saved": {
+    "pass": true,
+    "detail": "(notice: Saved revision 1 of claims document.)"
+  },
+  "revision 2 saved": {
+    "pass": true,
+    "detail": "(notice: Saved revision 2 of claims document.)"
+  },
+  "both revisions are listed (2 stored)": {
+    "pass": true,
+    "detail": "(notice: 2 stored revision(s).)"
+  },
+  "revision comparison reports the change": {
+    "pass": true,
+    "detail": "(notice: Diff v1 to v2: 1 added, 1 removed)"
+  },
+  "compliance selection recorded": {
+    "pass": true,
+    "detail": "(notice: Compliance will review claims revision 2.)"
+  },
+  "compliance started with the selection completes": {
+    "pass": false,
+    "detail": "(notice: Declare the data in Execution setup before starting.)"
+  }
+}

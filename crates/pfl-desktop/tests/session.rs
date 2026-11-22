@@ -733,3 +733,77 @@ fn editing_a_completed_run_saves_numbered_revisions_and_lists_them() {
 
     stop(&session);
 }
+
+#[test]
+fn compliance_started_with_a_selected_revision_records_it() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ControlledReplay::new(false));
+    let session = ApplicationSession::with_replay_provider(store, provider).unwrap();
+    let mut state = Drained::default();
+    settle_into(&session, &mut state, "projects", |s| s.projects_seen);
+    let project = create(&session);
+    session.request(Request::Configure(Mode::Replay)).unwrap();
+    settle_into(&session, &mut state, "configure", |s| {
+        s.configured.is_some()
+    });
+
+    let authorization = Authorization {
+        synthetic_data: true,
+        ..Default::default()
+    };
+    for (kind, key) in [
+        (WorkflowKind::Feasibility, "sel-feasibility"),
+        (WorkflowKind::Claims, "sel-claims"),
+    ] {
+        state.latest = None;
+        session
+            .request(Request::Start {
+                project: project.id.clone(),
+                kind,
+                idempotency_key: key.into(),
+                authorization: authorization.clone(),
+            })
+            .unwrap();
+        settle_into(&session, &mut state, "run terminal", |s| {
+            terminal_of(s, kind)
+        });
+    }
+
+    session
+        .request(Request::SaveRevision {
+            project: project.id.clone(),
+            kind: DocumentKind::Claims,
+            text: "1. THE SELECTED CLAIM SET.".into(),
+            note: "for review".into(),
+        })
+        .unwrap();
+    settle_into(&session, &mut state, "revision", |s| {
+        !s.revisions.is_empty()
+    });
+    let selected = state.revisions[0].id.clone();
+
+    state.latest = None;
+    session
+        .request(Request::StartSelected {
+            project: project.id.clone(),
+            kind: WorkflowKind::Compliance,
+            idempotency_key: "sel-compliance".into(),
+            authorization,
+            claims_revision: Some(selected.clone()),
+            specification_revision: None,
+        })
+        .unwrap();
+    settle_into(&session, &mut state, "compliance terminal", |s| {
+        terminal_of(s, WorkflowKind::Compliance)
+    });
+    let run = state.latest.as_ref().expect("compliance run");
+    assert_eq!(run.outcome, RunOutcome::Completed);
+    assert_eq!(
+        run.input.upstream.claims_revision_id.as_ref(),
+        Some(&selected),
+        "the selected claims revision is recorded in the run"
+    );
+    assert_eq!(run.input.upstream.claims_text, "1. THE SELECTED CLAIM SET.");
+
+    stop(&session);
+}

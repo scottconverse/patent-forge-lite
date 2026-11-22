@@ -214,6 +214,9 @@ struct Desktop {
     revisions: Vec<DocumentRevision>,
     /// The last comparison shown, rendered from two stored revisions.
     revision_diff: Option<pfl_workflow::diff::RevisionDiff>,
+    /// Revisions a compliance run will review when it is started from the window.
+    compliance_claims: Option<RevisionId>,
+    compliance_specification: Option<RevisionId>,
     revision_text: Entity<TextInput>,
     pending: bool,
     start_key: Option<String>,
@@ -331,6 +334,8 @@ impl Desktop {
             research_authorized: false,
             revisions: Vec::new(),
             revision_diff: None,
+            compliance_claims: None,
+            compliance_specification: None,
             revision_text,
             pending: false,
             start_key: None,
@@ -1343,6 +1348,79 @@ impl Render for Desktop {
                 }
                 content = content.child(tabs);
 
+                // Compliance can be started against chosen revisions; the selection is
+                // recorded in the run's immutable input.
+                if self.workflow == WorkflowKind::Compliance {
+                    let claims = self.compliance_claims.clone();
+                    let specification = self.compliance_specification.clone();
+                    let claims_label = if claims.is_some() {
+                        "the selected claims revision"
+                    } else {
+                        "the latest claims run"
+                    };
+                    let spec_label = if specification.is_some() {
+                        "the selected specification revision"
+                    } else {
+                        "the feasibility analysis"
+                    };
+                    content = content.child(
+                        theme::panel()
+                            .id("compliance-selection")
+                            .accessibility_id("compliance-selection")
+                            .p_5()
+                            .flex()
+                            .flex_col()
+                            .gap_3()
+                            .child(theme::micro("REVISIONS UNDER REVIEW"))
+                            .child(div().text_xs().text_color(rgb(theme::MUTED)).child(format!(
+                                "Claims: {claims_label} · Specification: {spec_label}"
+                            )))
+                            .child(self.primary_button(
+                                "start-selected-compliance",
+                                "Start compliance with selected revisions",
+                                move |this, _, cx| {
+                                    let Some(project) =
+                                        this.state.selected_project.as_ref().map(|p| p.id.clone())
+                                    else {
+                                        this.state.notice =
+                                            Some("Open a project before starting a run.".into());
+                                        return;
+                                    };
+                                    if !this.synthetic && !this.real_data {
+                                        this.state.notice = Some(
+                                            "Declare the data in Execution setup before starting."
+                                                .into(),
+                                        );
+                                        return;
+                                    }
+                                    let key = this
+                                        .start_key
+                                        .get_or_insert_with(|| RunId::new().to_string())
+                                        .clone();
+                                    this.pending = true;
+                                    this.send(
+                                        Request::StartSelected {
+                                            project,
+                                            kind: WorkflowKind::Compliance,
+                                            idempotency_key: key,
+                                            authorization: Authorization {
+                                                synthetic_data: this.synthetic,
+                                                real_data: this.real_data,
+                                                local_inference: this.authorized_local,
+                                                paid_provider: this.cloud_approved,
+                                                research: this.research_authorized,
+                                            },
+                                            claims_revision: claims.clone(),
+                                            specification_revision: specification.clone(),
+                                        },
+                                        cx,
+                                    );
+                                },
+                                cx,
+                            )),
+                    );
+                }
+
                 // Editing surface: only the two document workflows can be edited. A run
                 // is immutable; an edit becomes the next numbered revision anchored to
                 // the latest completed run of that kind.
@@ -1489,6 +1567,35 @@ impl Render for Desktop {
                                         .text_color(rgb(theme::MUTED))
                                         .child(format!("base {base} · {note}")),
                                 );
+                            let revision_id = self
+                                .revisions
+                                .iter()
+                                .find(|entry| entry.kind == kind && entry.version == version)
+                                .map(|entry| entry.id.clone());
+                            if let Some(revision_id) = revision_id {
+                                let label = format!("Use v{version} for compliance");
+                                row = row.child(self.button(
+                                    format!("use-v{version}-for-compliance"),
+                                    label,
+                                    move |this, _, cx| {
+                                        match kind {
+                                            DocumentKind::Claims => {
+                                                this.compliance_claims = Some(revision_id.clone())
+                                            }
+                                            DocumentKind::Application => {
+                                                this.compliance_specification =
+                                                    Some(revision_id.clone())
+                                            }
+                                        }
+                                        this.state.notice = Some(format!(
+                                            "Compliance will review {} revision {version}.",
+                                            kind.slug()
+                                        ));
+                                        cx.notify();
+                                    },
+                                    cx,
+                                ));
+                            }
                             if let Some(previous) = previous {
                                 let comparison = pfl_workflow::diff::diff_text(&previous, &text);
                                 let added = comparison.added;
