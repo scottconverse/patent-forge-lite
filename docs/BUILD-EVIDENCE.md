@@ -745,3 +745,8 @@ Three corrections, all accepted. (1) The acceptance row for Cloud selection was 
 
 (1) ACCEPTANCE still carried a 'blocked -- automation cannot activate the Start control' row two lines under the new pass row; the committed evidence disproves it, so that row now reads pass and points at the two evidence folders. (2) REGENERATION.md argued with itself: the header called the note 'the contract the section-scoped version must satisfy' and a section heading still said 'Section scope (the part still to build)' while line 3 closed that option. The note is rewritten for suffix semantics, the heading is 'Suffix scope (the part still to build)', and an invariant row for byte-identical carried stages is added as pending the implementation. (3) The nav-item accessibility gap is now a tracked row in the acceptance matrix, not only prose in this log.
 
+
+## Phase B (B1 session command, 2026-11-22)
+
+SaveRevision and ListRevisions are now session requests. SaveRevision resolves the base run itself -- the latest completed run of that document kind -- and refuses an empty edit; ListRevisions returns the stored series. The test drives feasibility and claims to terminal with a reply-draining helper that folds drained replies into state, which is the fix for the earlier attempt that raced until() and panicked on intermediate errors: revisions come back as version 1 and 2, both anchored to the claims run, listed in order, with the empty edit refused.
+

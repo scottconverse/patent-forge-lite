@@ -77,6 +77,19 @@ pub enum Request {
         path: PathBuf,
         format: ExportFormat,
     },
+    /// Saves edited document text as the next revision, anchored to the latest
+    /// completed run of that document's kind.
+    SaveRevision {
+        project: ProjectId,
+        kind: DocumentKind,
+        text: String,
+        note: String,
+    },
+    /// Lists the stored revisions of one document kind for a project.
+    ListRevisions {
+        project: ProjectId,
+        kind: DocumentKind,
+    },
     Shutdown,
 }
 
@@ -93,6 +106,8 @@ pub enum Reply {
     Configured(Mode),
     Settings(Settings),
     Exported(PathBuf),
+    Revision(DocumentRevision),
+    Revisions(Vec<DocumentRevision>),
     Recovered(Vec<RunId>),
     Error(String),
     Stopped,
@@ -372,6 +387,38 @@ impl Actor {
                 );
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));
+            }
+            Request::SaveRevision {
+                project,
+                kind,
+                text,
+                note,
+            } => {
+                if text.trim().is_empty() {
+                    return Err(Error::Invalid("an edited document needs text".into()));
+                }
+                let history = self.service.history(project.clone()).await?;
+                let base = history
+                    .iter()
+                    .filter(|run| {
+                        run.input.kind == kind.workflow() && run.outcome == RunOutcome::Completed
+                    })
+                    .max_by_key(|run| run.version)
+                    .map(|run| run.id.clone())
+                    .ok_or_else(|| {
+                        Error::Invalid(
+                            "save a completed run of this document before editing it".into(),
+                        )
+                    })?;
+                let revision = self
+                    .service
+                    .save_revision(project, kind, Some(base), text, note)
+                    .await?;
+                self.reply(Reply::Revision(revision));
+            }
+            Request::ListRevisions { project, kind } => {
+                let revisions = self.service.revisions(project, kind).await?;
+                self.reply(Reply::Revisions(revisions));
             }
             Request::ConfigureResearch { api_key } => {
                 if api_key.trim().is_empty() {

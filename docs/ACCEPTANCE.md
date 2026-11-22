@@ -146,7 +146,8 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | A5 decline sends zero; approval reaches the provider | installed + mock, 7/7 twice | pass — evidence kept in `docs/evidence/cloud-consent/` (two runs) |
 | A6 no fallback | pass | unit: 1 request, no checkpoint |
 | A7 Lean refuses Local | pass | unit: refuses Local, permits Cloud |
-| B1 desktop editing to revision | not implemented | engine save_revision exists |
+| B1 session `SaveRevision` / `ListRevisions`, anchored to the latest completed run of that kind | unit (`session.rs`, reply-draining helper) | pass |
+| B1 editing surface in the Analysis page | — | **not implemented** |
 | B2 diff engine | pass | unit: 6 tests |
 | `pfl-cli diff` between two revisions | run | pass |
 | B2 `pfl-cli diff` between stored revisions | pass | run |

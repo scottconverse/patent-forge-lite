@@ -571,3 +571,162 @@ fn cloud_start_requires_explicit_paid_approval() {
     );
     stop(&session);
 }
+
+/// Replies folded into state, so a test can wait for a condition instead of racing
+/// individual replies. `until()` panics on any error it happens to drain, which made
+/// multi-step flows unworkable.
+#[derive(Default)]
+struct Drained {
+    projects: Vec<Project>,
+    projects_seen: bool,
+    opened: Option<Project>,
+    latest: Option<RunSnapshot>,
+    revisions: Vec<DocumentRevision>,
+    configured: Option<Mode>,
+    errors: Vec<String>,
+    stopped: bool,
+}
+
+fn fold(session: &ApplicationSession, state: &mut Drained) {
+    for reply in session.drain() {
+        match reply {
+            Reply::Projects(projects) => {
+                state.projects_seen = true;
+                state.projects = projects;
+            }
+            Reply::Opened(project, _runs) => state.opened = Some(project),
+            Reply::Run(run) | Reply::Poll { snapshot: run, .. } => state.latest = Some(run),
+            Reply::Revision(revision) => state.revisions.push(revision),
+            Reply::Revisions(list) => state.revisions = list,
+            Reply::Configured(mode) => state.configured = Some(mode),
+            Reply::Error(error) => state.errors.push(error),
+            Reply::Stopped => state.stopped = true,
+            _ => {}
+        }
+    }
+}
+
+fn settle_into(
+    session: &ApplicationSession,
+    state: &mut Drained,
+    label: &str,
+    mut ready: impl FnMut(&Drained) -> bool,
+) {
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_secs(25) {
+        fold(session, state);
+        if ready(state) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    panic!("deadline exceeded at {label}; errors: {:?}", state.errors);
+}
+
+fn terminal_of(state: &Drained, kind: WorkflowKind) -> bool {
+    state
+        .latest
+        .as_ref()
+        .map(|run| run.input.kind == kind && run.outcome.is_terminal())
+        .unwrap_or(false)
+}
+
+#[test]
+fn editing_a_completed_run_saves_numbered_revisions_and_lists_them() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ControlledReplay::new(false));
+    let session = ApplicationSession::with_replay_provider(store, provider).unwrap();
+    let mut state = Drained::default();
+    settle_into(&session, &mut state, "projects", |s| s.projects_seen);
+    let project = create(&session);
+
+    session.request(Request::Configure(Mode::Replay)).unwrap();
+    settle_into(&session, &mut state, "configure", |s| {
+        s.configured.is_some()
+    });
+
+    let authorization = Authorization {
+        synthetic_data: true,
+        ..Default::default()
+    };
+    for (kind, key) in [
+        (WorkflowKind::Feasibility, "b1-feasibility"),
+        (WorkflowKind::Claims, "b1-claims"),
+    ] {
+        state.latest = None;
+        session
+            .request(Request::Start {
+                project: project.id.clone(),
+                kind,
+                idempotency_key: key.into(),
+                authorization: authorization.clone(),
+            })
+            .unwrap();
+        settle_into(&session, &mut state, "run terminal", |s| {
+            terminal_of(s, kind)
+        });
+        assert_eq!(
+            state.latest.as_ref().unwrap().outcome,
+            RunOutcome::Completed,
+            "{kind:?} must complete in replay"
+        );
+    }
+    let claims_run = state.latest.as_ref().unwrap().id.clone();
+
+    // First edit: version 1, anchored to the completed claims run.
+    session
+        .request(Request::SaveRevision {
+            project: project.id.clone(),
+            kind: DocumentKind::Claims,
+            text: "1. An edited claim.".into(),
+            note: "first edit".into(),
+        })
+        .unwrap();
+    settle_into(&session, &mut state, "first revision", |s| {
+        !s.revisions.is_empty()
+    });
+    assert_eq!(state.revisions[0].version, 1);
+    assert_eq!(state.revisions[0].base_run_id.as_ref(), Some(&claims_run));
+
+    // Second edit: version 2 of the same kind.
+    session
+        .request(Request::SaveRevision {
+            project: project.id.clone(),
+            kind: DocumentKind::Claims,
+            text: "1. A further edited claim.".into(),
+            note: "second edit".into(),
+        })
+        .unwrap();
+    settle_into(&session, &mut state, "second revision", |s| {
+        s.revisions.iter().any(|revision| revision.version == 2)
+    });
+
+    // Listing returns the stored series in order.
+    session
+        .request(Request::ListRevisions {
+            project: project.id.clone(),
+            kind: DocumentKind::Claims,
+        })
+        .unwrap();
+    settle_into(&session, &mut state, "list revisions", |s| {
+        s.revisions.len() == 2
+    });
+    assert_eq!(state.revisions[0].version, 1);
+    assert_eq!(state.revisions[1].version, 2);
+    assert_eq!(state.revisions[1].text, "1. A further edited claim.");
+
+    // An empty edit is refused rather than stored.
+    session
+        .request(Request::SaveRevision {
+            project: project.id.clone(),
+            kind: DocumentKind::Claims,
+            text: "   ".into(),
+            note: String::new(),
+        })
+        .unwrap();
+    settle_into(&session, &mut state, "empty edit refused", |s| {
+        s.errors.iter().any(|error| error.contains("needs text"))
+    });
+
+    stop(&session);
+}
