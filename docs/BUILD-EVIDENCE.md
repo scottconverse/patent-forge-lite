@@ -643,3 +643,8 @@ scripts/cloud-consent-proof.ps1 replaces the patched harness with helpers copied
 
 A direct tree dump of the Analysis page showed no Start control at all until a workflow tab is selected; adding the tab click made the control resolvable. It still does not fire: the resolved element has no InvokePattern, and the focus fallback fails with 'Target element cannot receive focus'. The installed decline/approve pair is therefore still unproven. Session-level tests already prove both refusals with zero provider calls; the remaining gap is purely automation of the same path through the window.
 
+
+## Phase A (A5: keyboard start added, proof still blocked, 2026-11-21)
+
+Added a Ctrl+Enter binding (StartRun) so starting a workflow has a pointer-free path; the Start div exposes no InvokePattern, so this is an accessibility improvement in its own right. Driving the proof by that key did not change the status notice either, so the installed decline/approve pair remains unproven and A5 stays open. The proof script was reverted to its committed state rather than left half-edited.
+

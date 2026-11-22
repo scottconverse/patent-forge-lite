@@ -32,7 +32,8 @@ actions!(
         NavAnalysis,
         NavHistory,
         NavReport,
-        NavSettings
+        NavSettings,
+        StartRun
     ]
 );
 
@@ -114,6 +115,9 @@ pub fn run() -> Result<()> {
             KeyBinding::new("ctrl-1", NavProjects, None),
             KeyBinding::new("ctrl-2", NavIntake, None),
             KeyBinding::new("ctrl-3", NavAnalysis, None),
+        // Keyboard path to start the current workflow, so the action is reachable
+        // without a pointer and without depending on an automation invoke.
+        KeyBinding::new("ctrl-enter", StartRun, None),
             KeyBinding::new("ctrl-4", NavHistory, None),
             KeyBinding::new("ctrl-5", NavReport, None),
             KeyBinding::new("ctrl-6", NavSettings, None),
@@ -2214,6 +2218,12 @@ impl Render for Desktop {
             .text_color(rgb(theme::TEXT))
             .font_family(assets::FONT_FAMILY)
             .on_action(cx.listener(|this, _: &SaveIntake, _, cx| this.save(cx)))
+            .on_action(cx.listener(|this, _: &StartRun, window, cx| {
+                this.state.navigate(Page::Workflow);
+                this.focus_body(window, cx);
+                this.start(cx);
+                cx.notify();
+            }))
             .on_action(cx.listener(|this, _: &NavProjects, window, cx| {
                 this.state.navigate(Page::Projects);
                 this.focus_body(window, cx);
