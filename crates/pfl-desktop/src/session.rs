@@ -2,7 +2,8 @@
 use pfl_domain::*;
 use pfl_storage::SqliteStore;
 use pfl_workflow::{
-    CloudProvider, OllamaProvider, ReplayProvider, WorkflowService, export_html, export_markdown,
+    CloudProvider, OllamaProvider, PatentsViewSource, ReplayProvider, ResearchSource,
+    WorkflowService, export_html, export_markdown,
 };
 use std::{
     collections::HashSet,
@@ -49,6 +50,10 @@ pub enum Request {
     Save(ProjectId, Intake),
     SelectRun(RunId),
     Configure(Mode),
+    /// Configures USPTO PatentsView research with a session-only key.
+    ConfigureResearch {
+        api_key: String,
+    },
     /// Holds the Cloud key in memory for this session only. A `None` clears it.
     /// The value is never stored, logged, exported or echoed back in a reply.
     SetCloudKey(Option<String>),
@@ -173,6 +178,7 @@ impl ApplicationSession {
                 active_jobs: active_jobs.clone(),
                 replay,
                 cloud_key: None,
+                research_configured: false,
             }
             .run(),
         );
@@ -228,6 +234,8 @@ struct Actor {
     replay: Arc<dyn Provider>,
     /// In-memory only, for this session. Never persisted, never logged.
     cloud_key: Option<String>,
+    /// True once a research source has been configured for this session.
+    research_configured: bool,
 }
 
 impl Actor {
@@ -364,6 +372,38 @@ impl Actor {
                 );
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));
+            }
+            Request::ConfigureResearch { api_key } => {
+                if api_key.trim().is_empty() {
+                    return Err(Error::Invalid(
+                        "research needs a PatentsView API key".into(),
+                    ));
+                }
+                // Loopback override exists only so acceptance can count requests
+                // against a mock; anything else is refused.
+                let source: Arc<dyn ResearchSource> = match std::env::var("PFL_RESEARCH_ENDPOINT") {
+                    Ok(endpoint) if !endpoint.is_empty() => {
+                        if !is_loopback_endpoint(&endpoint) {
+                            return Err(Error::Invalid(
+                                "PFL_RESEARCH_ENDPOINT is for loopback verification only".into(),
+                            ));
+                        }
+                        Arc::new(PatentsViewSource::with_endpoint(api_key, endpoint)?)
+                    }
+                    _ => Arc::new(PatentsViewSource::new(api_key)?),
+                };
+                let provider = match &self.mode {
+                    Some(mode) => self.build_provider(mode)?,
+                    None => self.replay.clone(),
+                };
+                self.service = WorkflowService::new_with_research(
+                    self.store.clone(),
+                    provider,
+                    tokio::runtime::Handle::current(),
+                    Some(source),
+                );
+                self.research_configured = true;
+                self.reply(Reply::Configured(self.mode.clone().unwrap_or(Mode::Replay)));
             }
             Request::SetCloudKey(key) => {
                 // In memory only. Never logged, stored or echoed back.

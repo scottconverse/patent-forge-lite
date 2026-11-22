@@ -209,6 +209,8 @@ struct Desktop {
     cloud_approved: bool,
     cloud_model: Entity<TextInput>,
     cloud_key: Entity<TextInput>,
+    research_key: Entity<TextInput>,
+    research_authorized: bool,
     pending: bool,
     start_key: Option<String>,
     pending_open: Option<ProjectId>,
@@ -267,6 +269,11 @@ impl Desktop {
         let cloud_model = cx.new(|cx| {
             TextInput::new(TextBuffer::new("", false), 42., cx).labelled("Cloud model name")
         });
+        let research_key = cx.new(|cx| {
+            TextInput::new(TextBuffer::new("", false), 42., cx)
+                .labelled("PatentsView API key")
+                .masked(true)
+        });
         let cloud_key = cx.new(|cx| {
             TextInput::new(TextBuffer::new("", false), 42., cx)
                 .labelled("Cloud API key")
@@ -313,6 +320,8 @@ impl Desktop {
             cloud_approved: false,
             cloud_model,
             cloud_key,
+            research_key,
+            research_authorized: false,
             pending: false,
             start_key: None,
             pending_open: None,
@@ -580,6 +589,7 @@ impl Desktop {
                 real_data: self.real_data,
                 local_inference: self.authorized_local,
                 paid_provider: self.cloud_approved,
+                research: self.research_authorized,
                 ..Default::default()
             },
         };
@@ -1860,6 +1870,31 @@ impl Render for Desktop {
                             .text_color(rgb(theme::FAINT))
                             .child(pfl_workflow::confirmation_text("Cloud model", None)),
                     )
+                    .child(self.labelled(
+                        "PATENTSVIEW API KEY (SESSION ONLY)",
+                        self.research_key.clone(),
+                    ))
+                    .child(self.button(
+                        "research-config",
+                        "Configure PatentsView research",
+                        |this, _, cx| {
+                            let key = this.research_key.read(cx).buffer.text().to_string();
+                            match this
+                                .session
+                                .request(Request::ConfigureResearch { api_key: key })
+                            {
+                                Ok(()) => {
+                                    this.state.notice = Some(
+                                        "Research configured. It runs only for a run that opts in."
+                                            .into(),
+                                    )
+                                }
+                                Err(error) => this.state.notice = Some(error.to_string()),
+                            }
+                            cx.notify();
+                        },
+                        cx,
+                    ))
                     .child(self.primary_button(
                         "cloud-mode",
                         "Configure Cloud with this key",
@@ -1922,6 +1957,19 @@ impl Render for Desktop {
                         },
                         |this, _, cx| {
                             this.authorized_local = !this.authorized_local;
+                            cx.notify();
+                        },
+                        cx,
+                    ))
+                    .child(self.button(
+                        "research-consent",
+                        if self.research_authorized {
+                            "✓  Use PatentsView research for this run"
+                        } else {
+                            "○  Use PatentsView research for this run"
+                        },
+                        |this, _, cx| {
+                            this.research_authorized = !this.research_authorized;
                             cx.notify();
                         },
                         cx,

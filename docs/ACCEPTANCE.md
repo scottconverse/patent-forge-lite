@@ -157,7 +157,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | C2 opt-in research records verified references; opt-out queries nothing | integration (`research_run.rs`) | pass |
 | C3 denied opt-in zero requests | pass | unit: research tests |
 | C4 IDS from records only | pass | unit: lineage test |
-| C5 desktop research entry | not implemented | |
+| C5 desktop research entry: masked key, configure control, per-run opt-in | installed (harness) | partial — controls present, live query blocked on key |
 | D1 model picker | partial | list_local_models verified against real runtime; no picker UI |
 | D2 first-run profile choice | partial | profile selectable in Setup; no first-run prompt |
 | D3 tray/lifecycle | not implemented | |

@@ -703,3 +703,8 @@ PatentsViewSource posts the documented query to the official search endpoint wit
 
 With a PatentsView source attached, a run that authorizes research performs exactly one query and records the verified reference in its immutable input; a run without opt-in performs none. The test also exposed a real defect: a fresh feasibility run inherited the reference set of the previous feasibility run, attaching references the operator never chose for that run. upstream() now attaches prior art only for dependent workflows. A failed query fails the run rather than completing with an empty set.
 
+
+## Phase C (C5 desktop research entry, 2026-11-21)
+
+Setup now carries a masked PatentsView key field, a Configure control that builds the research source in the session actor, and a per-run Use PatentsView research toggle that sets the run's research authorization. The key is session-only, and a loopback override (PFL_RESEARCH_ENDPOINT) is refused for anything but loopback so a real key cannot be redirected. UI harness still passes 33 checks. No live query is claimed.
+
