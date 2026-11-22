@@ -148,6 +148,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | B1 desktop editing to revision | not implemented | engine save_revision exists |
 | B2 diff engine | pass | unit: 6 tests |
 | `pfl-cli diff` between two revisions | run | pass |
+| B2 `pfl-cli diff` between stored revisions | pass | run |
 | B2 diff in desktop | not implemented | |
 | B3 revision selection in desktop | not implemented | engine selection exists |
 | B4 revision exports md/html/docx/csv/manifest | pass | unit: 7 tests |
@@ -155,7 +156,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | B5 execution with carry-over | blocked — design | contiguous-prefix invariant; two options recorded in REGENERATION.md |
 | B6 revisions list | pass | run |
 | C1 PatentsView adapter | pass (mock) | unit: 3 tests; live query blocked on key |
-| C2 opt-in research records verified references; opt-out queries nothing | integration (`research_run.rs`) | pass |
+| C2 opt-in research records verified references; opt-out queries nothing | pass | integration (`research_run.rs`) |
 | C3 denied opt-in zero requests | pass | unit: research tests |
 | C4 IDS from records only | pass | unit: lineage test |
 | C5 desktop research entry: masked key, configure control, per-run opt-in | installed (harness) | partial — controls present, live query blocked on key |
