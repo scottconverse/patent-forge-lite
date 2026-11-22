@@ -888,3 +888,10 @@ scripts/full-evidence.ps1 runs every proof against one revision and writes one s
 
 The twelfth is a genuine regression: cloud-consent-proof fails three checks at this revision after the Setup page grew. Invoking the configure control directly still produces its own message ('Cloud needs an API key for this session before a run can start'), so the control works and the automation does not. The acceptance row is marked open rather than left as a pass, and the earlier 7/7 evidence is retained with that caveat.
 
+
+## Phase A regression, partly reduced (2026-11-22)
+
+The Cloud consent proof went from 3 failing checks to 2. Its configure step now works: a pointer click on that control is swallowed while the key field holds focus, and activating the button from the keyboard (Tab, Enter) reaches the handler and the mode is configured.
+
+The two start checks still fail. Pressing Start from this script never reaches the handler -- four attempts, with the button re-resolved and both the Invoke pattern and a pointer click tried -- yet the same control starts runs in installed-local-proof, which passes 5/5 at this revision. The difference is therefore in this script's state handling, not in the application, and the acceptance row says exactly that rather than claiming either a pass or an app defect. One earlier 'declining sends zero requests' pass in this script was hollow for the same reason: no request was sent because the run never started.
+

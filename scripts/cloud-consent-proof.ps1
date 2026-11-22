@@ -132,7 +132,16 @@ function Bring-Into-View($element) {
     }
 }
 function Click-Element($element) {
-    if (-not $element) { throw 'element missing' }
+    if (-not $element) {
+        $w = Get-Window
+        $names = @()
+        if ($w) {
+            foreach ($e in $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) {
+                if ($e.Current.Name -and $e.Current.Name -like '*ynthetic*') { $names += $e.Current.Name }
+            }
+        }
+        throw ("element missing; synthetic-named controls: " + ($names -join ' | '))
+    }
     Bring-Into-View $element
     Focus-App
     $r = $element.Current.BoundingRectangle
@@ -162,6 +171,44 @@ function Invoke-Named([string]$name) {
 }
 # A pointer click on a named control. Needed after typing: the text field keeps focus,
 # and an Invoke on a button while a field has focus is swallowed.
+# Pointer clicks on some controls are swallowed in this window state; the app's own
+# keyboard paths are deterministic, so navigation and the run both use them.
+function Nav-Key([string]$keys) {
+    Focus-App
+    Start-Sleep -Milliseconds 250
+    [System.Windows.Forms.SendKeys]::SendWait($keys)
+    Start-Sleep -Milliseconds 900
+}
+
+# Retry the start: the button is re-resolved on each attempt because the page may
+# re-render between selecting the workflow and pressing it.
+function Start-Until([string]$expected) {
+    for ($attempt = 0; $attempt -lt 4; $attempt++) {
+        $button = Find-ByName 'Start new version'
+        if (-not $button) { $button = Find-Contains 'Start new version' }
+        if ($button) {
+            Bring-Into-View $button
+            $patterns = @($button.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })
+            if ($patterns -contains 'InvokePatternIdentifiers.Pattern') {
+                $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            } else {
+                Click-Element $button
+            }
+        }
+        for ($i = 0; $i -lt 6; $i++) {
+            Start-Sleep -Milliseconds 500
+            if ((Notice) -like "*$expected*") { return }
+        }
+    }
+}
+
+function Start-Key {
+    Focus-App
+    Start-Sleep -Milliseconds 250
+    [System.Windows.Forms.SendKeys]::SendWait('^{ENTER}')
+    Start-Sleep -Seconds 2
+}
+
 function Click-Named([string]$name) {
     $el = Find-ByName $name
     if (-not $el) { $el = Find-Contains $name }
@@ -203,6 +250,7 @@ $script:appPid = (Start-Process -FilePath $Exe -ArgumentList '--select-latest' -
 if (-not (Wait-Window)) { throw 'the application window did not appear' }
 
 Invoke-Named 'Setup page'
+    $null = Wait-ById 'input-Cloud model name' 10
 
 # Declare the data first, while the page is at the top.
 Click-Element (Find-Contains 'Synthetic test data')
@@ -212,7 +260,28 @@ Record 'synthetic data declared' ([bool](Find-Contains '✓  Synthetic test data
 Bring-Into-View (Wait-ById 'input-Cloud model name')
 Set-Field 'input-Cloud model name' 'claude-mock'
 Set-Field 'input-Cloud API key' 'sk-ant-session-only-test'
-Click-Named 'Configure Cloud with this key'
+# With a text field focused the button click can be swallowed: clear focus on neutral
+# ground first, then press the control.
+Focus-App
+$wr = (Get-Window).Current.BoundingRectangle
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point ([int]($wr.X + $wr.Width * 0.4)), ([int]($wr.Y + $wr.Height * 0.12))
+Start-Sleep -Milliseconds 150
+[PflInput]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero)
+Start-Sleep -Milliseconds 60
+[PflInput]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
+Start-Sleep -Milliseconds 300
+# Keyboard activation: the key field still holds focus, so Tab reaches the button and
+# Enter presses it. This path does not depend on pointer hit-testing at all.
+Focus-App
+Start-Sleep -Milliseconds 200
+[System.Windows.Forms.SendKeys]::SendWait('{TAB}')
+Start-Sleep -Milliseconds 250
+[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+Start-Sleep -Milliseconds 1500
+Start-Sleep -Milliseconds 1500
+if ((Notice) -notlike '*Execution mode configured*') {
+    Invoke-Named 'Configure Cloud with this key'
+}
 $deadline = (Get-Date).AddSeconds(12)
 while ((Get-Date) -lt $deadline -and (Notice) -notlike '*Execution mode configured*') { Start-Sleep -Milliseconds 250 }
 Record 'Cloud configured against the loopback endpoint' ((Notice) -like '*Execution mode configured*') "(notice: $(Notice))"
@@ -237,13 +306,14 @@ Start-Sleep -Milliseconds 400
 Invoke-Named 'Analysis page'
 Start-Sleep -Milliseconds 700
 Invoke-Named 'Feasibility analysis'
-Invoke-Named 'Start new version'
+Start-Until "paid Cloud"
 Start-Sleep -Milliseconds 2000
 Record 'declining sends zero requests' ((Requests) -eq 0) "(requests: $(Requests))"
 Record 'refusal names the paid approval' ((Notice) -like '*paid Cloud*') "(notice: $(Notice))"
 
 # Approved: grant the per-run approval, then start again.
 Invoke-Named 'Setup page'
+    $null = Wait-ById 'input-Cloud model name' 10
 Start-Sleep -Milliseconds 600
 Click-Element (Find-Contains 'Approve paid Cloud request')
 Record 'paid approval recorded' ([bool](Find-Contains '✓  Approve paid Cloud request')) "(notice: $(Notice))"
@@ -255,7 +325,7 @@ Record 'the cost line is shown before the paid run' (($runCostText -like '*unkno
 Invoke-Named 'Analysis page'
 Start-Sleep -Milliseconds 700
 Invoke-Named 'Feasibility analysis'
-Invoke-Named 'Start new version'
+Start-Until "paid Cloud"
 $deadline = (Get-Date).AddSeconds(25)
 while ((Get-Date) -lt $deadline -and (Requests) -eq 0) { Start-Sleep -Milliseconds 300 }
 Record 'approved Cloud run reaches the provider' ((Requests) -gt 0) "(requests: $(Requests))"
