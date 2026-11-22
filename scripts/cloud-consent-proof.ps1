@@ -133,6 +133,13 @@ function Notice {
     if ($node) { $node.Current.Name } else { '' }
 }
 
+# Guard: a workspace build overwrites the native binary with a stub that exits
+# immediately, which looks like an automation failure. Refuse to run against it.
+$probe = & $Exe 2>&1 | Out-String
+if ($probe -match 'requires a native build') {
+    throw "the binary is the non-native stub; rebuild with --features native before running this proof"
+}
+
 $mock = Start-Process -FilePath 'pwsh' -ArgumentList @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'mock-cloud.ps1'), '-Port', $Port, '-LogFile', $log) -PassThru
 $script:mockPid = $mock.Id
 $deadline = (Get-Date).AddSeconds(15)

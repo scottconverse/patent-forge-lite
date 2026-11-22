@@ -723,3 +723,8 @@ Phase A made Cloud selectable in the desktop, which made the README and manual s
 
 The manual still said research was disabled and live retrieval was only a seam. It now describes PatentsView with a session-only key and per-run opt-in, states that a failed query is an error rather than an empty result, and records plainly that no live query has been verified from this build.
 
+
+## Button automation investigated (2026-11-21)
+
+The premise was wrong. With a native build the Start control is exposed as ControlType.Button with InvokePattern, and installed-local-proof.ps1 invokes it successfully five times (5/5 pass). The earlier 'no InvokePattern' and 'cannot receive focus' findings came from a non-native stub binary that a workspace test had written over the native build; the stub exits immediately with 'requires a native build'. A guard was added to the Cloud proof, and the trap is recorded in HANDOFF. A5 is therefore partial, not blocked on the UI toolkit: the Cloud decline script itself still needs fixing.
+

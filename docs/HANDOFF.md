@@ -88,5 +88,6 @@ blocked on a PatentsView key; Phases D–G largely open.
 
 - One edit tool call per change; no multi-edit scripts, no heredocs.
 - A new function goes **before** a file's `#[cfg(test)]` module; tests stay last.
+- A workspace build writes a **non-native stub** over `target/session/debug/pfl-desktop.exe`. It exits immediately with "requires a native build", which looks like an automation failure. Rebuild with `--features native` before any UI probe, and never set `CARGO_TARGET_DIR` for a test run.
 - Never claim a gate, a CI run, or an installed behaviour that was not observed.
   Every false claim in this work came from inferring instead of measuring.
