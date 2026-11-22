@@ -82,6 +82,7 @@ quality or legal correctness.
 | Local endpoint/model configuration | installed | pass |
 | Model readiness / installed-model discovery | unit (mock) + run against the real runtime | pass (36 models) |
 | Usage records, unknown ≠ zero | unit + run | pass |
+| Cloud selection and per-run cost confirmation | — | **not implemented** |
 | Tray / background lifecycle | — | **not implemented** |
 
 ## 7. Migration
