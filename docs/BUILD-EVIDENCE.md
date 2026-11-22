@@ -528,3 +528,16 @@ read, malformed body as an error, remote endpoint refused.
 The `pfl-cli models` command was drafted and **reverted** this round: its allowlist edit did not
 apply and clippy flagged the unused dispatch, so the CLI surface is not shipped. The library
 function and its tests are.
+## Item 4: usage records (2026-11-21)
+
+`pfl_workflow::usage_summary(run)` sums checkpoint usage while keeping unknown values distinct
+from zero (`input_unknown` / `output_unknown` counts).
+
+`pfl-cli usage --workspace <ws>` prints one row per run: version, workflow, outcome, token totals and
+the unknown counts.
+
+Verified on a real workspace: replay runs report `0` tokens with `6/4/4/5` unknown per workflow —
+which is honest, because recorded replay reports no token counts. A provider that does report usage
+shows real totals there.
+
+Gate with real exit codes: build 0, fmt 0, clippy 0, tests 0.

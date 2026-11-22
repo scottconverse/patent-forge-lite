@@ -1,6 +1,7 @@
 //! Composes the saved report for each workflow. Feasibility keeps its original
 //! behaviour: the final stage checkpoint is the report, verbatim.
 use crate::*;
+use serde::{Deserialize, Serialize};
 
 fn section(title: &str, body: &str) -> String {
     format!("## {title}\n\n{}\n\n", body.trim())
@@ -147,6 +148,34 @@ pub(crate) fn compose(
             Ok(report)
         }
     }
+}
+
+/// Token usage recorded for one run.
+///
+/// `None` means the provider did not report a value, which is not the same as
+/// zero, so unknown counts are carried through explicitly.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsageSummary {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub input_unknown: u32,
+    pub output_unknown: u32,
+}
+
+/// Sums the usage of every checkpoint in a run, counting unknown values.
+pub fn usage_summary(run: &RunSnapshot) -> UsageSummary {
+    let mut summary = UsageSummary::default();
+    for checkpoint in &run.checkpoints {
+        match checkpoint.usage.input_tokens {
+            Some(value) => summary.input_tokens += value,
+            None => summary.input_unknown += 1,
+        }
+        match checkpoint.usage.output_tokens {
+            Some(value) => summary.output_tokens += value,
+            None => summary.output_unknown += 1,
+        }
+    }
+    summary
 }
 
 #[cfg(test)]

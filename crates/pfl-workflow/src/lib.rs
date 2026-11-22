@@ -9,6 +9,7 @@ pub mod package;
 pub mod prompts;
 pub mod providers;
 mod report;
+pub use report::{UsageSummary, usage_summary};
 mod research;
 mod service;
 
