@@ -57,3 +57,15 @@ than the whole workflow:
 - Regenerating across workflows (e.g. regenerating claims from an application
   run). Cross-workflow derivation goes through the normal prerequisites.
 - Rewriting history. Old runs are immutable, always.
+
+## Implementation constraint found (2026-11-21)
+
+The run engine requires committed checkpoints to form a **contiguous completed prefix** of the workflow's stages (service report path, and execution resumes from stages.skip(checkpoints.len())). This invariant is what makes resume safe, and a section regeneration that carries non-adjacent stages would violate it.
+
+Two ways forward, and the choice changes the semantics:
+
+1. **Sparse checkpoints.** Add a marker to Checkpoint (serde-defaulted) saying whether it was generated or carried over, and relax the prefix rule to allow carried gaps. Faithful to section scope, but touches the durability invariant that every existing resume test depends on.
+2. **Regenerate from the first selected stage onward.** Keep the prefix rule untouched: a selection behaves as 're-run this stage and everything after it', with earlier stages carried as a genuine prefix. Simple and safe, but the name must change (it is a suffix regeneration, not an arbitrary section).
+
+No code was changed for this: choosing option 1 is a durability change and option 2 is a scope change, and both are product decisions rather than implementation details.
+

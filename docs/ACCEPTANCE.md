@@ -151,7 +151,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | B3 revision selection in desktop | not implemented | engine selection exists |
 | B4 revision exports md/html/docx/csv/manifest | pass | unit: 7 tests |
 | B5 semantics + plan | pass | doc + unit: 5 tests |
-| B5 execution with carry-over | not implemented | contract in REGENERATION.md |
+| B5 execution with carry-over | blocked — design | contiguous-prefix invariant; two options recorded in REGENERATION.md |
 | B6 revisions list | pass | run |
 | C1 PatentsView adapter | pass (mock) | unit: 3 tests; live query blocked on key |
 | C2 opt-in research records verified references; opt-out queries nothing | integration (`research_run.rs`) | pass |
