@@ -148,7 +148,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | A7 Lean refuses Local | pass | unit: refuses Local, permits Cloud |
 | B1 session `SaveRevision` / `ListRevisions`, anchored to the latest completed run of that kind | unit (`session.rs`, reply-draining helper) | pass |
 | B1 editing surface: revision field, Save revision, List revisions, Load run text | installed, UI automation | pass — controls present and reachable on the Claims tab (harness 37/37) |
-| B1 end-to-end: edit → save revision 2 → see it listed, in the installed app | — | **not yet run** |
+| B1 end-to-end: load run text, save revision 1, edit, save revision 2, both listed | installed, 4/4 twice | pass — `docs/evidence/editing/` (three runs; the first failed on an automation-only assertion, see the log) |
 | B2 diff engine | pass | unit: 6 tests |
 | `pfl-cli diff` between two revisions | run | pass |
 | B2 `pfl-cli diff` between stored revisions | pass | run |

@@ -760,3 +760,10 @@ CI failed on 0d0a364 because the native view matched on Reply without the new Re
 
 The Analysis page now carries the editions panel for the Claims and Application workflows: a multiline revision field, Load run text (seeds it from the run's final stage), Save revision (sends SaveRevision with the workflow's document kind) and List revisions. The UI harness reaches the panel and confirms all four controls (37/37). Also fixed: ui-acceptance's trap called Clear-Harness, which is not defined when the early stub guard throws, so a failed run crashed while reporting; cleanup is now inline.
 
+
+## Phase B (B1 end-to-end in the app, 2026-11-22)
+
+scripts/editing-proof.ps1 drives the installed app: Load run text seeds the editor from the claims run's final stage, Save revision stores v1, the text is replaced, Save revision stores v2, and List revisions announces two stored revisions. 4/4, twice, with JSON and screenshots under docs/evidence/editing/.
+
+The first attempt is kept deliberately: it failed only because the check looked for the v1/v2 pills in the automation tree, and those rows are plain divs that are not exposed. The screenshot from that attempt shows both rows with their base run and note, and the check now asserts the announced count instead.
+

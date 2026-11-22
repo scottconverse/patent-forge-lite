@@ -1,0 +1,18 @@
+{
+  "run text loads into the editor": {
+    "pass": true,
+    "detail": "(notice: Loaded the run's final stage into the editor.)"
+  },
+  "revision 1 saved": {
+    "pass": true,
+    "detail": "(notice: Saved revision 1 of claims document.)"
+  },
+  "revision 2 saved": {
+    "pass": true,
+    "detail": "(notice: Saved revision 2 of claims document.)"
+  },
+  "both revisions are listed": {
+    "pass": false,
+    "detail": "(v1: False, v2: False)"
+  }
+}
