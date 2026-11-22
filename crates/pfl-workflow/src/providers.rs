@@ -255,7 +255,7 @@ impl Provider for CloudProvider {
             )));
         }
         let mut stream = response.bytes_stream();
-        let mut pending = String::new();
+        let mut pending: Vec<u8> = Vec::new();
         let mut text = String::new();
         let mut input_tokens = None;
         let mut output_tokens = None;
@@ -268,7 +268,7 @@ impl Provider for CloudProvider {
                 item = stream.next() => item
             };
             match item {
-                Some(Ok(bytes)) => pending.push_str(&String::from_utf8_lossy(&bytes)),
+                Some(Ok(bytes)) => pending.extend_from_slice(&bytes),
                 Some(Err(_)) => {
                     return Err(Error::Provider(
                         "cloud stream interrupted; partial stage not committed".into(),
@@ -277,7 +277,7 @@ impl Provider for CloudProvider {
                 None => {
                     // Bytes left in the buffer without a newline mean the stream was
                     // cut mid-frame; nothing after this can be trusted.
-                    if !pending.trim().is_empty() {
+                    if !pending.iter().all(u8::is_ascii_whitespace) {
                         return Err(Error::Incomplete(
                             "cloud stream ended mid-frame; partial text was not committed".into(),
                         ));
@@ -285,8 +285,12 @@ impl Provider for CloudProvider {
                     break;
                 }
             }
-            while let Some(index) = pending.find('\n') {
-                let line: String = pending.drain(..=index).collect();
+            while let Some(raw) = take_sse_line(&mut pending) {
+                let Ok(line) = String::from_utf8(raw) else {
+                    return Err(Error::Provider(
+                        "cloud stream contained invalid UTF-8; the stage is not complete".into(),
+                    ));
+                };
                 let line = line.trim_end();
                 let Some(data) = line.strip_prefix("data:") else {
                     continue;
@@ -356,6 +360,14 @@ fn is_loopback_host(host: &str) -> bool {
         || host
             .parse::<std::net::IpAddr>()
             .is_ok_and(|ip| ip.is_loopback())
+}
+
+/// Removes one complete SSE line from the pending byte buffer, newline included.
+/// Buffering bytes rather than decoded text is what keeps a multi-byte character
+/// split across two chunks intact instead of becoming U+FFFD.
+fn take_sse_line(pending: &mut Vec<u8>) -> Option<Vec<u8>> {
+    let index = pending.iter().position(|byte| *byte == b'\n')?;
+    Some(pending.drain(..=index).collect())
 }
 
 /// Removes one complete NDJSON line from the pending byte buffer, newline included.
@@ -673,6 +685,49 @@ mod tests {
         assert!(OllamaProvider::new("https://ollama.example.com", "model").is_err());
         assert!(OllamaProvider::new("http://[::1]:11434", "model").is_ok());
         assert!(OllamaProvider::new("http://localhost:11434", "model").is_ok());
+    }
+
+    #[test]
+    fn the_old_per_chunk_decode_corrupted_split_characters() {
+        // Documents the defect the byte buffer fixes: decoding each network chunk
+        // independently turns a character split across chunks into U+FFFD.
+        let first = b"data: {\"text\":\"caf\xc3";
+        let second = b"\xa9\"}\n";
+        let lossy = format!(
+            "{}{}",
+            String::from_utf8_lossy(first),
+            String::from_utf8_lossy(second)
+        );
+        assert!(
+            lossy.contains('\u{FFFD}'),
+            "per-chunk lossy decoding is expected to corrupt the split character"
+        );
+    }
+
+    #[test]
+    fn split_utf8_across_sse_chunks_reassembles_intact() {
+        let mut pending: Vec<u8> = Vec::new();
+        pending.extend_from_slice(b"data: {\"text\":\"caf\xc3");
+        assert!(
+            take_sse_line(&mut pending).is_none(),
+            "no complete line yet"
+        );
+        pending.extend_from_slice(b"\xa9 \xf0\x9f\xa7\xaa\"}\n");
+        let raw = take_sse_line(&mut pending).expect("complete line");
+        let line = String::from_utf8(raw).expect("valid utf-8 after reassembly");
+        assert!(line.contains("café 🧪"), "got {line}");
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn an_invalid_utf8_line_is_rejected_rather_than_replaced() {
+        let mut pending: Vec<u8> = Vec::new();
+        pending.extend_from_slice(b"data: \xff\xfe\n");
+        let raw = take_sse_line(&mut pending).expect("complete line");
+        assert!(
+            String::from_utf8(raw).is_err(),
+            "invalid UTF-8 must be an error, not U+FFFD"
+        );
     }
 
     #[test]

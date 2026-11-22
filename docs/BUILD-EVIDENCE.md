@@ -563,3 +563,17 @@ and zero-with-no-unknowns being a real zero.
 `native-manual.yml` on `e980d0f`: Windows x64, macOS arm64, Linux x86_64 — all **success**.
 Acceptance record moved to this revision with the cost estimator recorded as passing and the Cloud
 selection UI still marked not implemented.
+## Item 1 closure: Cloud split-UTF8 defect (2026-11-21)
+
+The Cloud SSE loop buffered decoded text (`pending: String`, `push_str(from_utf8_lossy(&bytes))`), so a
+multi-byte character split across two network chunks became U+FFFD. Only the Local NDJSON path had
+been byte-buffered.
+
+Fixed: `pending` is a `Vec<u8>`, a new `take_sse_line` extracts bytes up to the newline, and the line
+is decoded as a whole with `String::from_utf8`. Invalid UTF-8 is now an error rather than a silent
+replacement, and the mid-frame check inspects bytes.
+
+Three tests: the old per-chunk lossy decode is shown to corrupt the character (the defect), split
+UTF-8 through `take_sse_line` reassembles as `café 🧪`, and invalid UTF-8 is rejected.
+
+151 workspace tests pass; fmt and clippy clean.

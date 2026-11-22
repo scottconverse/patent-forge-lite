@@ -42,6 +42,7 @@ quality or legal correctness.
 | Stop reason allowlist (`stop` / `end_turn` / `stop_sequence`) | unit | pass |
 | Output-limit stop → `Truncated`, no report | unit + installed run | pass |
 | Malformed / mid-frame cloud stream → error | unit | pass |
+| Split UTF-8 across SSE chunks reassembles; invalid UTF-8 is an error, not U+FFFD | unit | pass |
 | Cloud reachable from the desktop | — | **not implemented** |
 
 ## 3. Reference lineage and research
