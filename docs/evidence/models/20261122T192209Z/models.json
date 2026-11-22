@@ -1,0 +1,18 @@
+{
+  "the runtime reports its installed models": {
+    "pass": true,
+    "detail": "(readiness: 2 model(s) available from the runtime.)"
+  },
+  "picking a model fills the model field": {
+    "pass": true,
+    "detail": "(notice: Model mock-model:latest selected.)"
+  },
+  "an unreachable runtime says so": {
+    "pass": true,
+    "detail": "(readiness: Runtime unreachable: provider: Ollama is not reachable on the configured endpoint)"
+  },
+  "and it does not claim an empty runtime": {
+    "pass": true,
+    "detail": "(readiness: Runtime unreachable: provider: Ollama is not reachable on the configured endpoint)"
+  }
+}

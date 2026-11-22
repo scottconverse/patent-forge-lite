@@ -166,7 +166,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | C4 IDS from records only | pass | unit: lineage test |
 | C5 research end to end in the window: opt-out sends nothing, opt-in sends exactly one query, the verified reference is shown on the run | installed + mock, 8/8 twice | pass — `docs/evidence/research/` (JSON, request log, screenshot) |
 | C live PatentsView query | — | **blocked — key** |
-| D1 model picker | partial | list_local_models verified against real runtime; no picker UI |
+| D1 model picker from list_local_models, with readiness stated honestly (count, empty, unreachable) | installed + mock, 4/4 twice | pass — `docs/evidence/models/` |
 | D2 first-run profile choice | partial | profile selectable in Setup; no first-run prompt |
 | D3 tray/lifecycle | not implemented | |
 | D4 Windows upgrade/rollback | not tested | installer exists |

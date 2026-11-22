@@ -77,6 +77,11 @@ pub enum Request {
         path: PathBuf,
         format: ExportFormat,
     },
+    /// Lists the models a loopback runtime reports. An unreachable runtime is an error,
+    /// never an empty list.
+    ListLocalModels {
+        endpoint: String,
+    },
     /// Re-runs the given stage and every later stage of that run, carrying the earlier
     /// stages from the base run. Suffix only.
     RegenerateFrom {
@@ -132,6 +137,7 @@ pub enum Reply {
     Revision(DocumentRevision),
     PackageExported(PathBuf),
     ResearchConfigured,
+    LocalModels(Vec<String>),
     Revisions(Vec<DocumentRevision>),
     Recovered(Vec<RunId>),
     Error(String),
@@ -412,6 +418,10 @@ impl Actor {
                 );
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));
+            }
+            Request::ListLocalModels { endpoint } => {
+                let models = pfl_workflow::list_local_models(&endpoint).await?;
+                self.reply(Reply::LocalModels(models));
             }
             Request::RegenerateFrom { run, stage } => {
                 for id in &self.started_runs {

@@ -36,6 +36,19 @@ try {
             $mode = if ($count -le $limit) { 'complete' } else { 'truncated' }
         }
 
+        # The model list endpoint, so the picker can be exercised without a runtime.
+        if ($context.Request.Url.AbsolutePath -like '*/api/tags') {
+            $tags = $context.Response
+            $tags.StatusCode = 200
+            $tags.ContentType = 'application/json'
+            $payload = '{"models":[{"name":"mock-model:latest"},{"name":"mock-small:7b"}]}'
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
+            $tags.OutputStream.Write($bytes, 0, $bytes.Length)
+            $tags.OutputStream.Flush()
+            $tags.Close()
+            continue
+        }
+
         $response = $context.Response
         $response.StatusCode = 200
         $response.ContentType = 'application/x-ndjson'

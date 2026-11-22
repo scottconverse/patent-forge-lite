@@ -43,6 +43,7 @@ struct Launch {
     replay: bool,
     page: Option<Page>,
     select_latest: bool,
+    local_endpoint: Option<String>,
 }
 
 fn parse_args() -> Result<Option<Launch>> {
@@ -50,12 +51,29 @@ fn parse_args() -> Result<Option<Launch>> {
         replay: false,
         page: None,
         select_latest: false,
+        local_endpoint: None,
     };
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--replay" => launch.replay = true,
             "--select-latest" => launch.select_latest = true,
+            // Loopback only: lets acceptance point the app at a stand-in runtime without
+            // typing into the endpoint field.
+            "--local-endpoint" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| Error::Invalid("--local-endpoint requires a URL".into()))?;
+                let loopback = ["http://127.0.0.1:", "http://localhost:", "http://[::1]:"]
+                    .iter()
+                    .any(|prefix| value.starts_with(prefix));
+                if !loopback {
+                    return Err(Error::Invalid(
+                        "--local-endpoint is for a loopback runtime only".into(),
+                    ));
+                }
+                launch.local_endpoint = Some(value);
+            }
             "--page" => {
                 let value = args.next().ok_or_else(|| {
                     Error::Invalid("--page requires one of: projects, intake, analysis, history, report, setup".into())
@@ -76,7 +94,8 @@ fn parse_args() -> Result<Option<Launch>> {
             }
             "--help" | "-h" => {
                 println!(
-                    "Patent Forge Lite\n  --replay         select synthetic recorded responses (does not start a run)\n  --page <name>    open directly to projects|intake|analysis|history|report|setup\n  --select-latest  select the most recent project and its latest saved run\n\nKeyboard: Ctrl+1..6 pages, Ctrl+S save, Ctrl+Q quit."
+                    "Patent Forge Lite\n  --replay         select synthetic recorded responses (does not start a run)\n  --page <name>    open directly to projects|intake|analysis|history|report|setup\n  --select-latest  select the most recent project and its latest saved run
+  --local-endpoint <url>  loopback runtime to prefill the endpoint field (acceptance)\n\nKeyboard: Ctrl+1..6 pages, Ctrl+S save, Ctrl+Q quit."
                 );
                 return Ok(None);
             }
@@ -155,6 +174,7 @@ pub fn run() -> Result<()> {
                         replay,
                         initial_page,
                         select_latest,
+                        launch.local_endpoint,
                         window,
                         cx,
                     )
@@ -212,6 +232,10 @@ struct Desktop {
     research_key: Entity<TextInput>,
     research_authorized: bool,
     research_configured: bool,
+    /// Models the local runtime reported, newest listing wins.
+    local_models: Vec<String>,
+    /// Honest readiness text for the runtime: a count, or why it could not be asked.
+    local_status: String,
     revisions: Vec<DocumentRevision>,
     /// The last comparison shown, rendered from two stored revisions.
     revision_diff: Option<pfl_workflow::diff::RevisionDiff>,
@@ -242,6 +266,7 @@ impl Desktop {
         replay: bool,
         initial_page: Option<Page>,
         select_latest: bool,
+        launched_endpoint: Option<String>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -267,8 +292,11 @@ impl Desktop {
             TextInput::new(TextBuffer::read_only("No analysis running."), 390., cx)
                 .labelled("Stage output")
         });
+        let endpoint_hint = launched_endpoint
+            .clone()
+            .unwrap_or_else(|| "http://127.0.0.1:11434".into());
         let endpoint = cx.new(|cx| {
-            TextInput::new(TextBuffer::new("http://127.0.0.1:11434", false), 42., cx)
+            TextInput::new(TextBuffer::new(endpoint_hint, false), 42., cx)
                 .labelled("Local endpoint")
         });
         let model = cx.new(|cx| {
@@ -334,6 +362,8 @@ impl Desktop {
             research_key,
             research_authorized: false,
             research_configured: false,
+            local_models: Vec::new(),
+            local_status: "Runtime not queried yet.".into(),
             revisions: Vec::new(),
             revision_diff: None,
             compliance_claims: None,
@@ -487,6 +517,14 @@ impl Desktop {
                     self.state.notice =
                         Some("Execution mode configured. No inference request was sent.".into());
                 }
+                Reply::LocalModels(models) => {
+                    self.local_status = if models.is_empty() {
+                        "The runtime answered, but reports no installed models.".into()
+                    } else {
+                        format!("{} model(s) available from the runtime.", models.len())
+                    };
+                    self.local_models = models;
+                }
                 Reply::ResearchConfigured => {
                     self.state.notice =
                         Some("Research configured. It runs only for a run that opts in.".into());
@@ -517,6 +555,11 @@ impl Desktop {
                     ))
                 }
                 Reply::Error(error) => {
+                    // A failed model listing must read as unreachable, not as an empty
+                    // runtime: readiness stays honest.
+                    if self.local_status.starts_with("Querying the runtime") {
+                        self.local_status = format!("Runtime unreachable: {error}");
+                    }
                     self.state.notice = Some(error);
                     self.pending = false;
                 }
@@ -2318,6 +2361,44 @@ impl Render for Desktop {
                         self.endpoint.clone(),
                     ))
                     .child(self.labelled("ALREADY-INSTALLED MODEL NAME", self.model.clone()))
+                    .child(self.button(
+                        "list-models",
+                        "List installed models",
+                        |this, _, cx| {
+                            let endpoint = this.endpoint.read(cx).buffer.text().to_string();
+                            this.local_status = "Querying the runtime...".into();
+                            this.send(Request::ListLocalModels { endpoint }, cx);
+                        },
+                        cx,
+                    ))
+                    .child(
+                        div()
+                            .id("local-readiness")
+                            .accessibility_id("local-readiness")
+                            .role(Role::Status)
+                            .aria_label(self.local_status.clone())
+                            .text_xs()
+                            .text_color(rgb(theme::MUTED))
+                            .child(self.local_status.clone()),
+                    )
+                    .child({
+                        let mut row = div().flex().flex_row().flex_wrap().gap_2();
+                        for (index, name) in self.local_models.clone().into_iter().enumerate() {
+                            let picked = name.clone();
+                            row = row.child(self.button(
+                                format!("pick-model-{index}"),
+                                name.clone(),
+                                move |this, _, cx| {
+                                    this.model
+                                        .update(cx, |input, cx| input.load(picked.clone(), cx));
+                                    this.state.notice = Some(format!("Model {picked} selected."));
+                                    cx.notify();
+                                },
+                                cx,
+                            ));
+                        }
+                        row
+                    })
                     .child(self.primary_button(
                         "local-mode",
                         "Configure existing local runtime",

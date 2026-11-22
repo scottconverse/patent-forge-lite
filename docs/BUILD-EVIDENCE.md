@@ -810,3 +810,10 @@ The live query remains blocked on a key; nothing here contacts a real provider. 
 
 The Cloud card computes its line from the model the operator typed and now has a documented rate table (cost::pricing_for), so a known model shows the rates that will apply while the total stays unknown until usage arrives; an unknown model says plainly that no rates are configured rather than inventing them. The same line is shown on the Analysis page whenever a paid run is approved. Installed proof 11/11, twice: 'claude-sonnet-4: cost unknown until the run reports usage. Rates applied: 3.00 input and 15.00 output per 1M tokens.'
 
+
+## Phase D (D1 model picker, 2026-11-22)
+
+The Setup local card lists the runtime's installed models, shows each as a pickable control that fills the model field, and states readiness honestly: '2 model(s) available', 'the runtime answered but reports no installed models', or 'Runtime unreachable: ...'. A failed listing is never rendered as an empty runtime. 4/4 twice, evidence under docs/evidence/models/.
+
+Two supporting changes: the Ollama mock now serves /api/tags, and the app accepts --local-endpoint (loopback only) so acceptance can point it at a stand-in runtime without depending on typing into a field that exposes no ValuePattern.
+
