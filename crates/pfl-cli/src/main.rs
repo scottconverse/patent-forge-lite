@@ -805,6 +805,9 @@ async fn main() {
                 | "usage"
                 | "revisions"
                 | "diff"
+                | "legacy-fixture"
+                | "legacy-preview"
+                | "migrate"
         ) {
             return Err(invalid("unknown command; only live performs real inference"));
         }
@@ -825,6 +828,7 @@ async fn main() {
         let mut note = None;
         let mut diff_a = None;
         let mut diff_b = None;
+        let mut source: Option<PathBuf> = None;
         let mut i = 1;
         while i < args.len() {
             match (args[i].as_str(), args.get(i + 1)) {
@@ -850,6 +854,8 @@ async fn main() {
                     from_run = Some(RunId(value.to_string()))
                 }
                 ("--note", Some(value)) if note.is_none() => note = Some(value.to_string()),
+                ("--source", Some(value)) if source.is_none() => source = Some(PathBuf::from(value)),
+                ("--out", Some(value)) if out.is_none() => out = Some(PathBuf::from(value)),
                 ("--a", Some(value)) if diff_a.is_none() => diff_a = Some(RevisionId(value.to_string())),
                 ("--b", Some(value)) if diff_b.is_none() => diff_b = Some(RevisionId(value.to_string())),
                 ("--stage", Some(value)) if stage.is_none() => {
@@ -876,6 +882,31 @@ async fn main() {
             return Err(invalid(
                 "only pipeline and live accept --references and --research-endpoint",
             ));
+        }
+        if command == "legacy-fixture" {
+            let path = out.ok_or_else(|| invalid("legacy-fixture requires --out <path>"))?;
+            pfl_storage::write_legacy_synthetic_fixture(&path)?;
+            println!(
+                "{}",
+                serde_json::json!({ "fixture": path.display().to_string() })
+            );
+            return Ok(());
+        }
+        if command == "legacy-preview" {
+            let source = source.ok_or_else(|| invalid("legacy-preview requires --source <path>"))?;
+            let preview = pfl_storage::preview_legacy_synthetic(&source)?;
+            println!("{}", serde_json::json!(preview));
+            return Ok(());
+        }
+        if command == "migrate" {
+            let source = source.ok_or_else(|| invalid("migrate requires --source <path>"))?;
+            let workspace = workspace.ok_or_else(|| invalid("migrate requires --workspace <dir>"))?;
+            std::fs::create_dir_all(&workspace).map_err(|e| Error::Storage(e.to_string()))?;
+            // The migration writes a NEW workspace beside the source: a backup plus the
+            // activated database, never an in-place edit.
+            let receipt = pfl_storage::migrate_legacy_synthetic(&source, &workspace)?;
+            println!("{}", serde_json::json!(receipt));
+            return Ok(());
         }
         if command == "diff" {
             let workspace = workspace.ok_or_else(|| invalid("--workspace is required"))?;

@@ -573,6 +573,86 @@ impl SqliteStore {
     }
 }
 
+/// What an import would move, computed from the source alone: no destination is
+/// touched, so a preview cannot be mistaken for a commit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportPreview {
+    pub source_identity: String,
+    pub projects: usize,
+    pub runs: usize,
+    pub archived_records: usize,
+    /// Tables the importer preserves verbatim but does not interpret.
+    pub unknown_tables: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+/// Reads the source and reports what an import would carry. Refuses a file that is not
+/// a legacy database, so "nothing to import" is never confused with "not readable".
+pub fn preview_legacy_synthetic(source: &Path) -> Result<ImportPreview> {
+    if !source.exists() {
+        return Err(Error::Invalid(format!(
+            "no legacy database at {}",
+            source.display()
+        )));
+    }
+    let connection =
+        rusqlite::Connection::open_with_flags(source, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(db)?;
+    let identity = identity(&connection)?;
+    let mut tables: Vec<String> = Vec::new();
+    let mut statement = connection
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+        .map_err(db)?;
+    let rows = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(db)?;
+    for row in rows {
+        tables.push(row.map_err(db)?);
+    }
+    let count = |table: &str| -> Result<usize> {
+        let sql = format!("SELECT COUNT(*) FROM \"{table}\"");
+        connection
+            .query_row(&sql, [], |row| row.get::<_, i64>(0))
+            .map(|value| value as usize)
+            .map_err(db)
+    };
+    let projects = if tables.iter().any(|table| table == "Project") {
+        count("Project")?
+    } else {
+        0
+    };
+    let runs = if tables.iter().any(|table| table == "FeasibilityRun") {
+        count("FeasibilityRun")?
+    } else {
+        0
+    };
+    // Everything the importer preserves but does not interpret.
+    let known = [
+        "PFLFixture",
+        "Project",
+        "InventionInput",
+        "FeasibilityRun",
+        "FeasibilityStage",
+    ];
+    let mut unknown_tables: Vec<String> = tables
+        .iter()
+        .filter(|table| !known.contains(&table.as_str()))
+        .cloned()
+        .collect();
+    unknown_tables.sort();
+    let mut archived_records = 0usize;
+    for table in &unknown_tables {
+        archived_records += count(table)?;
+    }
+    Ok(ImportPreview {
+        source_identity: identity,
+        projects,
+        runs,
+        archived_records,
+        unknown_tables,
+        warnings: provenance_warnings(),
+    })
+}
 pub fn migrate_legacy_synthetic(source: &Path, destination: &Path) -> Result<ImportReceipt> {
     migrate_legacy_synthetic_with_options(source, destination, MigrationOptions::default())
 }

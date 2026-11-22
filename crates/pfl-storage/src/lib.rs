@@ -7,8 +7,8 @@ use std::{path::Path, sync::Mutex, time::Duration};
 
 mod migration;
 pub use migration::{
-    ImportReceipt, LEGACY_SYNTHETIC_FIXTURE_SQL, MigrationOptions, MigrationPhase,
-    migrate_legacy_synthetic, migrate_legacy_synthetic_with_options,
+    ImportPreview, ImportReceipt, LEGACY_SYNTHETIC_FIXTURE_SQL, MigrationOptions, MigrationPhase,
+    migrate_legacy_synthetic, migrate_legacy_synthetic_with_options, preview_legacy_synthetic,
     write_legacy_synthetic_fixture,
 };
 

@@ -170,7 +170,7 @@ Status per directive item. Evidence classes: unit, run, installed, mock, CI. A r
 | D2 first-run profile prompt: Full or Lean before the main surface, choice persisted, Lean refuses Local | installed, 6/6 twice | pass — `docs/evidence/first-run/` |
 | D3 single instance refused with its own exit code (3) and a clear reason; quit closes when nothing is pending | installed, 5/5 twice | pass — `docs/evidence/lifecycle/` (the busy-quit guard is covered by the session tests) |
 | D4 Windows install v0.1.0, upgrade to the candidate, roll back, with the workspace inventory unchanged at each step | run, 11/11 twice | pass — `docs/evidence/upgrade/` |
-| E1 copy-first importer | partial | synthetic importer tested; real path absent |
+| E1 copy-first importer: fixture, preview counts, provenance warnings, archive preserved, re-runnable, source untouched, missing source refused | run, 15/15 twice | pass — `docs/evidence/migration/` |
 | E2 real database import | blocked | authorization + database needed |
 | E3 credential re-entry | not implemented | |
 | E4 API contract + docs | partial | docs exist; contracts unverified |

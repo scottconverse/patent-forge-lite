@@ -843,3 +843,10 @@ After each step the binary hash changes (or returns) and the workspace inventory
 
 Two things learned the hard way: Inno resolves {localappdata} from the shell folder rather than the environment, so an early attempt installed into the real per-user location; that copy was removed immediately and the script now always passes /DIR and uninstalls at the end. And pfl-cli writes patent-forge-lite.sqlite for its synthetic workspace while the application uses projects.sqlite3, so retention is seeded through seed-profile.ps1, which writes the database the app actually reads.
 
+
+## Phase E (E1 copy-first importer, 2026-11-22)
+
+Three CLI commands now expose the migration that existed behind the storage API: legacy-fixture writes authored legacy data at a new path, legacy-preview reports what an import would carry without touching a destination, and migrate performs the copy-first import and prints its receipt.
+
+The proof creates the fixture, hashes it, previews (1 project, 2 runs, 16 archive-only records across 12 uninterpreted tables, with the three provenance warnings), imports (1 project, 2 runs, 30 records, backup written, new database activated), inspects the result, imports again (repeated, nothing duplicated), and confirms the source hash never changes. A missing source is an error, not an empty import. 15/15, twice, evidence under docs/evidence/migration/.
+
