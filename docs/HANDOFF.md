@@ -58,6 +58,8 @@ minutes is wedged: cancel it (`gh run cancel`) and dispatch again.
 status and evidence class. `docs/BUILD-EVIDENCE.md` holds the chronological
 trail, including the failures and the corrections of earlier false claims.
 
+Recent additions: `pfl-cli diff` between stored revisions (run-verified), PatentsView adapter with opt-in/opt-out integration tests and Setup controls, and corrections to the Cloud and research claims the code had invalidated.
+
 Summary: Phase A complete except A5; Phase B engine complete except B5 execution
 (design-blocked); Phase C adapter, opt-in and desktop controls done, live query
 blocked on a PatentsView key; Phases D–G largely open.
