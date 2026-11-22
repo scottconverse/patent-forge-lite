@@ -903,42 +903,6 @@ async fn main() {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_missing_reference_list_is_empty_and_silent() {
-        assert!(load_references(None).unwrap().is_empty());
-    }
-
-    #[test]
-    fn a_malformed_reference_file_is_refused_rather_than_emptied() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("refs.json");
-        std::fs::write(&path, "not json").unwrap();
-        let error = load_references(Some(path)).unwrap_err();
-        assert!(error.to_string().contains("JSON array"));
-    }
-
-    #[test]
-    fn a_reference_file_is_parsed_into_structured_records() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("refs.json");
-        std::fs::write(
-            &path,
-            r#"[{"reference":"US-1","title":"T","assignee":"A","verified":true}]"#,
-        )
-        .unwrap();
-        let items = load_references(Some(path)).unwrap();
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].assignee, "A");
-        assert!(items[0].verified);
-    }
-}
-
-/// Prints a deterministic structural report for a claim file. Exits non-zero when
-/// the set contains errors, so it can gate a pipeline.
 fn validate_claims(path: PathBuf) -> Result<()> {
     let text = std::fs::read_to_string(&path)
         .map_err(|e| Error::Io(format!("cannot read {}: {e}", path.display())))?;
@@ -1038,4 +1002,38 @@ async fn write_package(
         })
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_missing_reference_list_is_empty_and_silent() {
+        assert!(load_references(None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_malformed_reference_file_is_refused_rather_than_emptied() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("refs.json");
+        std::fs::write(&path, "not json").unwrap();
+        let error = load_references(Some(path)).unwrap_err();
+        assert!(error.to_string().contains("JSON array"));
+    }
+
+    #[test]
+    fn a_reference_file_is_parsed_into_structured_records() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("refs.json");
+        std::fs::write(
+            &path,
+            r#"[{"reference":"US-1","title":"T","assignee":"A","verified":true}]"#,
+        )
+        .unwrap();
+        let items = load_references(Some(path)).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].assignee, "A");
+        assert!(items[0].verified);
+    }
 }
