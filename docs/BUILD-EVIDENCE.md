@@ -663,3 +663,8 @@ pfl-cli revisions prints every stored revision for a workspace with its kind, id
 
 pfl_workflow::diff computes a deterministic line diff between two revision texts using a longest-common-subsequence table, with added/removed counts and a compact render for the CLI or a review screen. Six tests: identical texts (no phantom line from a trailing newline), insertion, deletion, replacement, determinism of both the structure and the rendering, and empty inputs. No timestamps or hashing, so the same two texts always produce the same output.
 
+
+## Phase B (B4 revision HTML export, 2026-11-21)
+
+The package now emits claims.html and application.html alongside the markdown, each escaping the revision text into a pre block and naming the revision id and version. A test asserts escaping (angle brackets, ampersand, quotes), that raw markup cannot leak, that re-exporting the same revision produces identical bytes, and that the manifest carries the html file hash.
+

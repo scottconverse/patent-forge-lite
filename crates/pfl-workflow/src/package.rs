@@ -105,6 +105,32 @@ fn revision_markdown(revision: &DocumentRevision) -> String {
     )
 }
 
+/// Escapes text for an HTML `<pre>` block. Deterministic: no timestamps or ids
+/// generated here, only what the revision already carries.
+fn escape_html(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+fn revision_html(revision: &DocumentRevision) -> String {
+    format!(
+        "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>{kind} revision {version}</title></head><body>\n<p class=\"meta\">{kind} revision {version} · {id}</p>\n<pre>{body}</pre>\n</body></html>\n",
+        kind = revision.kind.slug(),
+        version = revision.version,
+        id = revision.id.0,
+        body = escape_html(revision.text.trim_end()),
+    )
+}
+
 /// Builds the package for the selected revisions.
 ///
 /// `compliance` is the saved findings text, when a review was run against these
@@ -134,6 +160,10 @@ pub fn build_package(
             name: "claims.md".into(),
             bytes: revision_markdown(revision).into_bytes(),
         });
+        files.push(PackageFile {
+            name: "claims.html".into(),
+            bytes: revision_html(revision).into_bytes(),
+        });
         revisions.push(ManifestRevision {
             kind: "claims".into(),
             revision_id: revision.id.0.clone(),
@@ -150,6 +180,10 @@ pub fn build_package(
         files.push(PackageFile {
             name: "application.md".into(),
             bytes: revision_markdown(revision).into_bytes(),
+        });
+        files.push(PackageFile {
+            name: "application.html".into(),
+            bytes: revision_html(revision).into_bytes(),
         });
         revisions.push(ManifestRevision {
             kind: "application".into(),
@@ -279,6 +313,31 @@ mod tests {
         assert!(with.iter().any(|f| f.name == "compliance-findings.md"));
     }
 
+    #[test]
+    fn html_exports_escape_the_text_and_are_byte_stable() {
+        let claims = revision(DocumentKind::Claims, 2, "1. A <b>thing</b> & \"quoted\".");
+        let first = build_package("Fixture", Some(&claims), None, &[], None).unwrap();
+        let second = build_package("Fixture", Some(&claims), None, &[], None).unwrap();
+        let html = file(&first, "claims.html");
+        let text = String::from_utf8(html.bytes.clone()).unwrap();
+        assert!(text.contains("&lt;b&gt;thing&lt;/b&gt;"));
+        assert!(text.contains("&amp;"));
+        assert!(text.contains("&quot;quoted&quot;"));
+        assert!(
+            !text.contains("<b>thing</b>"),
+            "raw markup must not leak into the document"
+        );
+        // Re-exporting the same revision reproduces identical bytes.
+        assert_eq!(file(&second, "claims.html").bytes, html.bytes);
+        let manifest: PackageManifest =
+            serde_json::from_slice(&file(&first, "manifest.json").bytes).unwrap();
+        let entry = manifest
+            .files
+            .iter()
+            .find(|entry| entry.name == "claims.html")
+            .expect("the manifest names the html file");
+        assert_eq!(entry.sha256, hex(&html.bytes));
+    }
     #[test]
     fn an_empty_selection_is_refused() {
         let error = build_package("Fixture", None, None, &[], None).unwrap_err();
