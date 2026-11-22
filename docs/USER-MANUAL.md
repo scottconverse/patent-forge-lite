@@ -203,10 +203,11 @@ Open **Setup**. Nothing here sends a request by itself; it only decides what *ma
 Start with replay. It is instant, deterministic and free, and it lets you learn the interface
 without a model.
 
-> **Cloud is not wired into the desktop yet.** The adapter, cost gate and fail-closed authorization
-> exist in the engine, but the application offers only **Recorded replay** and **Local**. There is no
-> Cloud selection, no API-key entry and no Cloud run path in the UI. Because of that, the **Lean**
-> profile — Cloud-only by definition — currently has no usable execution mode.
+> **Cloud is wired in, with a session-only key.** Execution setup offers **Cloud (Anthropic)**: enter a
+> model and an API key, click **Configure Cloud with this key**, and approve the paid request per run.
+> The key is held in memory for the session only — it is never written to the profile, a run, an
+> export or a log. The cost line states that the cost is *unknown until the run reports usage*, with
+> the rates that will apply; no figure is invented in advance.
 
 To configure local inference:
 
@@ -235,8 +236,8 @@ contained. A run with neither declaration is refused before any provider call.
 
 | Profile | Meaning | Usable today? |
 | --- | --- | --- |
-| **Lean** | Cloud-only. A local runtime is refused outright. | **No** — Cloud is not selectable in the desktop |
-| **Full** | Local and Cloud both available. | Yes, for Local and replay |
+| **Lean** | Cloud-only. A local runtime is refused outright. | Yes, for Cloud and replay |
+| **Full** | Local and Cloud both available. | Yes, for Local, Cloud and replay |
 
 Cloud calls additionally require explicit **paid** authorization for each run; without it, the run
 is refused before any request leaves the machine. There is no silent fallback between providers.
@@ -465,7 +466,7 @@ JSON array. A failed search is an error, never an empty result.
 - macOS and Linux builds are **unsigned**. Windows is signed with Azure Trusted Signing.
 - macOS and Linux are offered as **artifacts**, not verified support: no installed or interactive
   acceptance has been performed on either platform.
-- Cloud execution is **not available in the desktop**; `pfl-cli serve` is **replay-only**.
+- Cloud execution is **available in the desktop** with a session-only key and per-run paid approval; `pfl-cli serve` remains **replay-only**.
 - `pfl-cli` is **not bundled** in the installer.
 - No installed/interactive acceptance has been performed on macOS or Linux yet.
 - Real-invention runs are **Local-only**: replay is synthetic by construction and Cloud is not
