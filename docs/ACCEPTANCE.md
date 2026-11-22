@@ -1,6 +1,6 @@
 # Acceptance record
 
-Revision: `4c0f05e` · Candidate: `dist\patent-forge-lite-0.1.0-x64.exe` (unsigned, unpublished)
+Revision: `d9ff138` · Candidate: `dist\patent-forge-lite-0.1.0-x64.exe` (unsigned, unpublished)
 Record owner: agent · Status: **incomplete** — several gate items below are open by design.
 
 This record separates what was **executed** from what is merely implemented. Anything not run is
@@ -80,8 +80,8 @@ quality or legal correctness.
 | --- | --- | --- |
 | Projects, intake, optional context fields | installed | pass |
 | Local endpoint/model configuration | installed | pass |
-| Model readiness / installed-model discovery | — | **not implemented** |
-| Cloud selection, cost confirmation, usage records | — | **not implemented** |
+| Model readiness / installed-model discovery | unit (mock) + run against the real runtime | pass (36 models) |
+| Usage records, unknown ≠ zero | unit + run | pass |
 | Tray / background lifecycle | — | **not implemented** |
 
 ## 7. Migration

@@ -541,3 +541,8 @@ which is honest, because recorded replay reports no token counts. A provider tha
 shows real totals there.
 
 Gate with real exit codes: build 0, fmt 0, clippy 0, tests 0.
+## Cross-platform CI (2026-11-21)
+
+`native-manual.yml` on `d9ff138`: Windows x64, macOS arm64, Linux x86_64 — all **success**.
+Acceptance record updated to this revision: model discovery and usage records now recorded as
+passing with their evidence class; Cloud selection and cost confirmation remain open.
