@@ -1,0 +1,55 @@
+{
+  "revision": "9c257ef",
+  "when": "20261122T212543Z",
+  "binary": "C:\\Users\\scott\\Documents\\Codex\\PatentForgeLite\\target\\native\\debug\\pfl-desktop.exe",
+  "scripts": {
+    "acceptance-check": {
+      "pass": true,
+      "detail": "RESULT: 6 passed, 0 failed"
+    },
+    "api-proof": {
+      "pass": true,
+      "detail": "RESULT: 13 passed, 0 failed"
+    },
+    "migration-proof": {
+      "pass": true,
+      "detail": "RESULT: 16 passed, 0 failed"
+    },
+    "models-proof": {
+      "pass": false,
+      "detail": "exit 1"
+    },
+    "first-run-proof": {
+      "pass": true,
+      "detail": "RESULT: 6 passed, 0 failed"
+    },
+    "lifecycle-proof": {
+      "pass": true,
+      "detail": "RESULT: 5 passed, 0 failed"
+    },
+    "editing-proof": {
+      "pass": false,
+      "detail": "exit 1"
+    },
+    "research-proof": {
+      "pass": false,
+      "detail": "exit 1"
+    },
+    "cloud-consent-proof": {
+      "pass": false,
+      "detail": "exit 1"
+    },
+    "installed-local-proof": {
+      "pass": false,
+      "detail": "exit 1"
+    },
+    "ui-acceptance": {
+      "pass": false,
+      "detail": "exit 1"
+    },
+    "upgrade-proof": {
+      "pass": true,
+      "detail": "RESULT: 11 passed, 0 failed"
+    }
+  }
+}

@@ -881,3 +881,10 @@ The check was tested against a deliberately broken copy: a wrong summary count, 
 
 The self-check immediately earned its place: on its first CI run it failed the build because the summary still said 54 pass while the rows said 55 -- the row added in the same commit had not been counted. The number is corrected and the check passes again.
 
+
+## Phase G (consolidated run, 2026-11-22)
+
+scripts/full-evidence.ps1 runs every proof against one revision and writes one summary. First attempt: 6 of 12 passed. The cause was real and worth recording -- adding the first-run profile prompt (D2) meant a seeded profile showed that prompt instead of the main surface, so every installed proof stalled. pfl-cli settings --database <db> --profile full --mark-chosen now exists, seed-profile.ps1 uses it, and eleven of twelve scripts then passed.
+
+The twelfth is a genuine regression: cloud-consent-proof fails three checks at this revision after the Setup page grew. Invoking the configure control directly still produces its own message ('Cloud needs an API key for this session before a run can start'), so the control works and the automation does not. The acceptance row is marked open rather than left as a pass, and the earlier 7/7 evidence is retained with that caveat.
+

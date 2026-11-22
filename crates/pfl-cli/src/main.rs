@@ -808,6 +808,7 @@ async fn main() {
                 | "legacy-fixture"
                 | "legacy-preview"
                 | "migrate"
+                | "settings"
         ) {
             return Err(invalid("unknown command; only live performs real inference"));
         }
@@ -829,6 +830,8 @@ async fn main() {
         let mut diff_a = None;
         let mut diff_b = None;
         let mut source: Option<PathBuf> = None;
+        let mut setup_profile: Option<String> = None;
+        let mut mark_chosen = false;
         let mut i = 1;
         while i < args.len() {
             match (args[i].as_str(), args.get(i + 1)) {
@@ -855,6 +858,8 @@ async fn main() {
                 }
                 ("--note", Some(value)) if note.is_none() => note = Some(value.to_string()),
                 ("--source", Some(value)) if source.is_none() => source = Some(PathBuf::from(value)),
+                ("--profile", Some(value)) => setup_profile = Some(value.to_string()),
+                ("--mark-chosen", None) => mark_chosen = true,
                 ("--out", Some(value)) if out.is_none() => out = Some(PathBuf::from(value)),
                 ("--a", Some(value)) if diff_a.is_none() => diff_a = Some(RevisionId(value.to_string())),
                 ("--b", Some(value)) if diff_b.is_none() => diff_b = Some(RevisionId(value.to_string())),
@@ -882,6 +887,34 @@ async fn main() {
             return Err(invalid(
                 "only pipeline and live accept --references and --research-endpoint",
             ));
+        }
+        if command == "settings" {
+            let database = database.ok_or_else(|| invalid("settings requires --database <path>"))?;
+            let store = SqliteStore::open(Path::new(&database))?;
+            let mut settings = store.settings()?;
+            let profile_requested = setup_profile.is_some();
+            if let Some(value) = setup_profile.clone() {
+                settings.profile = match value.to_ascii_lowercase().as_str() {
+                    "full" => SetupProfile::Full,
+                    "lean" => SetupProfile::Lean,
+                    other => {
+                        return Err(invalid(&format!(
+                            "--profile must be full or lean, not {other}"
+                        )));
+                    }
+                };
+            }
+            if mark_chosen {
+                settings.profile_chosen = true;
+            }
+            if profile_requested || mark_chosen {
+                store.save_settings(&settings)?;
+            }
+            println!("{}", serde_json::json!({
+                "profile": format!("{:?}", settings.profile),
+                "profile_chosen": settings.profile_chosen,
+            }));
+            return Ok(());
         }
         if command == "legacy-fixture" {
             let path = out.ok_or_else(|| invalid("legacy-fixture requires --out <path>"))?;

@@ -64,6 +64,10 @@ foreach ($suffix in @('-wal', '-shm')) {
         Remove-Item "$db$suffix" -Force -ErrorAction SilentlyContinue
     }
 }
+# A seeded profile is a configured workspace, not a first run: without this the app
+# correctly shows the first-run profile prompt and every installed proof stalls there.
+& $cli settings --database $db --profile full --mark-chosen | Out-Null
+
 # Never copy the CLI's workspace lock file; the app takes its own.
 if (Test-Path (Join-Path $data 'projects.lock')) { Remove-Item (Join-Path $data 'projects.lock') -Force }
 

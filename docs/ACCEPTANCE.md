@@ -19,12 +19,12 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 55 |
+| pass | 54 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
 | blocked — authorization | 1 |
-| open defect | 1 |
+| open defect | 2 |
 
 ## Phase A — Cloud correctness and consent
 
@@ -38,7 +38,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Cloud mode at the session layer; key held in memory for the session only | unit, session tests | pass |
 | Cloud start refused without explicit paid approval | unit, session tests | pass |
 | Paid approval control present in the window; run refused without it | installed | pass |
-| Declining sends zero requests; approval reaches the provider | installed + mock, 7/7 twice | pass — `docs/evidence/cloud-consent/` (JSON with `requests: 0`, plus the request log) |
+| Declining sends zero requests; approval reaches the provider | installed + mock | **open** — the proof passed 7/7 twice at earlier revisions but fails 3 of its checks at this one after the Setup page grew; invoking the configure control directly still returns its own error, so the control works and the automation does not. Evidence for the earlier passes remains in `docs/evidence/cloud-consent/`. |
 | No fallback: a failed Cloud call makes exactly one request and leaves no checkpoint | unit, `consent.rs` | pass |
 | Loopback-only verification hook; a non-loopback Cloud endpoint is refused | unit | pass |
 | Lean refuses a local runtime with a clear message | unit, `consent.rs` | pass |

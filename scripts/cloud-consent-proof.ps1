@@ -114,14 +114,15 @@ function Scroll([int]$ticks, [int]$direction = -120) {
     $w = Get-Window
     if (-not $w) { return }
     $r = $w.Current.BoundingRectangle
-    [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point ([int]($r.X + $r.Width / 2)), ([int]($r.Y + $r.Height / 2))
+    # Point at the content column, not the window centre: the right-hand panel does not
+    [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point ([int]($r.X + $r.Width * 0.4)), ([int]($r.Y + $r.Height * 0.6))
     for ($i = 0; $i -lt $ticks; $i++) {
         [PflInput]::mouse_event(0x0800, 0, 0, $direction, [IntPtr]::Zero)
         Start-Sleep -Milliseconds 130
     }
 }
 function Bring-Into-View($element) {
-    for ($attempt = 0; $attempt -lt 12; $attempt++) {
+    for ($attempt = 0; $attempt -lt 40; $attempt++) {
         $win = Get-Window
         if (-not $win) { return }
         $w = $win.Current.BoundingRectangle
@@ -159,6 +160,23 @@ function Invoke-Named([string]$name) {
         Click-Element $el
     }
 }
+# A pointer click on a named control. Needed after typing: the text field keeps focus,
+# and an Invoke on a button while a field has focus is swallowed.
+function Click-Named([string]$name) {
+    $el = Find-ByName $name
+    if (-not $el) { $el = Find-Contains $name }
+    if (-not $el) { throw "element not found: $name" }
+    Bring-Into-View $el
+    Focus-App
+    $r = $el.Current.BoundingRectangle
+    [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point ([int]($r.X + $r.Width / 2)), ([int]($r.Y + $r.Height / 2))
+    Start-Sleep -Milliseconds 150
+    [PflInput]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 60
+    [PflInput]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 900
+}
+
 function Set-Field([string]$id, [string]$value) {
     $field = Wait-ById $id
     if (-not $field) { throw "field missing: $id" }
@@ -194,7 +212,7 @@ Record 'synthetic data declared' ([bool](Find-Contains '✓  Synthetic test data
 Bring-Into-View (Wait-ById 'input-Cloud model name')
 Set-Field 'input-Cloud model name' 'claude-mock'
 Set-Field 'input-Cloud API key' 'sk-ant-session-only-test'
-Invoke-Named 'Configure Cloud with this key'
+Click-Named 'Configure Cloud with this key'
 $deadline = (Get-Date).AddSeconds(12)
 while ((Get-Date) -lt $deadline -and (Notice) -notlike '*Execution mode configured*') { Start-Sleep -Milliseconds 250 }
 Record 'Cloud configured against the loopback endpoint' ((Notice) -like '*Execution mode configured*') "(notice: $(Notice))"
