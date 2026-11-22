@@ -420,6 +420,29 @@ Endpoints and auth semantics are documented in [API.md](API.md).
 `live` performs **real inference**. It requires an endpoint and model you name, uses synthetic input
 only, and never downloads a model.
 
+### Manual references and opt-in research
+
+Both `pipeline` and `live` accept:
+
+```
+--references refs.json          # manual prior-art records
+--research-endpoint https://…   # opt-in live retrieval (documented JSON contract)
+```
+
+`refs.json` is a JSON array of records; any parse error is refused rather than becoming an empty
+set:
+
+```json
+[{ "reference": "US-2023-0312345-B2", "title": "Container with integrated temperature indicator",
+   "assignee": "Example Sensors Inc.", "filing_date": "2023-03-14", "grant_date": "2024-01-09",
+   "cpc": "G01K 1/02", "relevance": "Temperature sensing container", "verified": true }]
+```
+
+The set is recorded in the feasibility run and inherited by every downstream workflow; the
+Information Disclosure Statement is assembled from those records only. `--research-endpoint` points
+at any service implementing the documented contract: `GET {endpoint}?q=&limit=` returning that same
+JSON array. A failed search is an error, never an empty result.
+
 ---
 
 ## 13. Privacy and safety

@@ -408,3 +408,20 @@ no cost.
 
 Still to do for Item 2: desktop entry for manual references and the research endpoint, and a real
 provider adapter chosen with Scott (API key/terms decision).
+## Item 2 (entry points): CLI manual references and opt-in research (2026-11-21)
+
+`pfl-cli pipeline|live` now accept `--references <json>` and `--research-endpoint <url>`.
+
+- A reference file is parsed strictly: a malformed file is refused, never treated as an empty set
+  (three unit tests).
+- The set is passed to the feasibility run via `start_workflow_with_prior_art`, so every downstream
+  workflow inherits it.
+- When an endpoint is given, the service is built with `HttpResearchSource` and research is
+  authorized for the run; settings record the endpoint.
+
+Verified by a real pipeline run with two manual records: all four workflows completed (19 stages)
+and the generated application report contains both records in the IDS with title, dates, assignee,
+CPC, source and `Verified` status.
+
+Still open for Item 2: a desktop entry point for references and the research endpoint, and choice of
+a real provider (needs Scott's decision on provider and API access).

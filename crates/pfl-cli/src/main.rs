@@ -1,7 +1,10 @@
 use async_trait::async_trait;
 use pfl_domain::*;
 use pfl_storage::SqliteStore;
-use pfl_workflow::{OllamaProvider, ReplayProvider, WorkflowService, export_html, export_markdown};
+use pfl_workflow::{
+    HttpResearchSource, OllamaProvider, ReplayProvider, ResearchSource, WorkflowService,
+    export_html, export_markdown,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
@@ -476,25 +479,48 @@ impl Provider for CountingProvider {
 
 /// Runs every workflow in dependency order on one synthetic project, then
 /// reopens the profile and proves nothing regenerated. Recorded responses only.
-async fn pipeline(workspace: PathBuf) -> Result<()> {
+async fn pipeline(
+    workspace: PathBuf,
+    references: Option<PathBuf>,
+    research_endpoint: Option<String>,
+) -> Result<()> {
     journeys(
         workspace,
         Arc::new(ReplayProvider::all_workflows()),
         "synthetic_recorded_replay",
         Duration::from_secs(120),
         None,
+        load_references(references)?,
+        research_endpoint,
     )
     .await
 }
 
 /// The shared four-workflow journey. `live` passes a real provider here; the
 /// only differences are the provider, the timeout and the recorded mode label.
+/// Reads a manual reference set: a JSON array of prior-art records.
+///
+/// The file is the operator's own input, so it is parsed strictly and refused on
+/// any error rather than silently becoming an empty set.
+fn load_references(path: Option<PathBuf>) -> Result<Vec<PriorArtItem>> {
+    let Some(path) = path else {
+        return Ok(Vec::new());
+    };
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| Error::Io(format!("cannot read references {}: {e}", path.display())))?;
+    let items: Vec<PriorArtItem> = serde_json::from_str(&text)
+        .map_err(|e| Error::Invalid(format!("references must be a JSON array of records: {e}")))?;
+    Ok(items)
+}
+
 async fn journeys(
     workspace: PathBuf,
     provider: Arc<dyn Provider>,
     mode: &str,
     run_timeout: Duration,
     local_setup: Option<(String, String)>,
+    references: Vec<PriorArtItem>,
+    research_endpoint: Option<String>,
 ) -> Result<()> {
     let mut marker = create_workspace(&workspace)?;
     let database = workspace.join(&marker.database);
@@ -506,11 +532,26 @@ async fn journeys(
             .map_err(|e| Error::Storage(e.to_string()))??,
     );
     let counter = CountingProvider::new(provider);
-    let service = WorkflowService::new(
-        store.clone(),
-        counter.clone(),
-        tokio::runtime::Handle::current(),
-    );
+    let service = match &research_endpoint {
+        Some(endpoint) => WorkflowService::new_with_research(
+            store.clone(),
+            counter.clone(),
+            tokio::runtime::Handle::current(),
+            Some(Arc::new(HttpResearchSource::new(endpoint.clone(), None)?)
+                as Arc<dyn ResearchSource>),
+        ),
+        None => WorkflowService::new(
+            store.clone(),
+            counter.clone(),
+            tokio::runtime::Handle::current(),
+        ),
+    };
+    if research_endpoint.is_some() {
+        let mut settings = service.settings().await?;
+        settings.profile = SetupProfile::Full;
+        settings.research_endpoint = research_endpoint.clone();
+        service.save_settings(settings).await?;
+    }
     if let Some((endpoint, model)) = &local_setup {
         // Selecting a local runtime is a Full-setup choice; Lean is Cloud-only.
         let mut settings = service.settings().await?;
@@ -524,18 +565,28 @@ async fn journeys(
     write_marker(&workspace, &marker)?;
     let mut runs = Vec::new();
     for kind in WorkflowKind::ALL {
-        let run = service
-            .start_workflow(
-                project.id.clone(),
-                kind,
-                format!("pipeline-{}", kind.slug()),
-                Authorization {
-                    synthetic_data: true,
-                    local_inference: local_setup.is_some(),
-                    ..Authorization::default()
-                },
-            )
-            .await?;
+        let authorization = Authorization {
+            synthetic_data: true,
+            local_inference: local_setup.is_some(),
+            research: research_endpoint.is_some(),
+            ..Authorization::default()
+        };
+        let key = format!("pipeline-{}", kind.slug());
+        let run = if references.is_empty() {
+            service
+                .start_workflow(project.id.clone(), kind, key, authorization)
+                .await?
+        } else {
+            service
+                .start_workflow_with_prior_art(
+                    project.id.clone(),
+                    kind,
+                    key,
+                    authorization,
+                    references.clone(),
+                )
+                .await?
+        };
         let completed = wait_terminal_for(&service, &run.id, run_timeout).await?;
         if completed.outcome != RunOutcome::Completed
             || completed
@@ -659,7 +710,13 @@ async fn serve(workspace: PathBuf, addr: String) -> Result<()> {
 /// Runs every workflow against an explicitly selected on-machine Ollama
 /// endpoint/model, with synthetic input only. This is the only command that
 /// performs real inference; it never downloads a model and never falls back.
-async fn live(workspace: PathBuf, endpoint: String, model: String) -> Result<()> {
+async fn live(
+    workspace: PathBuf,
+    endpoint: String,
+    model: String,
+    references: Option<PathBuf>,
+    research_endpoint: Option<String>,
+) -> Result<()> {
     let provider = Arc::new(OllamaProvider::new(&endpoint, &model)?);
     let on_machine = provider.is_on_machine();
     let started = std::time::Instant::now();
@@ -669,6 +726,8 @@ async fn live(workspace: PathBuf, endpoint: String, model: String) -> Result<()>
         "live_local_inference",
         Duration::from_secs(3600),
         Some((endpoint.clone(), model.clone())),
+        load_references(references)?,
+        research_endpoint,
     )
     .await?;
     eprintln!(
@@ -738,6 +797,8 @@ async fn main() {
         let mut endpoint = None;
         let mut model = None;
         let mut database = None;
+        let mut references = None;
+        let mut research_endpoint = None;
         let mut i = 1;
         while i < args.len() {
             match (args[i].as_str(), args.get(i + 1)) {
@@ -746,6 +807,10 @@ async fn main() {
                 ("--addr", Some(value)) if addr.is_none() => addr = Some(value.to_string()),
                 ("--endpoint", Some(value)) if endpoint.is_none() => endpoint = Some(value.to_string()),
                 ("--model", Some(value)) if model.is_none() => model = Some(value.to_string()),
+                ("--references", Some(value)) if references.is_none() => references = Some(PathBuf::from(value)),
+                ("--research-endpoint", Some(value)) if research_endpoint.is_none() => {
+                    research_endpoint = Some(value.to_string())
+                }
                 ("--stage", Some(value)) if stage.is_none() => {
                     stage = Some(value.parse::<usize>().map_err(|_| invalid("invalid pause stage"))?);
                 }
@@ -764,6 +829,13 @@ async fn main() {
         if (endpoint.is_some() || model.is_some()) && command != "live" {
             return Err(invalid("only live accepts --endpoint and --model"));
         }
+        if (references.is_some() || research_endpoint.is_some())
+            && !matches!(command, "pipeline" | "live")
+        {
+            return Err(invalid(
+                "only pipeline and live accept --references and --research-endpoint",
+            ));
+        }
         if command == "inspect" {
             return inspect(
                 database.ok_or_else(|| invalid("inspect requires --database"))?,
@@ -772,7 +844,7 @@ async fn main() {
         }
         let workspace = workspace.ok_or_else(|| invalid("--workspace is required"))?;
         if command == "pipeline" {
-            return pipeline(workspace).await;
+            return pipeline(workspace, references, research_endpoint).await;
         }
         if command == "serve" {
             return serve(workspace, addr.unwrap_or_else(|| "127.0.0.1:4330".into())).await;
@@ -782,6 +854,8 @@ async fn main() {
                 workspace,
                 endpoint.ok_or_else(|| invalid("live requires --endpoint"))?,
                 model.ok_or_else(|| invalid("live requires --model"))?,
+                references,
+                research_endpoint,
             )
             .await;
         }
@@ -790,5 +864,39 @@ async fn main() {
     if let Err(error) = result {
         eprintln!("{error}");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_missing_reference_list_is_empty_and_silent() {
+        assert!(load_references(None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_malformed_reference_file_is_refused_rather_than_emptied() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("refs.json");
+        std::fs::write(&path, "not json").unwrap();
+        let error = load_references(Some(path)).unwrap_err();
+        assert!(error.to_string().contains("JSON array"));
+    }
+
+    #[test]
+    fn a_reference_file_is_parsed_into_structured_records() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("refs.json");
+        std::fs::write(
+            &path,
+            r#"[{"reference":"US-1","title":"T","assignee":"A","verified":true}]"#,
+        )
+        .unwrap();
+        let items = load_references(Some(path)).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].assignee, "A");
+        assert!(items[0].verified);
     }
 }
