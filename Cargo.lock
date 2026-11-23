@@ -3772,6 +3772,7 @@ name = "pfl-desktop"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "axum",
  "gpui",
  "gpui_platform",
  "pfl-domain",

@@ -925,3 +925,10 @@ A headless probe of ConfigureCloud shows the session actor replying in about 20 
 
 A5 stays blocked -- harness. What remains unexplained is narrower than before: the window reaches Configure Cloud and configures (the notice and the cost line both follow the typed model), but pressing Start in that script never reaches the handler. The local proof's Start works at the same revision, so the difference is in this script's state, not the actor.
 
+
+## A5's substance, proven headlessly (2026-11-23)
+
+tests/cloud_consent.rs drives the session actor against a loopback SSE stand-in: configuring Cloud, creating a project, starting with paid approval off (refused, zero requests to the stand-in), then starting with approval on. The approved run completes with six checkpoints and exactly six requests -- one per stage, no retries, no fallback. This is the decline-and-approve pair the installed window proof could not demonstrate.
+
+Two mistakes of mine were needed to get here, both worth recording: the first version hung because a tokio test starved the actor's own runtime (the fix is a plain #[test] with the mock on its own runtime thread), and the second failed because the stand-in was given a full /v1/messages path while the provider appends that path itself. The run that proved it reports '0 requests declined, 6 approved'.
+
