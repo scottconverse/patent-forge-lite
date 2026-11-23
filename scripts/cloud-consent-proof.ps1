@@ -205,10 +205,12 @@ function Select-Feasibility-Run {
     Start-Sleep -Milliseconds 900
 }
 function Start-Until([string]$expected) {
+    $seen = $false
     for ($attempt = 0; $attempt -lt 4; $attempt++) {
-        $button = Find-ByName 'Start new version'
-        if (-not $button) { $button = Find-Contains 'Start new version' }
+        $button = Find-Contains 'Start new version'
+        if (-not $button) { $button = Find-ByName 'Start new version' }
         if ($button) {
+            $seen = $true
             Bring-Into-View $button
             $patterns = @($button.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })
             if ($patterns -contains 'InvokePatternIdentifiers.Pattern') {
@@ -222,8 +224,8 @@ function Start-Until([string]$expected) {
             if ((Notice) -like "*$expected*") { return }
         }
     }
+    throw ("Start did not take effect; button seen: {0}; notice: {1}" -f $seen, (Notice))
 }
-
 function Start-Key {
     Focus-App
     Start-Sleep -Milliseconds 250

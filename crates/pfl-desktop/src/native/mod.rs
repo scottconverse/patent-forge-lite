@@ -618,6 +618,9 @@ impl Desktop {
 
     fn save(&mut self, cx: &mut Context<Self>) {
         if self.pending {
+            // Silently ignoring the action looks like a broken button, so say why nothing
+            // happened instead.
+            self.state.notice = Some("Another request is still in flight; wait for it to finish.".into());
             return;
         }
         let intake = self.intake(cx);
@@ -631,6 +634,8 @@ impl Desktop {
 
     fn start(&mut self, cx: &mut Context<Self>) {
         if self.pending {
+            // A run that cannot start must say so: a silent return reads as a dead control.
+            self.state.notice = Some("Another request is still in flight; wait for it to finish.".into());
             return;
         }
         if self.dirty(cx) {

@@ -963,3 +963,12 @@ It did not close A5. With navigation driven by selection and the run started by 
 
 HANDOFF.md described the v3 state. It now records what is proven and where, the four blocked items with their owners, the decisions that are Scott's, the commands for each installed proof, and the traps that cost rounds here: the cargo target directory overwriting the native binary, an inherited GIT_CONFIG_COUNT breaking every git call, a seeded profile reading as a first run, exact-name lookups returning label text, the session's private runtime needing a plain test, and the Cloud stand-in URL being a base URL.
 
+
+## A5 narrowed to one fact (2026-11-23)
+
+Two product changes made the failure legible rather than mysterious. start() and save() used to return silently when another request was in flight, which reads as a dead control; both now say so in the status line. And the proof's start helper used to do nothing at all when it could not find the button; it now reports what it saw.
+
+The result is definitive: the Start control IS found (button seen: True), it IS invoked, and the notice never changes -- so start() is never entered, and the in-flight notice never appears, which rules out the pending gate. The same control starts runs in installed-local-proof at this revision (5/5). Something about this script's page state means the invoke does not reach the handler, and the script now fails loudly at that point instead of passing hollowly.
+
+A5 stays blocked -- harness. Watching the window while pressing Start would settle it in minutes; six scripted attempts have not.
+
