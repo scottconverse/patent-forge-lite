@@ -1007,3 +1007,13 @@ Request::RegenerateFrom — the request the window actually sends — had no tes
 
 The revision half of B5 stays with the service-level test: saving a claims revision needs a completed claims run, which this test deliberately does not set up.
 
+## Cross-project selection guard pinned (2026-11-23)
+
+A compliance run can be pointed at a chosen claims revision, so the interesting question is
+whether it can be pointed at *another project's* revision. The guard exists in
+`start_workflow_with_selection` and nothing tested it. A test now builds two complete
+projects, saves a claims revision in the first, and asks the second to review it: the call
+is refused with a message naming the reason.
+
+This is the kind of check worth having explicitly rather than incidentally: it is the
+difference between a bug being absent and a bug being prevented.

@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 59 |
+| pass | 60 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -59,6 +59,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | --- | --- | --- |
 | Revisions versioned and anchored to immutable runs | integration | pass |
 | Compliance reviews a selected revision rather than the latest | integration | pass |
+| A selection from another project is refused, naming the reason | unit (`revisions`, cross-project) | pass |
 | Claim structure validation (numbering, dependencies, references) | unit, CLI run | pass |
 | Edit → validate → save → package chain | run | pass |
 | `SaveRevision` / `ListRevisions` session commands, anchored to the latest completed run | unit, reply-draining helper | pass |

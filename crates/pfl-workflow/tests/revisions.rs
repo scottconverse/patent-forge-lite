@@ -534,3 +534,75 @@ async fn regenerating_from_a_stage_carries_the_earlier_stages() {
         "1. An edited claim kept across regeneration."
     );
 }
+
+/// A compliance run must not be pointed at another project's revision: the guard exists,
+/// and this pins it so a later refactor cannot quietly drop it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_selection_from_another_project_is_refused() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+
+    // Project A gets a claims revision.
+    let alpha = service.create_project(intake()).await.unwrap();
+    for kind in [
+        WorkflowKind::Feasibility,
+        WorkflowKind::Claims,
+        WorkflowKind::Compliance,
+    ] {
+        let run = service
+            .start_workflow(
+                alpha.id.clone(),
+                kind,
+                format!("alpha-{}", kind.slug()),
+                auth(),
+            )
+            .await
+            .unwrap();
+        let done = wait(&service, &run.id).await;
+        assert_eq!(done.outcome, RunOutcome::Completed);
+    }
+    let foreign = service
+        .save_revision(
+            alpha.id.clone(),
+            DocumentKind::Claims,
+            None,
+            "1. A claim belonging to project alpha.".into(),
+            "alpha".into(),
+        )
+        .await
+        .unwrap();
+
+    // Project B is complete too, so only the ownership rule can refuse the selection.
+    let beta = service.create_project(intake()).await.unwrap();
+    for kind in [WorkflowKind::Feasibility, WorkflowKind::Claims] {
+        let run = service
+            .start_workflow(
+                beta.id.clone(),
+                kind,
+                format!("beta-{}", kind.slug()),
+                auth(),
+            )
+            .await
+            .unwrap();
+        let done = wait(&service, &run.id).await;
+        assert_eq!(done.outcome, RunOutcome::Completed);
+    }
+
+    let refused = service
+        .start_workflow_with_selection(
+            beta.id.clone(),
+            WorkflowKind::Compliance,
+            "beta-compliance".into(),
+            auth(),
+            Vec::new(),
+            Some(foreign.id.clone()),
+            None,
+        )
+        .await
+        .expect_err("another project's revision must be refused");
+    assert!(
+        refused.to_string().contains("another project"),
+        "the refusal should name the reason, got: {refused}"
+    );
+}
