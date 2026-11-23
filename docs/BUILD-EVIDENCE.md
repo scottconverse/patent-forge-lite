@@ -932,3 +932,10 @@ tests/cloud_consent.rs drives the session actor against a loopback SSE stand-in:
 
 Two mistakes of mine were needed to get here, both worth recording: the first version hung because a tokio test starved the actor's own runtime (the fix is a plain #[test] with the mock on its own runtime thread), and the second failed because the stand-in was given a full /v1/messages path while the provider appends that path itself. The run that proved it reports '0 requests declined, 6 approved'.
 
+
+## Packaging refreshed to this revision (2026-11-23)
+
+The Windows installer is rebuilt from 7453174 and re-hashed: patent-forge-lite-0.2.0-x64.exe, SHA-256 df9d5c20..., 12,021,617 bytes, unsigned. The released 0.1.0 artifact and its hash are untouched. The manifest and packaging note now name this revision rather than the earlier one, so the artifact a reader checks is the one built from the code they are reading.
+
+It is still a candidate: no tag, no release, no signature, and the version skew (installer 0.2.0, crates 0.1.0) remains Scott's decision.
+

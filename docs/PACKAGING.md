@@ -6,7 +6,7 @@ installed for macOS or Linux.
 
 | Platform | Source | Tooling | State |
 | --- | --- | --- | --- |
-| Windows x64 | `packaging/windows/patent-forge-lite.iss` | Inno Setup 6 (`%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`) | **Built from `27dbd52`**: `dist\patent-forge-lite-0.2.0-x64.exe`, SHA-256 in `docs/RELEASE-MANIFEST.md`, install/upgrade/rollback/uninstall verified. Unsigned. |
+| Windows x64 | `packaging/windows/patent-forge-lite.iss` | Inno Setup 6 (`%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`) | **Built from `7453174`**: `dist\patent-forge-lite-0.2.0-x64.exe`, SHA-256 in `docs/RELEASE-MANIFEST.md`, install/upgrade/rollback/uninstall verified. Unsigned. |
 | macOS arm64 | `packaging/macos/Info.plist` + `bundle.sh` | A real macOS host | Not built; no runner available |
 | Linux x86_64 | `packaging/linux/pfl-desktop.desktop` | A real Linux host | Not built; no runner available |
 
