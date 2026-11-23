@@ -25,7 +25,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | blocked — key | 1 |
 | blocked — authorization | 1 |
 | blocked — harness | 1 |
-| open defect | 1 |
+| open defect | 0 |
 
 ## Phase A — Cloud correctness and consent
 
@@ -123,7 +123,9 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Defect | Measurement | Status |
 | --- | --- | --- |
-| Nav items are announced as buttons with no accessible action, so assistive technology cannot press them; automation compensates with a foregrounded coordinate click | measured per control: `nav-*` patterns `[]`, workflow tab `SelectionItem`, Start `Invoke` | **open** — registering `on_a11y_action(Click)` did not change it, and dropping `accessibility_id` lost the `AutomationId` |
+**No open defects at this revision.** The navigation defect is closed: the rail is a tab
+list and each item is a tab, measured in the window as `TabItem` with
+`SelectionItemPattern`, and the UI harness asserts it (38/38).
 
 ## Decisions that remain Scott's
 

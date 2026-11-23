@@ -205,7 +205,14 @@ $proc = Start-Process -FilePath $Exe -ArgumentList '--replay', '--select-latest'
 $script:appPid = $proc.Id
 Warm-Up
 Check "window opens" ([bool](Get-Window))
-Check "accessibility tree is published" ((Find-ByType 'Button').Count -ge 6) ("(buttons: {0})" -f (Find-ByType 'Button').Count)
+Check "accessibility tree is published" (((Find-ByType 'Button').Count + (Find-ByType 'TabItem').Count) -ge 6) ("(buttons: {0}, tabs: {1})" -f (Find-ByType 'Button').Count, (Find-ByType 'TabItem').Count)
+$navTab = Find-ById 'nav-analysis'
+if ($navTab) {
+    $patterns = ($navTab.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName }) -join ','
+    Check "page navigation exposes a selectable action" ($patterns -like '*SelectionItem*') ("(patterns: {0})" -f $patterns)
+} else {
+    Check "page navigation exposes a selectable action" $false "(nav-analysis not found)"
+}
 Check "nav exposes stable AutomationIds" ([bool](Find-ById 'nav-analysis'))
 
 Write-Host "`n[1] Navigation"

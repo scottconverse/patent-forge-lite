@@ -911,7 +911,7 @@ impl Desktop {
             .accessibility_id(id)
             .focusable()
             .tab_stop(true)
-            .role(Role::Button)
+            .role(Role::Tab)
             .aria_label(format!("{label} page"))
             .aria_selected(selected)
             .cursor_pointer()
@@ -2619,6 +2619,9 @@ impl Render for Desktop {
 
         // Left icon rail.
         let rail = div()
+            .id("page-rail")
+            .accessibility_id("page-rail")
+            .role(Role::TabList)
             .w(px(84.))
             .h_full()
             .flex_shrink_0()

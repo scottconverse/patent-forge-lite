@@ -939,3 +939,15 @@ The Windows installer is rebuilt from 7453174 and re-hashed: patent-forge-lite-0
 
 It is still a candidate: no tag, no release, no signature, and the version skew (installer 0.2.0, crates 0.1.0) remains Scott's decision.
 
+
+## Navigation accessibility defect closed (2026-11-23)
+
+Measured cause: a Role::Button div with an on_click handler exposed no accessible action, while the workflow tabs - built as Role::Tab inside a Role::TabList - exposed SelectionItemPattern. The rail now mirrors that: the container is a tab list (id page-rail) and each item is a tab. Measured in the window, 
+av-projects, 
+av-analysis and 
+av-settings are ControlType.TabItem with SelectionItemPattern, so assistive technology can select a page instead of hearing a button that does nothing.
+
+The UI harness gained an assertion for exactly that, and its tree check now counts buttons plus tabs (nav items are no longer buttons): 38/38, no regressions.
+
+Two earlier attempts failed and are recorded: registering on_a11y_action(Click) changed nothing, and dropping ccessibility_id lost the AutomationId without adding an action. The working fix was the role, not the action registration.
+
