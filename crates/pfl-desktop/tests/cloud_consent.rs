@@ -75,27 +75,36 @@ fn spawn_cloud(calls: Arc<AtomicUsize>) -> String {
     format!("http://{address}")
 }
 
+/// Every snapshot seen while waiting, so a run that finishes before its id is known is not
+/// lost. A fast platform can deliver the terminal Poll before the Start reply is read.
+#[derive(Debug, Default)]
+struct Seen {
+    snapshots: Vec<RunSnapshot>,
+    labels: Vec<String>,
+}
+
 fn wait_for(
     session: &ApplicationSession,
     label: &str,
-    seen: &mut Vec<String>,
+    seen: &mut Seen,
     mut ready: impl FnMut(&Reply) -> bool,
 ) -> Reply {
     let deadline = Instant::now() + Duration::from_secs(120);
     while Instant::now() < deadline {
         for reply in session.drain() {
+            if let Reply::Poll { events, snapshot } = &reply {
+                seen.snapshots.push(snapshot.clone());
+                for event in events {
+                    seen.labels.push(format!("{event:?}"));
+                }
+            }
             if ready(&reply) {
                 return reply;
-            }
-            if let Reply::Poll { events, .. } = &reply {
-                for event in events {
-                    seen.push(format!("{event:?}"));
-                }
             }
         }
         std::thread::sleep(Duration::from_millis(10));
     }
-    panic!("no matching reply within the deadline at {label}; events: {seen:#?}");
+    panic!("no matching reply within the deadline at {label}; seen: {seen:?}");
 }
 
 #[test]
@@ -106,7 +115,7 @@ fn a_declined_cloud_run_sends_nothing_and_an_approved_one_completes() {
     // session is built and cleared before it returns.
     unsafe { std::env::set_var("PFL_CLOUD_ENDPOINT", &endpoint) };
 
-    let mut seen: Vec<String> = Vec::new();
+    let mut seen = Seen::default();
     let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
     let session =
         ApplicationSession::with_replay_provider(store, Arc::new(ReplayProvider::all_workflows()))
@@ -183,16 +192,25 @@ fn a_declined_cloud_run_sends_nothing_and_an_approved_one_completes() {
         other => panic!("the approved start did not produce a run: {other:?}"),
     };
     let approved_id = started.id.clone();
-    let run = match wait_for(&session, "approved run", &mut seen, |reply| match reply {
-        Reply::Poll { snapshot, .. } => {
-            snapshot.id == approved_id && snapshot.outcome.is_terminal()
+    // A terminal snapshot may already have been seen before the id was known.
+    let mut finished = seen
+        .snapshots
+        .iter()
+        .find(|snapshot| snapshot.id == approved_id && snapshot.outcome.is_terminal())
+        .cloned();
+    if finished.is_none() {
+        let reply = wait_for(&session, "approved run", &mut seen, |reply| match reply {
+            Reply::Poll { snapshot, .. } => {
+                snapshot.id == approved_id && snapshot.outcome.is_terminal()
+            }
+            Reply::Error(_) => true,
+            _ => false,
+        });
+        if let Reply::Poll { snapshot, .. } = reply {
+            finished = Some(snapshot);
         }
-        Reply::Error(_) => true,
-        _ => false,
-    }) {
-        Reply::Poll { snapshot, .. } => snapshot,
-        other => panic!("the approved run did not reach a terminal state: {other:?}"),
-    };
+    }
+    let run = finished.expect("the approved run should have a terminal snapshot");
     assert_eq!(run.outcome, RunOutcome::Completed);
     assert_eq!(run.checkpoints.len(), STAGES);
     assert_eq!(
