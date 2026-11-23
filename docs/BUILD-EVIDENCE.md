@@ -986,3 +986,10 @@ Whether a run may start lived in the window as a chain of early returns, unteste
 
 The tests assert the order that matters: an in-flight request is reported before an unsaved intake, an undeclared dataset blocks in every mode, a local run needs local authorization and a Cloud run needs paid approval.
 
+
+## The memory-only key is now enforced by a test (2026-11-23)
+
+The settled decision that API keys live in the session only was asserted in prose and in a masking test, but nothing checked the database. The Cloud consent integration test now uses a file database, runs the approved path with a key, and scans the persisted bytes for that key -- after first proving the scan finds a known persisted value (the project title), so its silence about the key means something.
+
+This is the shape of a trustworthy negative assertion: demonstrate the instrument works, then trust what it does not find.
+

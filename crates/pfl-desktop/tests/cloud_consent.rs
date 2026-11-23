@@ -116,7 +116,10 @@ fn a_declined_cloud_run_sends_nothing_and_an_approved_one_completes() {
     unsafe { std::env::set_var("PFL_CLOUD_ENDPOINT", &endpoint) };
 
     let mut seen = Seen::default();
-    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    // A file database, so the settled decision can be checked against what is persisted.
+    let dir = tempfile::tempdir().unwrap();
+    let database = dir.path().join("projects.sqlite3");
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::open(&database).unwrap());
     let session =
         ApplicationSession::with_replay_provider(store, Arc::new(ReplayProvider::all_workflows()))
             .unwrap();
@@ -218,6 +221,21 @@ fn a_declined_cloud_run_sends_nothing_and_an_approved_one_completes() {
         calls.load(Ordering::SeqCst),
         STAGES,
         "one request per stage, no retries and no fallback"
+    );
+
+    // The key lives in the session only. Nothing persisted may contain it.
+    drop(session);
+    let bytes = std::fs::read(&database).unwrap();
+    // Prove the scan can find persisted text before trusting its silence about the key.
+    let title = b"Cloud consent fixture";
+    assert!(
+        bytes.windows(title.len()).any(|window| window == title),
+        "the scan should find the project title in the database"
+    );
+    let needle = b"sk-ant-headless";
+    assert!(
+        !bytes.windows(needle.len()).any(|window| window == needle),
+        "the Cloud key must never reach the database"
     );
 
     unsafe { std::env::remove_var("PFL_CLOUD_ENDPOINT") };
