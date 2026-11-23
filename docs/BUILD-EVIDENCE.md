@@ -1003,7 +1003,7 @@ Two things the test needed, both worth knowing: a run requires an execution mode
 
 ## Regeneration exercised through the session (2026-11-23)
 
-Request::RegenerateFrom — the request the window actually sends — had no test. A session-level test now starts a feasibility run to completion, regenerates from the fourth stage, and asserts the new run is the next version, carries erun_of, records the restart stage, and has every earlier checkpoint byte-identical to the base while the base stays unchanged.
+Request::RegenerateFrom — the request the window actually sends — had no test. A session-level test now starts a feasibility run to completion, regenerates from the fourth stage, and asserts the new run is the next version, carries `rerun_of`, records the restart stage, and has every earlier checkpoint byte-identical to the base while the base stays unchanged.
 
 The revision half of B5 stays with the service-level test: saving a claims revision needs a completed claims run, which this test deliberately does not set up.
 
