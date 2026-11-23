@@ -972,3 +972,10 @@ The result is definitive: the Start control IS found (button seen: True), it IS 
 
 A5 stays blocked -- harness. Watching the window while pressing Start would settle it in minutes; six scripted attempts have not.
 
+
+## Headless verification at eb117ce (20261123T225844Z)
+
+Every check that does not need a window was re-run at this revision: acceptance-check 6/6, api-proof 13/13, migration-proof 16/16, the Cloud consent integration test (declined 0 requests, approved 6, completed), and the workspace test suite. No window was opened and the pointer was not touched.
+
+This is the shape of the remaining work: the claims that can be checked without a machine can be checked at any time; the two that need one (A5's window half, and macOS/Linux installed acceptance) stay blocked until someone is at a machine.
+
