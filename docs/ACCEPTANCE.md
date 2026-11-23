@@ -71,7 +71,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Export selected revisions (Markdown, HTML, Word, CSV, manifest) | installed, 11/11 twice | pass — six files written and listed |
 | Word export byte-stability | two separate processes | pass — identical `claims.docx` and every other file |
 | Regeneration semantics and plan validation | doc + unit, 5 tests | pass — `docs/REGENERATION.md` |
-| Execute "regenerate from here onward"; earlier stages byte-identical | unit + installed, 12/12 twice | pass — v5 regenerated as v6, Completed |
+| Execute "regenerate from here onward"; earlier stages byte-identical | unit + session (`regenerate_session`) + installed, 12/12 twice | pass — v5 regenerated as v6, Completed |
 | `pfl-cli revisions list` (id, kind, version, base run, note) | run | pass |
 
 ## Phase C — research
