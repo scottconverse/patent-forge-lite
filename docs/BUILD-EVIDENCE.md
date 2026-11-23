@@ -909,3 +909,12 @@ The installed proofs drive a real window and therefore take the mouse and keyboa
 
 The editing proof also no longer throws on the first unresolved element; it retries, which fixed it after the profile prompt changed what a seeded launch shows (12/12).
 
+
+## A5 (headless attempt, 2026-11-23)
+
+A headless session-level test was written to prove the decline and the approved path without a window: configure Cloud against a loopback SSE stand-in, start with paid approval off (expect a refusal and zero requests), then on (expect one request per stage). It hung instead: the session actor never replied to ConfigureCloud, and the test was removed rather than left failing.
+
+That is a lead, not a conclusion. The window does receive a reply to the same request ('Execution mode configured'), so whatever blocks is specific to how the actor is driven under test. It is worth investigating because a wedged actor would also explain why Start never reaches the handler in the window proof.
+
+The Cloud proof keeps seven checks it can prove and no run-path assertions; its two toggles now use the Invoke pattern rather than a pointer click. A5 remains blocked -- harness.
+

@@ -182,6 +182,24 @@ function Nav-Key([string]$keys) {
 
 # Retry the start: the button is re-resolved on each attempt because the page may
 # re-render between selecting the workflow and pressing it.
+# Mirror the working Local proof: select the feasibility run, then act on the Analysis
+# page. One proven path beats two divergent ones.
+function Select-Feasibility-Run {
+    Invoke-Named 'History page'
+    Start-Sleep -Milliseconds 900
+    $row = Find-Contains '(Feasibility analysis)'
+    if ($row) {
+        $patterns = @($row.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })
+        if ($patterns -contains 'InvokePatternIdentifiers.Pattern') {
+            $row.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+        } else {
+            Click-Element $row
+        }
+        Start-Sleep -Milliseconds 900
+    }
+    Invoke-Named 'Analysis page'
+    Start-Sleep -Milliseconds 900
+}
 function Start-Until([string]$expected) {
     for ($attempt = 0; $attempt -lt 4; $attempt++) {
         $button = Find-ByName 'Start new version'
@@ -253,7 +271,7 @@ Invoke-Named 'Setup page'
     $null = Wait-ById 'input-Cloud model name' 10
 
 # Declare the data first, while the page is at the top.
-Click-Element (Find-Contains 'Synthetic test data')
+Invoke-Named 'Synthetic test data'
 Record 'synthetic data declared' ([bool](Find-Contains '✓  Synthetic test data')) "(notice: $(Notice))"
 
 # Bring the Cloud card into view, then configure against the loopback endpoint.
@@ -303,33 +321,25 @@ Set-Field 'input-Cloud model name' 'claude-mock'
 Start-Sleep -Milliseconds 400
 
 # Declined: the paid approval is deliberately left off.
-Invoke-Named 'Analysis page'
-Start-Sleep -Milliseconds 700
-Invoke-Named 'Feasibility analysis'
+Select-Feasibility-Run
 Start-Until "paid Cloud"
-Start-Sleep -Milliseconds 2000
+Start-Sleep -Milliseconds 1500
 
 # Approved: grant the per-run approval, then start again.
 Invoke-Named 'Setup page'
-    $null = Wait-ById 'input-Cloud model name' 10
+$null = Wait-ById 'input-Cloud model name' 10
 Start-Sleep -Milliseconds 600
-Click-Element (Find-Contains 'Approve paid Cloud request')
+Invoke-Named 'Approve paid Cloud request'
 Record 'paid approval recorded' ([bool](Find-Contains '✓  Approve paid Cloud request')) "(notice: $(Notice))"
 Invoke-Named 'Analysis page'
 Start-Sleep -Milliseconds 700
 $runCost = Wait-ById 'cost-confirmation' 6
 $runCostText = if ($runCost) { $runCost.Current.Name } else { '' }
 Record 'the cost line is shown before the paid run' (($runCostText -like '*unknown*') -or ($runCostText -like '*per 1M tokens*')) "(cost: $runCostText)"
-Invoke-Named 'Analysis page'
-Start-Sleep -Milliseconds 700
-Invoke-Named 'Feasibility analysis'
+Select-Feasibility-Run
 Start-Until "paid Cloud"
-$deadline = (Get-Date).AddSeconds(25)
-while ((Get-Date) -lt $deadline -and (Requests) -eq 0) { Start-Sleep -Milliseconds 300 }
-# The run's status lives in the summary, not the status bar.
 $deadline = (Get-Date).AddSeconds(30)
-while ((Get-Date) -lt $deadline -and -not (Find-Contains 'Completed')) { Start-Sleep -Milliseconds 300 }
-# The run-completion assertion was removed with the start path: 'Completed' can match an\n# older run on screen, so it proves nothing here.
+while ((Get-Date) -lt $deadline -and (Requests) -eq 0) { Start-Sleep -Milliseconds 300 }
 
 $results | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $OutDir 'cloud-consent.json')
 if ($EvidenceDir) {
