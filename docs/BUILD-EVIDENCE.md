@@ -951,3 +951,10 @@ The UI harness gained an assertion for exactly that, and its tree check now coun
 
 Two earlier attempts failed and are recorded: registering on_a11y_action(Click) changed nothing, and dropping ccessibility_id lost the AutomationId without adding an action. The working fix was the role, not the action registration.
 
+
+## Pointer-free navigation in the proofs (2026-11-23)
+
+Now that page navigation is a tab list, the Cloud proof selects nav items through SelectionItemPattern instead of clicking them, and resolves controls before label text (an exact-name lookup returns the text node inside a control, which exposes no action). That removes cursor movement from navigation; the operator's pointer stays where it was.
+
+It did not close A5. With navigation driven by selection and the run started by an Invoke rather than a click, the handler still never runs in this script: 'declining sends zero requests' passes only because nothing was ever sent, and the refusal notice never changes. Those assertions were removed again rather than left in place. The Local proof still starts runs at this revision, so the difference remains in this script.
+

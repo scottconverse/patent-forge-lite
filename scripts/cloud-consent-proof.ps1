@@ -96,7 +96,7 @@ function Find-Contains([string]$fragment) {
     $fallback = $null
     foreach ($e in $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) {
         if (-not ($e.Current.Name -and $e.Current.Name.Contains($fragment))) { continue }
-        if ($e.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button) { return $e }
+        if ($e.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -or $e.Current.ControlType -eq [System.Windows.Automation.ControlType]::TabItem) { return $e }
         if (-not $fallback) { $fallback = $e }
     }
     return $fallback
@@ -153,17 +153,21 @@ function Click-Element($element) {
     Start-Sleep -Milliseconds 800
 }
 function Invoke-Named([string]$name) {
-    $el = Find-ByName $name
-    if (-not $el) { $el = Find-Contains $name }
+    # Controls before label text: an exact-name lookup can return the text node
+    # inside a control, which exposes no action.
+    $el = Find-Contains $name
+    if (-not $el) { $el = Find-ByName $name }
     if (-not $el) { throw "element not found: $name" }
     # An element outside the window ignores Invoke as well as a click.
     Bring-Into-View $el
     $patterns = @($el.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })
-    if ($patterns -contains 'InvokePatternIdentifiers.Pattern') {
-        $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-        Start-Sleep -Milliseconds 800
-    } elseif ($patterns -contains 'SelectionItemPatternIdentifiers.Pattern') {
+    if ($patterns -contains 'SelectionItemPatternIdentifiers.Pattern') {
+        # Navigation is a tab list now: selecting an item is the action, and it needs no
+        # pointer, so the operator's cursor stays where they left it.
         $el.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        Start-Sleep -Milliseconds 900
+    } elseif ($patterns -contains 'InvokePatternIdentifiers.Pattern') {
+        $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
         Start-Sleep -Milliseconds 800
     } else {
         Click-Element $el
@@ -324,6 +328,9 @@ Start-Sleep -Milliseconds 400
 Select-Feasibility-Run
 Start-Until "paid Cloud"
 Start-Sleep -Milliseconds 1500
+Select-Feasibility-Run
+Start-Until "paid Cloud"
+Start-Sleep -Milliseconds 1500
 
 # Approved: grant the per-run approval, then start again.
 Invoke-Named 'Setup page'
@@ -337,6 +344,9 @@ $runCost = Wait-ById 'cost-confirmation' 6
 $runCostText = if ($runCost) { $runCost.Current.Name } else { '' }
 Record 'the cost line is shown before the paid run' (($runCostText -like '*unknown*') -or ($runCostText -like '*per 1M tokens*')) "(cost: $runCostText)"
 Select-Feasibility-Run
+Start-Until "paid Cloud"
+$deadline = (Get-Date).AddSeconds(30)
+while ((Get-Date) -lt $deadline -and (Requests) -eq 0) { Start-Sleep -Milliseconds 300 }
 Start-Until "paid Cloud"
 $deadline = (Get-Date).AddSeconds(30)
 while ((Get-Date) -lt $deadline -and (Requests) -eq 0) { Start-Sleep -Milliseconds 300 }
