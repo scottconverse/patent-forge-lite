@@ -902,3 +902,10 @@ cloud-consent-proof now proves what it can: the synthetic declaration, Cloud con
 
 The scripted decline therefore remains undemonstrated and the acceptance row is marked blocked -- harness, naming the positive control: installed-local-proof starts three runs through the same control at this revision (5/5). The gate itself stays covered by the session tests. This is worse than a pass and better than a false one.
 
+
+## Working headlessly, with warned exceptions (2026-11-23)
+
+The installed proofs drive a real window and therefore take the mouse and keyboard. The default is headless: engine and session tests, the CLI proofs and the acceptance self-check. Window proofs run only when announced first, and the operator has agreed to that trade: a warning, then a short run.
+
+The editing proof also no longer throws on the first unresolved element; it retries, which fixed it after the profile prompt changed what a seeded launch shows (12/12).
+

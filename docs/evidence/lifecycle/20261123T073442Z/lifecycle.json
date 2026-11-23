@@ -1,0 +1,22 @@
+{
+  "a second launch is refused": {
+    "pass": true,
+    "detail": "(exit: 3)"
+  },
+  "the refusal says another window owns the data": {
+    "pass": true,
+    "detail": "(output: Patent Forge Lite: conflict: another Patent Forge Lite window is already using this data location; use that window, because only one instance may write to the workspace)"
+  },
+  "the first window keeps running": {
+    "pass": true,
+    "detail": "(pid: 70200)"
+  },
+  "the first window is still usable": {
+    "pass": true,
+    "detail": ""
+  },
+  "quit closes the window when nothing is pending": {
+    "pass": true,
+    "detail": ""
+  }
+}

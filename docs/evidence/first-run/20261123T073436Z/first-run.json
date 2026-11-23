@@ -1,0 +1,26 @@
+{
+  "a fresh profile asks for a profile first": {
+    "pass": true,
+    "detail": ""
+  },
+  "both choices are offered": {
+    "pass": true,
+    "detail": ""
+  },
+  "the prompt closes after choosing": {
+    "pass": true,
+    "detail": ""
+  },
+  "Lean refuses a local runtime": {
+    "pass": true,
+    "detail": "(notice: The Lean profile refuses a local runtime. Choose Full in Setup to use your own.)"
+  },
+  "Full accepts a local runtime": {
+    "pass": true,
+    "detail": "(notice: Execution mode configured. No inference request was sent.)"
+  },
+  "a chosen profile is not asked for again": {
+    "pass": true,
+    "detail": ""
+  }
+}

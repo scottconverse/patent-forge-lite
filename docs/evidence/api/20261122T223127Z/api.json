@@ -1,0 +1,61 @@
+{
+  "the server starts and answers /api/health": {
+    "pass": true,
+    "detail": ""
+  },
+  "health names the service": {
+    "pass": true,
+    "detail": "(status: ok)"
+  },
+  "the project list is returned": {
+    "pass": true,
+    "detail": "(projects: 1)"
+  },
+  "a project carries its intake": {
+    "pass": true,
+    "detail": "(title: SYNTHETIC FIXTURE: café sensor α)"
+  },
+  "a single project is readable": {
+    "pass": true,
+    "detail": ""
+  },
+  "the project history lists runs": {
+    "pass": true,
+    "detail": "(runs: 4)"
+  },
+  "a run is readable": {
+    "pass": true,
+    "detail": "(outcome: completed)"
+  },
+  "run events are readable": {
+    "pass": true,
+    "detail": "(events: 34)"
+  },
+  "the run report is served": {
+    "pass": true,
+    "detail": "(bytes: 153)"
+  },
+  "an export is served in markdown": {
+    "pass": true,
+    "detail": "(bytes: 2556)"
+  },
+  "an unknown project is a 404, not an empty project": {
+    "pass": true,
+    "detail": "(status: 404)"
+  },
+  "the server stops cleanly": {
+    "pass": true,
+    "detail": ""
+  },
+  "endpoints": {
+    "pass": true,
+    "detail": {
+      "port": 62672,
+      "project": "aa0b4a1f-d0ab-44fb-ab4e-6b454c05106e",
+      "run": "b32d9fc7-0b21-43cb-a344-005216952232",
+      "events": 34,
+      "report": 153,
+      "export": 2556
+    }
+  }
+}

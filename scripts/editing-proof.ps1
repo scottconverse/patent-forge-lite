@@ -113,9 +113,18 @@ function Bring-Into-View($element) {
     }
 }
 function Invoke-Named([string]$name) {
-    $el = Find-ByName $name
-    if (-not $el) { $el = Find-Contains $name }
-    if (-not $el) { throw "element not found: $name" }
+    # A page transition is not instantaneous, and a pointer navigation click can be
+    # missed entirely, so resolution is retried instead of throwing on the first miss.
+    $el = $null
+    for ($attempt = 0; $attempt -lt 12 -and -not $el; $attempt++) {
+        $el = Find-Contains $name
+        if (-not $el) { $el = Find-ByName $name }
+        if (-not $el) {
+            if ($name -like "*page") { Invoke-Nav-Click $name }
+            Start-Sleep -Milliseconds 400
+        }
+    }
+    if (-not $el) { throw "element not found: $name after retries" }
     Bring-Into-View $el
     $patterns = @($el.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })
     if ($patterns -contains 'InvokePatternIdentifiers.Pattern') {
