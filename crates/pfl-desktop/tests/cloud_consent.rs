@@ -192,25 +192,26 @@ fn a_declined_cloud_run_sends_nothing_and_an_approved_one_completes() {
         other => panic!("the approved start did not produce a run: {other:?}"),
     };
     let approved_id = started.id.clone();
-    // A terminal snapshot may already have been seen before the id was known.
-    let mut finished = seen
-        .snapshots
-        .iter()
-        .find(|snapshot| snapshot.id == approved_id && snapshot.outcome.is_terminal())
-        .cloned();
-    if finished.is_none() {
-        let reply = wait_for(&session, "approved run", &mut seen, |reply| match reply {
-            Reply::Poll { snapshot, .. } => {
-                snapshot.id == approved_id && snapshot.outcome.is_terminal()
-            }
-            Reply::Error(_) => true,
-            _ => false,
-        });
-        if let Reply::Poll { snapshot, .. } = reply {
-            finished = Some(snapshot);
+    // Ask the session for the run by id instead of relying on poll timing: a fast
+    // platform can finish the run before any Poll reply is emitted.
+    let mut run = started.clone();
+    let deadline = Instant::now() + Duration::from_secs(120);
+    while !run.outcome.is_terminal() && Instant::now() < deadline {
+        session
+            .request(Request::SelectRun(approved_id.clone()))
+            .unwrap();
+        match wait_for(&session, "select run", &mut seen, |reply| {
+            matches!(reply, Reply::Run(_) | Reply::Error(_))
+        }) {
+            Reply::Run(snapshot) => run = snapshot,
+            other => panic!("selecting the run failed: {other:?}"),
+        }
+        if !run.outcome.is_terminal() {
+            std::thread::sleep(Duration::from_millis(50));
         }
     }
-    let run = finished.expect("the approved run should have a terminal snapshot");
+    // A terminal snapshot may already have been seen before the id was known.
+
     assert_eq!(run.outcome, RunOutcome::Completed);
     assert_eq!(run.checkpoints.len(), STAGES);
     assert_eq!(
