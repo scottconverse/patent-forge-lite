@@ -634,39 +634,31 @@ impl Desktop {
     }
 
     fn start(&mut self, cx: &mut Context<Self>) {
-        if self.pending {
-            // A run that cannot start must say so: a silent return reads as a dead control.
-            self.state.notice =
-                Some("Another request is still in flight; wait for it to finish.".into());
+        // One pure decision, so the order of the refusals is tested rather than implied.
+        let gate = crate::state::StartGate {
+            pending: self.pending,
+            dirty: self.dirty(cx),
+            has_project: self.state.selected_project.is_some(),
+            run_active: self.state.run.as_ref().is_some_and(|r| {
+                matches!(
+                    r.snapshot.outcome,
+                    RunOutcome::Running | RunOutcome::Cancelling
+                )
+            }),
+            data_declared: self.synthetic || self.real_data,
+            mode_is_local: matches!(self.mode, Some(Mode::Local { .. })),
+            local_authorized: self.authorized_local,
+            mode_is_cloud: matches!(self.mode, Some(Mode::Cloud { .. })),
+            cloud_approved: self.cloud_approved,
+        };
+        if let Some(reason) = crate::state::start_block(&gate) {
+            self.state.notice = Some(reason.to_string());
             return;
         }
-        if self.dirty(cx) {
-            self.state.notice = Some("Save the current intake before starting a run.".into());
-            return;
-        }
-        let Some(project) = &self.state.selected_project else {
-            self.state.notice = Some("Create and save a project first.".into());
+        // The gate guarantees a project is selected; bind it for the request.
+        let Some(project) = self.state.selected_project.clone() else {
             return;
         };
-        if self.state.run.as_ref().is_some_and(|r| {
-            matches!(
-                r.snapshot.outcome,
-                RunOutcome::Running | RunOutcome::Cancelling
-            )
-        }) {
-            self.state.notice = Some("The current run is still active.".into());
-            return;
-        }
-        if (!self.synthetic && !self.real_data)
-            || (matches!(self.mode, Some(Mode::Local { .. })) && !self.authorized_local)
-            || (matches!(self.mode, Some(Mode::Cloud { .. })) && !self.cloud_approved)
-        {
-            self.state.notice = Some(
-                "Declare the data, authorize local inference, or approve the paid Cloud request."
-                    .into(),
-            );
-            return;
-        }
         let key = self
             .start_key
             .get_or_insert_with(|| RunId::new().to_string())

@@ -245,3 +245,126 @@ impl DesktopState {
         self.run.as_ref().map(|r| &r.snapshot.id)
     }
 }
+
+/// Everything the start action depends on, as plain values.
+///
+/// The window decides whether a run may start from several pieces of state in a fixed
+/// order. Keeping that decision pure makes it testable without a window, which matters
+/// because the order is what protects a paid provider, and because a silent early return
+/// here reads to the operator as a dead control.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct StartGate {
+    pub pending: bool,
+    pub dirty: bool,
+    pub has_project: bool,
+    pub run_active: bool,
+    pub data_declared: bool,
+    pub mode_is_local: bool,
+    pub local_authorized: bool,
+    pub mode_is_cloud: bool,
+    pub cloud_approved: bool,
+}
+
+/// The reason a run may not start, or `None` when it may. Every refusal carries text, so
+/// no path can silently do nothing.
+pub fn start_block(gate: &StartGate) -> Option<&'static str> {
+    if gate.pending {
+        return Some("Another request is still in flight; wait for it to finish.");
+    }
+    if gate.dirty {
+        return Some("Save the current intake before starting a run.");
+    }
+    if !gate.has_project {
+        return Some("Create and save a project first.");
+    }
+    if gate.run_active {
+        return Some("The current run is still active.");
+    }
+    if !gate.data_declared
+        || (gate.mode_is_local && !gate.local_authorized)
+        || (gate.mode_is_cloud && !gate.cloud_approved)
+    {
+        return Some(
+            "Declare the data, authorize local inference, or approve the paid Cloud request.",
+        );
+    }
+    None
+}
+#[cfg(test)]
+mod gate_tests {
+    use super::{StartGate, start_block};
+
+    fn ready() -> StartGate {
+        StartGate {
+            pending: false,
+            dirty: false,
+            has_project: true,
+            run_active: false,
+            data_declared: true,
+            mode_is_local: false,
+            local_authorized: false,
+            mode_is_cloud: false,
+            cloud_approved: false,
+        }
+    }
+
+    #[test]
+    fn a_ready_gate_permits_the_run() {
+        assert_eq!(start_block(&ready()), None);
+    }
+
+    #[test]
+    fn every_refusal_has_text_so_nothing_fails_silently() {
+        let mut gate = ready();
+        gate.pending = true;
+        assert!(start_block(&gate).unwrap().contains("in flight"));
+        gate = ready();
+        gate.dirty = true;
+        assert!(
+            start_block(&gate)
+                .unwrap()
+                .contains("Save the current intake")
+        );
+        gate = ready();
+        gate.has_project = false;
+        assert!(start_block(&gate).unwrap().contains("project"));
+        gate = ready();
+        gate.run_active = true;
+        assert!(start_block(&gate).unwrap().contains("still active"));
+    }
+
+    #[test]
+    fn undeclared_data_blocks_regardless_of_mode() {
+        let mut gate = ready();
+        gate.data_declared = false;
+        assert!(start_block(&gate).unwrap().contains("Declare the data"));
+    }
+
+    #[test]
+    fn a_local_run_needs_local_authorization_and_a_cloud_run_needs_paid_approval() {
+        let mut gate = ready();
+        gate.mode_is_local = true;
+        assert!(
+            start_block(&gate)
+                .unwrap()
+                .contains("authorize local inference")
+        );
+        gate.local_authorized = true;
+        assert_eq!(start_block(&gate), None);
+
+        let mut cloud = ready();
+        cloud.mode_is_cloud = true;
+        assert!(start_block(&cloud).unwrap().contains("paid Cloud"));
+        cloud.cloud_approved = true;
+        assert_eq!(start_block(&cloud), None);
+    }
+
+    #[test]
+    fn an_in_flight_request_is_reported_before_anything_else() {
+        let mut gate = ready();
+        gate.pending = true;
+        gate.dirty = true;
+        gate.has_project = false;
+        assert!(start_block(&gate).unwrap().contains("in flight"));
+    }
+}

@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 56 |
+| pass | 57 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -46,6 +46,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Lean permits Cloud past the profile gate (fails at the provider, not the gate) | unit, loopback 503 | pass |
 | Masked key field; the mask preserves byte offsets | unit | pass |
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
+| Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | Cloud decline and approval through the session actor: declined run sends nothing, approved run completes with one request per stage | integration (`cloud_consent`), loopback SSE stand-in | pass — 0 requests declined, 6 approved |
 | Cost line states *unknown* plus the rates, never a fabricated total | unit, `cost.rs` | pass |
 | Cost line displayed in the window before a paid run | installed + mock, 11/11 twice | pass — 11/11 run also asserts `3.00 input / 15.00 output` |

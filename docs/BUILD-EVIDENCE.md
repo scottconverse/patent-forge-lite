@@ -979,3 +979,10 @@ Every check that does not need a window was re-run at this revision: acceptance-
 
 This is the shape of the remaining work: the claims that can be checked without a machine can be checked at any time; the two that need one (A5's window half, and macOS/Linux installed acceptance) stay blocked until someone is at a machine.
 
+
+## The start gate is now a tested decision (2026-11-23)
+
+Whether a run may start lived in the window as a chain of early returns, untested, and one branch returned silently -- which is how a dead-looking Start button went unexplained for rounds. It is now one pure function in state.rs with a StartGate of plain values, five tests covering every refusal and the order between them, and text on every path. start() builds the gate and refuses through it, so there is a single source of truth.
+
+The tests assert the order that matters: an in-flight request is reported before an unsaved intake, an undeclared dataset blocks in every mode, a local run needs local authorization and a Cloud run needs paid approval.
+
