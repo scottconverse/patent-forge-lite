@@ -958,3 +958,8 @@ Now that page navigation is a tab list, the Cloud proof selects nav items throug
 
 It did not close A5. With navigation driven by selection and the run started by an Invoke rather than a click, the handler still never runs in this script: 'declining sends zero requests' passes only because nothing was ever sent, and the refusal notice never changes. Those assertions were removed again rather than left in place. The Local proof still starts runs at this revision, so the difference remains in this script.
 
+
+## Handoff refreshed (2026-11-23)
+
+HANDOFF.md described the v3 state. It now records what is proven and where, the four blocked items with their owners, the decisions that are Scott's, the commands for each installed proof, and the traps that cost rounds here: the cargo target directory overwriting the native binary, an inherited GIT_CONFIG_COUNT breaking every git call, a seeded profile reading as a first run, exact-name lookups returning label text, the session's private runtime needing a plain test, and the Cloud stand-in URL being a base URL.
+

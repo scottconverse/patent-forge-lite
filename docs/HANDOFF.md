@@ -1,17 +1,17 @@
 # Handoff
 
-State of the work for a fresh session. Everything here is verifiable from the
-repository; where it says blocked, the blocker is named.
+State of the work for whoever picks this up. Everything here is checkable in the
+repository; where a thing is blocked, the blocker is named and nothing claims otherwise.
 
 ## Repository
 
-`C:\Users\scott\Documents\Codex\PatentForgeLite` — public `scottconverse/patent-forge-lite`, branch `main`.
-The session working directory may differ: **run every cargo command with the
-project as its working directory**, or it fails with "package ID did not match".
+`C:\Users\scott\Documents\Codex\PatentForgeLite` — public `scottconverse/patent-forge-lite`,
+branch `main`. The session working directory may differ: **run every cargo command with the
+project as its working directory**.
 
-Crates: `pfl-domain` (types), `pfl-storage` (SQLite), `pfl-workflow` (workflows,
-providers, research, package, claims, diff, cost), `pfl-api`, `pfl-desktop`
-(GPUI), `pfl-cli`.
+Crates: `pfl-domain` (types), `pfl-storage` (SQLite, migration), `pfl-workflow` (workflows,
+providers, research, package, claims, diff, cost), `pfl-api` (read HTTP surface),
+`pfl-desktop` (GPUI window and the session actor), `pfl-cli`.
 
 ## Gates
 
@@ -19,75 +19,86 @@ providers, research, package, claims, diff, cost), `pfl-api`, `pfl-desktop`
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --offline -- -D warnings
 cargo test --workspace --offline
+cargo clippy -p pfl-desktop --features native --offline -- -D warnings
+pwsh -File scripts/acceptance-check.ps1
 ```
 
-Read each command's own exit code. Piping into `Select-String` reports the
-pipeline's status, not cargo's — this has produced two false "green" claims in
-this work.
+Read each command's **own** exit code. Piping cargo into `Select-String` reports the
+pipeline, not cargo, and has produced false greens in this work.
 
-Build the native UI into a separate target directory so plain tests cannot
-overwrite it with a stub:
+## Traps that have cost rounds
 
-```
-$env:CARGO_TARGET_DIR = "...\PatentForgeLite\target\session"
-cargo build -p pfl-desktop --features native --offline
-```
+- **`CARGO_TARGET_DIR` and tests.** Set the native build to `target\native` and never run
+  `cargo test` with that variable still set: a test build writes a non-native stub over the
+  binary and every UI proof then fails as if the app were broken. The proofs refuse a stub,
+  but the message is easy to misread.
+- **Inherited `GIT_CONFIG_COUNT`.** A polluted git environment makes every git command fail
+  with `missing config key GIT_CONFIG_KEY_0`. Clear `GIT_*` variables in the shell first.
+- **A seeded profile is not a first run.** `scripts/seed-profile.ps1` marks settings
+  `profile_chosen`; without that the app correctly shows the profile prompt and every
+  installed proof stalls there.
+- **Exact-name lookups return the label text**, which exposes no action. Resolve controls
+  before text, and prefer `SelectionItem`/`Invoke` over clicking.
+- **The pointer** is only needed for controls that expose no action. Navigation no longer
+  does: the rail is a tab list.
+- **Session tests**: use a plain `#[test]`, not `#[tokio::test]`, because the session owns a
+  private runtime and blocking a worker starves it. To observe a run, `SelectRun(id)` and
+  read the snapshot; do not wait for `Poll` timing.
+- **Cloud stand-in URL**: `PFL_CLOUD_ENDPOINT` is a base URL. The provider appends
+  `/v1/messages`; passing the full path produces a run that fails having contacted nothing.
 
-## Installed acceptance harnesses
+## What is proven, and where
 
-| Script | Purpose | State |
-| --- | --- | --- |
-| `scripts/ui-acceptance.ps1` | 33 checks on an isolated profile, PID-bound | working |
-| `scripts/installed-local-proof.ps1` | real-declared Local run, Truncated, resume (6→3→4 requests) | working |
-| `scripts/mock-ollama.ps1` | loopback Ollama stand-in | working |
-| `scripts/cloud-consent-proof.ps1` | Cloud configure proven; Start cannot be activated | partial |
-| `scripts/mock-cloud.ps1` | loopback Anthropic SSE stand-in | working |
+`docs/ACCEPTANCE.md` is the matrix: 56 pass, one blocked on harness, two on hardware, one on
+a key, one on authorization. It is checked by `scripts/acceptance-check.ps1` in CI, so counts,
+evidence paths, stale claims and single-stage wording cannot drift silently.
 
-Resolve UI elements **by name first, then substring**; an inner label has no
-`InvokePattern`, so substring-only resolution silently does nothing.
+`docs/BUILD-EVIDENCE.md` is the chronological trail, including the failures and every claim
+that had to be corrected.
 
-## CI
+Per-area evidence lives in `docs/evidence/<area>/<timestamp>/` with its JSON, and for
+providers the request log as well.
 
-`gh workflow run native-manual.yml --repo scottconverse/patent-forge-lite`, then
-wait for the conclusion. A run that stays `in_progress` for more than a few
-minutes is wedged: cancel it (`gh run cancel`) and dispatch again.
-
-## Where the work stands
-
-`docs/ACCEPTANCE.md` holds the directive-wide matrix: every A–G item with its
-status and evidence class. `docs/BUILD-EVIDENCE.md` holds the chronological
-trail, including the failures and the corrections of earlier false claims.
-
-Recent additions: `pfl-cli diff` between stored revisions (run-verified), PatentsView adapter with opt-in/opt-out integration tests and Setup controls, and corrections to the Cloud and research claims the code had invalidated.
-
-Summary: Phase A complete except A5; Phase B engine complete except B5 execution
-(design-blocked); Phase C adapter, opt-in and desktop controls done, live query
-blocked on a PatentsView key; Phases D–G largely open.
-
-## Blockers, with their owners
+## Blocked, with owners
 
 | Blocker | Needs |
 | --- | --- |
-| A5 installed decline proof | gpui: `role(Button)` div exposes no `InvokePattern`, so automation cannot activate Start. A framework fix, or a manual click-path check. |
-| B5 section regeneration | a decision: sparse checkpoints with a carried marker (touches durability) or suffix regeneration (safe, narrower). See `docs/REGENERATION.md`. |
-| C live query | a PatentsView API key, supplied per session and never persisted. |
-| E2 real import | authorization and a copy of a real PatentForge database. |
-| F3 macOS/Linux installed acceptance | hardware; a runbook is required instead. |
+| A5's installed decline | the window proof cannot start a run: pressing Start through that script never reaches the handler, while `installed-local-proof` starts runs at the same revision 5/5. Six attempts across four rounds failed. A human watching the window would settle it in minutes. The behaviour itself is proven headlessly on three platforms: declined → 0 requests, approved → 6. |
+| C live PatentsView query | a key, supplied per session. |
+| E2 real database import | authorization and a copy of a real database. |
+| F3 macOS/Linux installed | hardware; `docs/PLATFORM-RUNBOOK.md` is the deliverable. |
 
-## Next three actions
+## Decisions that are Scott's
 
-1. **B1 desktop editing**: add a claims/application edit surface that calls the
-   existing `WorkflowService::save_revision`, with a headless session test that
-   drives a run to terminal through a proper reply-draining helper (not a race
-   against `until()`).
-2. **B5**, once the semantic decision is made.
-3. **D1 model picker** from `list_local_models`, which is already verified
-   against the real runtime.
+Next release version (installer says 0.2.0, crates say 0.1.0), signing, publication, the
+PatentsView key, migration authorization, macOS/Linux hardware, and whether to keep or prune
+the `impl/*` branches.
 
-## Rules that cost time to learn
+## Running the installed proofs
 
-- One edit tool call per change; no multi-edit scripts, no heredocs.
-- A new function goes **before** a file's `#[cfg(test)]` module; tests stay last.
-- A workspace build writes a **non-native stub** over `target/session/debug/pfl-desktop.exe`. It exits immediately with "requires a native build", which looks like an automation failure. Rebuild with `--features native` before any UI probe, and never set `CARGO_TARGET_DIR` for a test run.
-- Never claim a gate, a CI run, or an installed behaviour that was not observed.
-  Every false claim in this work came from inferring instead of measuring.
+Each runs a real window and takes the mouse and keyboard; announce before running one.
+
+```
+cargo build -p pfl-desktop --features native        # into target\native
+pwsh -File scripts/ui-acceptance.ps1 -Exe target\native\debug\pfl-desktop.exe
+pwsh -File scripts/installed-local-proof.ps1 -Exe ...   # Local runs, truncation, resume
+pwsh -File scripts/cloud-consent-proof.ps1 -Exe ...     # configure, cost line, approval
+pwsh -File scripts/editing-proof.ps1 -Exe ...           # edit, revisions, diff, export, regenerate
+pwsh -File scripts/models-proof.ps1 -Exe ...            # model picker and readiness
+pwsh -File scripts/first-run-proof.ps1 -Exe ...         # profile prompt, Lean refuses Local
+pwsh -File scripts/lifecycle-proof.ps1 -Exe ...         # single instance, quit
+pwsh -File scripts/research-proof.ps1 -Exe ...          # opt-in research against a mock
+pwsh -File scripts/upgrade-proof.ps1 -OldInstaller ... -NewInstaller ...
+```
+
+`scripts/full-evidence.ps1` runs all of them; it is long and takes the machine, so prefer
+batches when the operator is present.
+
+## Sensible next steps
+
+1. Watch the window while pressing Start after a Cloud configure, and find why that script
+   never reaches the handler. If it fires, A5 closes.
+2. Convert the remaining pointer paths in proofs to `SelectionItem`/`Invoke`, so GUI runs stop
+   moving the cursor.
+3. When a key or authorization arrives, run the live PatentsView query and the real import,
+   and record both artifacts.
