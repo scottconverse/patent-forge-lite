@@ -918,3 +918,10 @@ That is a lead, not a conclusion. The window does receive a reply to the same re
 
 The Cloud proof keeps seven checks it can prove and no run-path assertions; its two toggles now use the Invoke pattern rather than a pointer click. A5 remains blocked -- harness.
 
+
+## The actor-stall hypothesis, disproved (2026-11-23)
+
+A headless probe of ConfigureCloud shows the session actor replying in about 20 milliseconds with Configured(Cloud). The earlier hang was in the test I wrote, not in the product: the actor never stalled, so no wedged-actor bug exists to explain A5. The probe is kept as a test, because nothing at the session layer had ever exercised ConfigureCloud, and it now also asserts that an empty key is refused rather than installing a provider that cannot work.
+
+A5 stays blocked -- harness. What remains unexplained is narrower than before: the window reaches Configure Cloud and configures (the notice and the cost line both follow the typed model), but pressing Start in that script never reaches the handler. The local proof's Start works at the same revision, so the difference is in this script's state, not the actor.
+

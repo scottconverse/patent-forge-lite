@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 54 |
+| pass | 55 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -45,6 +45,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Lean refuses a local runtime with a clear message | unit, `consent.rs` | pass |
 | Lean permits Cloud past the profile gate (fails at the provider, not the gate) | unit, loopback 503 | pass |
 | Masked key field; the mask preserves byte offsets | unit | pass |
+| Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Cost line states *unknown* plus the rates, never a fabricated total | unit, `cost.rs` | pass |
 | Cost line displayed in the window before a paid run | installed + mock, 11/11 twice | pass — 11/11 run also asserts `3.00 input / 15.00 output` |
 
