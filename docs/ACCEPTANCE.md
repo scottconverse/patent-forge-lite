@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 58 |
+| pass | 59 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -48,6 +48,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
+| The PatentsView key never reaches the persisted database; an opted-in run makes exactly one query and records the reference | integration (`research_consent`) | pass |
 | Cloud decline and approval through the session actor: declined run sends nothing, approved run completes with one request per stage | integration (`cloud_consent`), loopback SSE stand-in | pass — 0 requests declined, 6 approved |
 | Cost line states *unknown* plus the rates, never a fabricated total | unit, `cost.rs` | pass |
 | Cost line displayed in the window before a paid run | installed + mock, 11/11 twice | pass — 11/11 run also asserts `3.00 input / 15.00 output` |

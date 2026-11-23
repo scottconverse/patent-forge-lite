@@ -993,3 +993,10 @@ The settled decision that API keys live in the session only was asserted in pros
 
 This is the shape of a trustworthy negative assertion: demonstrate the instrument works, then trust what it does not find.
 
+
+## The research key and opt-in are enforced by a test (2026-11-23)
+
+The other half of the memory-only decision now has the same treatment as the Cloud key: a session-level test configures PatentsView against a loopback stand-in, runs feasibility with the opt-in, and asserts exactly one query was made and the reference recorded -- then scans the persisted database for the key after proving the scan finds the project title.
+
+Two things the test needed, both worth knowing: a run requires an execution mode before it starts, and configuring research preserves whatever mode is already set, so replay is configured first; and the research override takes the full endpoint path because the adapter posts to it directly.
+
