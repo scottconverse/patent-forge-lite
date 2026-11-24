@@ -1017,3 +1017,12 @@ is refused with a message naming the reason.
 
 This is the kind of check worth having explicitly rather than incidentally: it is the
 difference between a bug being absent and a bug being prevented.
+## The shipped artifact now matches the code (2026-11-23)
+
+The Windows installer is rebuilt from `1066f7d`: `patent-forge-lite-0.2.0-x64.exe`,
+SHA-256 `dacdfe8c7e75a2c80a4262aa4624387c0d823e101a35c66fde8b619b64a34e74`, 12,024,692
+bytes, unsigned. The manifest and the packaging note name that revision, so the hash a
+reader checks belongs to the code they are reading.
+
+Still a candidate: no tag, no release, no signature, and the version skew (installer 0.2.0,
+crates 0.1.0) remains Scott's decision.

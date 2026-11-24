@@ -5,7 +5,7 @@ commands in *Reproducing* to check them.
 
 | Field | Value |
 | --- | --- |
-| Revision | `7453174` |
+| Revision | `1066f7d` |
 | Branch | `main` |
 | Candidate version | `0.2.0` |
 | Licence | MIT (application); prompts CC BY-SA 4.0 |
@@ -14,7 +14,7 @@ commands in *Reproducing* to check them.
 
 | Platform | File | Version | SHA-256 | Bytes | Signed |
 | --- | --- | --- | --- | --- | --- |
-| Windows x64 | `patent-forge-lite-0.2.0-x64.exe` | 0.2.0 candidate | `df9d5c20a0c7db0084c58a986af51fc9dd1f2dbc789bde9544b2cd121ed71dd3` | 12,021,617 | **no** |
+| Windows x64 | `patent-forge-lite-0.2.0-x64.exe` | 0.2.0 candidate | `dacdfe8c7e75a2c80a4262aa4624387c0d823e101a35c66fde8b619b64a34e74` | 12,024,692 | **no** |
 | Windows x64 | `patent-forge-lite-0.1.0-x64.exe` | 0.1.0 released artifact, unchanged | `624f731cea661176ae9989bbba6234ee633af3d8b49314e0c151307b340c7f37` | 7,837,495 | **no** (the signed copy is `dist/signed/`) |
 
 macOS and Linux have **no artifact from this revision**. Their installed acceptance is
