@@ -1026,3 +1026,14 @@ reader checks belongs to the code they are reading.
 
 Still a candidate: no tag, no release, no signature, and the version skew (installer 0.2.0,
 crates 0.1.0) remains Scott's decision.
+## Closing verification at `5e3a5cf` (2026-11-23)
+
+Every check that does not need a window was run against the closing commit: acceptance-check
+6/6, api-proof 13/13, migration-proof 16/16, cloud_consent (declined 0 requests, approved 6,
+and the key absent from the database), research_consent (one query, the key absent), and
+regenerate_session (byte-identical carried prefix, untouched base), plus the workspace suite.
+Working tree clean; CI green on Windows, macOS and Linux.
+
+Nothing in this repository claims more than that. The four blocked items stand, each with its
+owner: A5's window presentation (harness), the live PatentsView query (key), a real database
+import (authorization), and installed acceptance on macOS and Linux (hardware).
