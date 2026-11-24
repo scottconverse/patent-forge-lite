@@ -8,7 +8,7 @@
 //! Written as a plain `#[test]`: the session actor owns a private runtime, and wrapping
 //! this in `#[tokio::test]` starves it while the test thread blocks waiting for replies.
 use axum::{Router, http::StatusCode, response::IntoResponse, routing::post};
-use pfl_desktop::session::{ApplicationSession, Mode, Reply, Request};
+use pfl_desktop::session::{ApplicationSession, Mode, Reply, Request, Secret};
 use pfl_domain::*;
 use pfl_storage::SqliteStore;
 use pfl_workflow::ReplayProvider;
@@ -129,7 +129,7 @@ fn a_declined_cloud_run_sends_nothing_and_an_approved_one_completes() {
     session
         .request(Request::ConfigureCloud {
             model: "claude-mock".into(),
-            key: "sk-ant-headless".into(),
+            key: Secret::new("sk-ant-headless"),
         })
         .unwrap();
     match wait_for(&session, "configure", &mut seen, |reply| {
@@ -311,7 +311,13 @@ fn a_declined_cloud_run_sends_nothing_and_an_approved_one_completes() {
     );
     // The key lives in the session only. Nothing persisted may contain it.
     drop(session);
-    let bytes = std::fs::read(&database).unwrap();
+    // Every file in the directory, not just the main one: WAL and shared-memory sidecars can
+    // hold a page the main file has not absorbed yet.
+    let bytes: Vec<u8> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(|entry| entry.ok())
+        .flat_map(|entry| std::fs::read(entry.path()).unwrap_or_default())
+        .collect();
     // Prove the scan can find persisted text before trusting its silence about the key.
     let title = b"Cloud consent fixture";
     assert!(

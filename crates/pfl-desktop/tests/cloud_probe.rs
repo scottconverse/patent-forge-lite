@@ -3,7 +3,7 @@
 //! Configuring Cloud installs the key in memory and answers without contacting any
 //! provider: no request is made merely by configuring. This closes a coverage gap —
 //! nothing at the session layer exercised `ConfigureCloud` before.
-use pfl_desktop::session::{ApplicationSession, Mode, Reply, Request};
+use pfl_desktop::session::{ApplicationSession, Mode, Reply, Request, Secret};
 use pfl_domain::*;
 use pfl_storage::SqliteStore;
 use pfl_workflow::ReplayProvider;
@@ -33,7 +33,7 @@ fn configuring_cloud_replies_without_contacting_a_provider() {
     session
         .request(Request::ConfigureCloud {
             model: "claude-mock".into(),
-            key: "sk-ant-session-only".into(),
+            key: Secret::new("sk-ant-session-only"),
         })
         .unwrap();
     match drain_until(&session, "ConfigureCloud") {
@@ -53,7 +53,7 @@ fn configuring_cloud_replies_without_contacting_a_provider() {
     session
         .request(Request::ConfigureCloud {
             model: "claude-mock".into(),
-            key: "   ".into(),
+            key: Secret::new("   "),
         })
         .unwrap();
     match drain_until(&session, "empty key") {

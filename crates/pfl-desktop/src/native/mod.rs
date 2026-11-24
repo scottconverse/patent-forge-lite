@@ -2520,7 +2520,7 @@ impl Render for Desktop {
                             let key = this.research_key.read(cx).buffer.text().to_string();
                             match this
                                 .session
-                                .request(Request::ConfigureResearch { api_key: key })
+                                .request(Request::ConfigureResearch { api_key: crate::session::Secret::new(key) })
                             {
                                 Ok(()) => {
                                     this.state.notice = Some(
@@ -2542,7 +2542,7 @@ impl Render for Desktop {
                             let key = this.cloud_key.read(cx).buffer.text().to_string();
                             // The key travels to the session actor and nowhere else.
                             this.cloud_approved = false;
-                            this.send(Request::ConfigureCloud { model, key }, cx);
+                            this.send(Request::ConfigureCloud { model, key: crate::session::Secret::new(key) }, cx);
                         },
                         cx,
                     ));
@@ -2614,7 +2614,7 @@ impl Render for Desktop {
                             if this.research_authorized {
                                 let key = this.research_key.read(cx).buffer.text().to_string();
                                 if !key.trim().is_empty() && !this.research_configured {
-                                    this.send(Request::ConfigureResearch { api_key: key }, cx);
+                                    this.send(Request::ConfigureResearch { api_key: crate::session::Secret::new(key) }, cx);
                                     this.research_configured = true;
                                 }
                             }

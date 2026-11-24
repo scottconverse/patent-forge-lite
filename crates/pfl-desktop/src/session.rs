@@ -42,6 +42,31 @@ pub enum ExportFormat {
     Word,
 }
 
+/// A session-only secret. Its Debug prints a marker, so a future {:?} on a request cannot put
+/// a key in a log.
+#[derive(Clone, PartialEq, Eq)]
+pub struct Secret(String);
+
+impl Secret {
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+    /// The only way to read the value. Deliberately not Deref, so a key does not silently
+    /// behave like a string in formatting code.
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+    pub fn is_blank(&self) -> bool {
+        self.0.trim().is_empty()
+    }
+}
+
+impl std::fmt::Debug for Secret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("\"[redacted]\"")
+    }
+}
+
 #[derive(Debug)]
 pub enum Request {
     Refresh,
@@ -52,18 +77,18 @@ pub enum Request {
     Configure(Mode),
     /// Configures USPTO PatentsView research with a session-only key.
     ConfigureResearch {
-        api_key: String,
+        api_key: Secret,
     },
     /// Holds the Cloud key in memory for this session only. A `None` clears the stored key,
     /// but a provider already built keeps the key it was built with until the next
     /// `ConfigureCloud`; clearing does not revoke a live provider. The value is never stored,
     /// logged, exported or echoed back in a reply.
-    SetCloudKey(Option<String>),
+    SetCloudKey(Option<Secret>),
     /// Configures Cloud in one step: the key is installed and the mode is built
     /// together, so no ordering race can leave the mode unset or the key missing.
     ConfigureCloud {
         model: String,
-        key: String,
+        key: Secret,
     },
     SetProfile(SetupProfile),
     Start {
@@ -295,7 +320,7 @@ struct Actor {
     /// while the window still believed it was on.
     research: Option<Arc<dyn ResearchSource>>,
     /// In-memory only, for this session. Never persisted, never logged.
-    cloud_key: Option<String>,
+    cloud_key: Option<Secret>,
     /// True once a research source has been configured for this session.
     research_configured: bool,
 }
@@ -405,9 +430,13 @@ impl Actor {
                                 "PFL_CLOUD_ENDPOINT is for loopback verification only".into(),
                             ));
                         }
-                        Arc::new(CloudProvider::with_endpoint(key, model.clone(), endpoint)?)
+                        Arc::new(CloudProvider::with_endpoint(
+                            key.expose(),
+                            model.clone(),
+                            endpoint,
+                        )?)
                     }
-                    _ => Arc::new(CloudProvider::new(key, model.clone())?),
+                    _ => Arc::new(CloudProvider::new(key.expose(), model.clone())?),
                 }
             }
         })
@@ -441,10 +470,10 @@ impl Actor {
                 self.selected(snapshot).await;
             }
             Request::ConfigureCloud { model, key } => {
-                // One step: install the key, then configure. No ordering race and no
-                // second reply.
-                self.cloud_key = Some(key).filter(|value| !value.trim().is_empty());
+                // The guard runs first: a request that will be refused must not install a key
+                // into the session.
                 self.ensure_idle("changing execution mode").await?;
+                self.cloud_key = Some(key).filter(|value| !value.is_blank());
                 let mode = Mode::Cloud { model };
                 let provider = self.build_provider(&mode)?;
                 self.rebuild_service(provider);
@@ -493,7 +522,12 @@ impl Actor {
                 let history = self.service.history(project.clone()).await?;
                 let references = history
                     .iter()
-                    .filter(|run| run.input.kind == WorkflowKind::Feasibility)
+                    // Only a completed feasibility run is evidence: a newer cancelled run must
+                    // not replace the analysis the exported revisions were derived from.
+                    .filter(|run| {
+                        run.input.kind == WorkflowKind::Feasibility
+                            && run.outcome == RunOutcome::Completed
+                    })
                     .max_by_key(|run| run.version)
                     .map(|run| run.input.upstream.prior_art.clone())
                     .unwrap_or_default();
@@ -593,7 +627,7 @@ impl Actor {
             }
             Request::ConfigureResearch { api_key } => {
                 self.ensure_idle("changing research settings").await?;
-                if api_key.trim().is_empty() {
+                if api_key.is_blank() {
                     return Err(Error::Invalid(
                         "research needs a PatentsView API key".into(),
                     ));
@@ -607,9 +641,12 @@ impl Actor {
                                 "PFL_RESEARCH_ENDPOINT is for loopback verification only".into(),
                             ));
                         }
-                        Arc::new(PatentsViewSource::with_endpoint(api_key, endpoint)?)
+                        Arc::new(PatentsViewSource::with_endpoint(
+                            api_key.expose(),
+                            endpoint,
+                        )?)
                     }
-                    _ => Arc::new(PatentsViewSource::new(api_key)?),
+                    _ => Arc::new(PatentsViewSource::new(api_key.expose())?),
                 };
                 let provider = match &self.mode {
                     Some(mode) => self.build_provider(mode)?,
@@ -622,7 +659,13 @@ impl Actor {
             }
             Request::SetCloudKey(key) => {
                 // In memory only. Never logged, stored or echoed back.
-                self.cloud_key = key.filter(|value| !value.trim().is_empty());
+                self.cloud_key = key.filter(|value| !value.is_blank());
+                if self.cloud_key.is_none() && matches!(self.mode, Some(Mode::Cloud { .. })) {
+                    // Clearing the key drops the Cloud provider: leaving it built would keep
+                    // the key alive after the operator asked for it to go.
+                    self.rebuild_service(self.replay.clone());
+                    self.mode = None;
+                }
                 self.reply(Reply::Settings(self.service.settings().await?));
             }
             Request::SetProfile(profile) => {

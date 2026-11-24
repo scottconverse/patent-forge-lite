@@ -1205,7 +1205,9 @@ async fn write_package(
     let history = service.history(project_id.clone()).await?;
     let references = history
         .iter()
-        .filter(|run| run.input.kind == WorkflowKind::Feasibility)
+        .filter(|run| {
+            run.input.kind == WorkflowKind::Feasibility && run.outcome == RunOutcome::Completed
+        })
         .max_by_key(|run| run.version)
         .map(|run| run.input.upstream.prior_art.clone())
         .unwrap_or_default();

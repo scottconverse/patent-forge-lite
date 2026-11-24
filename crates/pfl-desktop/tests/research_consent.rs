@@ -5,7 +5,7 @@
 //! was made, and then prove the key never reached the database — with the scan itself
 //! proven against a known persisted value.
 use axum::{Router, http::StatusCode, response::IntoResponse, routing::post};
-use pfl_desktop::session::{ApplicationSession, Mode, Reply, Request};
+use pfl_desktop::session::{ApplicationSession, Mode, Reply, Request, Secret};
 use pfl_domain::*;
 use pfl_storage::SqliteStore;
 use pfl_workflow::ReplayProvider;
@@ -106,7 +106,7 @@ fn the_research_key_never_reaches_the_database_and_opt_in_makes_one_query() {
 
     session
         .request(Request::ConfigureResearch {
-            api_key: "patentsview-secret-test-key".into(),
+            api_key: Secret::new("patentsview-secret-test-key"),
         })
         .unwrap();
     match drain_until(
@@ -238,7 +238,13 @@ fn the_research_key_never_reaches_the_database_and_opt_in_makes_one_query() {
     );
 
     drop(session);
-    let bytes = std::fs::read(&database).unwrap();
+    // Every file in the directory, not just the main one: WAL and shared-memory sidecars can
+    // hold a page the main file has not absorbed yet.
+    let bytes: Vec<u8> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(|entry| entry.ok())
+        .flat_map(|entry| std::fs::read(entry.path()).unwrap_or_default())
+        .collect();
     // Prove the scan finds persisted text before trusting its silence about the key.
     let title = b"Research consent fixture";
     assert!(

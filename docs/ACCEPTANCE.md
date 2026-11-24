@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 101 |
+| pass | 103 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -51,6 +51,8 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Masked key field: the mask preserves byte offsets, never paints the secret, and neither copies nor cuts | unit (`masking_tests`, compiled and run in CI with `--features native`) | pass — F-014 |
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
+| A request carrying a key prints `[redacted]` under `Debug`; clearing the key drops the Cloud provider; the key-never-in-database scans read every file in the directory, WAL included | unit (`session`, `cloud_consent`, `research_consent`) | pass — F-055, F-056, F-057 |
+| Package references come only from a completed feasibility run | unit + code | pass — F-058 |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
 | The workflow, consent and storage documents describe the shipped behaviour: per-run paid approval, opt-in research, per-workflow checkpoints and document revisions | review | pass — F-046 |
 | Import receipts and the storage document say credentials are redacted and must be re-entered | unit + review | pass — F-047 |

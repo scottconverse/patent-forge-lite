@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use pfl_desktop::session::{
-    APPLICATION_ID, ApplicationSession, ExportFormat, Mode, Reply, Request, data_directory,
+    APPLICATION_ID, ApplicationSession, ExportFormat, Mode, Reply, Request, Secret, data_directory,
 };
 use pfl_domain::*;
 use pfl_storage::SqliteStore;
@@ -546,7 +546,9 @@ fn cloud_start_requires_explicit_paid_approval() {
     let project = create(&session);
 
     session
-        .request(Request::SetCloudKey(Some("session-only-test-key".into())))
+        .request(Request::SetCloudKey(Some(Secret::new(
+            "session-only-test-key",
+        ))))
         .unwrap();
     until(&session, |r| matches!(r, Reply::Settings(_)));
     session
@@ -814,4 +816,76 @@ fn compliance_started_with_a_selected_revision_records_it() {
     assert_eq!(run.input.upstream.claims_text, "1. THE SELECTED CLAIM SET.");
 
     stop(&session);
+}
+
+/// A request carries keys, so its Debug must never print one: a single future `{request:?}`
+/// would otherwise put a key in a log.
+#[test]
+fn a_request_never_prints_its_keys() {
+    let cloud = Request::ConfigureCloud {
+        model: "claude-mock".into(),
+        key: Secret::new("sk-ant-secret-value"),
+    };
+    let printed = format!("{cloud:?}");
+    assert!(!printed.contains("sk-ant-secret-value"), "got: {printed}");
+    assert!(printed.contains("redacted"));
+
+    let research = Request::ConfigureResearch {
+        api_key: Secret::new("patentsview-secret-value"),
+    };
+    let printed = format!("{research:?}");
+    assert!(
+        !printed.contains("patentsview-secret-value"),
+        "got: {printed}"
+    );
+
+    let clear = Request::SetCloudKey(Some(Secret::new("another-secret-value")));
+    let printed = format!("{clear:?}");
+    assert!(!printed.contains("another-secret-value"), "got: {printed}");
+}
+
+/// Clearing the key drops the Cloud provider rather than leaving it built with the key inside.
+#[test]
+fn clearing_the_key_drops_the_cloud_provider() {
+    let store = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ControlledReplay::new(true));
+    let session = ApplicationSession::with_replay_provider(store, provider).unwrap();
+    let project = create(&session);
+    session
+        .request(Request::ConfigureCloud {
+            model: "claude-mock".into(),
+            key: Secret::new("sk-ant-session-only"),
+        })
+        .unwrap();
+    match until(&session, |r| {
+        matches!(r, Reply::Configured(_) | Reply::Error(_))
+    }) {
+        Reply::Configured(_) => {}
+        other => panic!("configuring Cloud failed: {other:?}"),
+    }
+    session.request(Request::SetCloudKey(None)).unwrap();
+    until(&session, |r| {
+        matches!(r, Reply::Settings(_) | Reply::Error(_))
+    });
+    // With the mode dropped, a start is refused for configuration rather than reaching a
+    // provider that still holds the key.
+    session
+        .request(Request::Start {
+            project: project.id.clone(),
+            kind: WorkflowKind::Feasibility,
+            idempotency_key: "after-clear".into(),
+            authorization: Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    match until(&session, |r| matches!(r, Reply::Error(_) | Reply::Run(_))) {
+        Reply::Error(error) => assert!(
+            error.to_string().to_lowercase().contains("configure")
+                || error.to_string().to_lowercase().contains("mode"),
+            "the refusal should name the missing configuration, got: {error}"
+        ),
+        other => panic!("a start after clearing the key must be refused, got {other:?}"),
+    }
 }

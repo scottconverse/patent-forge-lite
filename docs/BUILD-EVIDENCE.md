@@ -1366,3 +1366,21 @@ the bytes are identical), the API doc claiming no write endpoint was exercised, 
 saying a `None` clears the key when a built provider keeps it. Each corrected, and the API doc's
 unverified list is now honest in both directions: intake, resume and cancel gained tests, so every
 write path in the table is verified and only remote-client behaviour is unproven.
+## Audit Minors F-055..F-058 fixed (2026-11-24)
+
+F-055: `Request` derived `Debug` while carrying both API keys, so one future `{request:?}` would
+have logged a key. Keys now travel in a `Secret` newtype whose `Debug` prints `[redacted]`, with
+`expose()` the only way to read the value. A test formats all three key-carrying requests and
+asserts none contains the key.
+
+F-056: clearing the key left the built provider holding it, and `ConfigureCloud` installed the key
+before its active-run guard. The guard now runs first, and clearing the key rebuilds the service
+with the replay provider and drops the Cloud mode, so the key no longer outlives the operator's
+intent. A test configures Cloud, clears the key, and asserts a start is refused for configuration.
+
+F-057: both key-never-in-database tests read only the main SQLite file while storage runs in WAL
+mode. They now read every file in the temporary directory, so a key in `-wal` would be seen.
+
+F-058: package references came from the newest feasibility run of any outcome, so a newer cancelled
+run could replace the completed analysis's references. Both the session and the CLI now require a
+completed run.
