@@ -57,8 +57,8 @@ id!(ProjectId);
 id!(RunId);
 id!(RevisionId);
 id!(AttemptId);
-/// An edited document revision. Distinct from a generation run: runs stay
-/// immutable, edits become new revisions that point at the run they derive from.
+/// Which document a revision belongs to. Runs stay immutable; edits become new revisions that
+/// point at the run they derive from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DocumentKind {
@@ -80,6 +80,7 @@ impl DocumentKind {
         }
     }
 }
+/// An edited document revision: a numbered copy derived from a completed run of its kind.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentRevision {
     pub id: RevisionId,

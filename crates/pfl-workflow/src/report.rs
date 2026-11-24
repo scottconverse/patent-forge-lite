@@ -28,7 +28,7 @@ fn strip_headings(text: &str) -> String {
 }
 
 fn cell(value: &str) -> String {
-    let text = value.replace('|', "/").replace('\n', " ");
+    let text = value.replace('|', "/").replace(['\n', '\r'], " ");
     text.trim().to_string()
 }
 

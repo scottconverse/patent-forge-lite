@@ -291,13 +291,16 @@ pub fn start_block(gate: &StartGate) -> Option<&'static str> {
     if gate.run_active {
         return Some("The current run is still active.");
     }
-    if !gate.data_declared
-        || (gate.mode_is_local && !gate.local_authorized)
-        || (gate.mode_is_cloud && !gate.cloud_approved)
-    {
-        return Some(
-            "Declare the data, authorize local inference, or approve the paid Cloud request.",
-        );
+    // One message per missing control: a combined sentence made the operator guess which of
+    // three things they had already done.
+    if !gate.data_declared {
+        return Some("Declare whether this is synthetic test material or a real invention.");
+    }
+    if gate.mode_is_local && !gate.local_authorized {
+        return Some("Authorize local inference for this endpoint and model.");
+    }
+    if gate.mode_is_cloud && !gate.cloud_approved {
+        return Some("Approve the paid Cloud request for this run.");
     }
     None
 }
@@ -357,7 +360,7 @@ mod gate_tests {
     fn undeclared_data_blocks_regardless_of_mode() {
         let mut gate = ready();
         gate.data_declared = false;
-        assert!(start_block(&gate).unwrap().contains("Declare the data"));
+        assert!(start_block(&gate).unwrap().contains("Declare whether"));
     }
 
     #[test]
@@ -367,14 +370,18 @@ mod gate_tests {
         assert!(
             start_block(&gate)
                 .unwrap()
-                .contains("authorize local inference")
+                .contains("Authorize local inference")
         );
         gate.local_authorized = true;
         assert_eq!(start_block(&gate), None);
 
         let mut cloud = ready();
         cloud.mode_is_cloud = true;
-        assert!(start_block(&cloud).unwrap().contains("paid Cloud"));
+        assert!(
+            start_block(&cloud)
+                .unwrap()
+                .contains("Approve the paid Cloud request")
+        );
         cloud.cloud_approved = true;
         assert_eq!(start_block(&cloud), None);
     }

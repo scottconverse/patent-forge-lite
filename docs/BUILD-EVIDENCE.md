@@ -1445,3 +1445,21 @@ COMPLETE without every stage was imported as `Completed`, which the UI shows as 
 that cannot be opened; it is now `Interrupted`. Both are tested: a fixture with the last stage
 deleted imports as interrupted with five checkpoints, and a fixture with a NULL completion time
 shows `finished_at_ms == started_at_ms`.
+## Audit Minors F-067, F-069, F-075, F-076 fixed (2026-11-24)
+
+F-067: the CSV and the IDS table described the same records in different words (`yes`/`no` against
+`Verified`/`Unverified`), the CSV had no publication-number column, and no BOM, so Excel on Windows
+could garble a non-ASCII title. The CSV now carries a UTF-8 BOM, a publication-number column and
+the IDS vocabulary. `HttpResearchSource` marked every record `verified: true`; only PatentsView
+records are verified, so a generic HTTP record is now `Unverified`, and the integration test that
+pinned the old claim asserts the honest one.
+
+F-069: one sentence covered three different missing controls ("declare the data, authorize local
+inference, or approve the paid Cloud request"), so the operator had to guess which one they had
+already done. Each condition now has its own message, and the gate tests assert the specific one.
+
+F-075: the `DocumentRevision` doc comment sat above `DocumentKind`. Each type now has its own.
+
+F-076: the metadata code fence was a fixed 16 backticks; it is now one longer than the longest
+backtick run in the metadata. A multi-line revision note quotes every line instead of only the
+first, and table cells strip carriage returns as well as newlines.

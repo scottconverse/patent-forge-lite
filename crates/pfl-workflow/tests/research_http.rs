@@ -70,7 +70,7 @@ async fn spawn(router: Router) -> String {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_retrieved_record_is_structured_and_marked_verified() {
+async fn a_retrieved_record_is_structured_and_marked_unverified() {
     let capture = Capture::default();
     let base = spawn(
         Router::new()
@@ -87,7 +87,9 @@ async fn a_retrieved_record_is_structured_and_marked_verified() {
     assert_eq!(items[0].reference, "US-1");
     assert_eq!(items[0].title, "Temperature indicator");
     assert_eq!(items[0].assignee, "Acme");
-    assert!(items[0].verified, "a retrieved record is verified");
+    // Only PatentsView records are verified. An arbitrary HTTP source is not, and saying so
+    // is the difference between a citation and a claim.
+    assert!(!items[0].verified, "a generic HTTP record is not verified");
     assert_eq!(items[0].source, "HTTP");
     // The query was built from the technical field, not the whole intake.
     let query = capture.seen.lock().unwrap().clone();

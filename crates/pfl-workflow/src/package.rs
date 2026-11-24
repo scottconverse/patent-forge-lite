@@ -126,19 +126,26 @@ fn csv_field(value: &str) -> String {
 
 /// The reference inventory as CSV, with a header a spreadsheet can read.
 fn references_csv(references: &[PriorArtItem]) -> String {
+    // A byte-order mark keeps Excel on Windows from garbling non-ASCII titles, and the
+    // vocabulary matches the IDS table rather than inventing a second one.
     let mut out = String::from(
-        "reference,title,assignee,filing_date,grant_date,cpc,source,verified,relevance,url\n",
+        "\u{feff}reference,publication_number,title,assignee,filing_date,grant_date,cpc,source,verification,relevance,url\n",
     );
     for item in references {
         let row = [
             item.reference.as_str(),
+            item.publication_number.as_str(),
             item.title.as_str(),
             item.assignee.as_str(),
             item.filing_date.as_str(),
             item.grant_date.as_str(),
             item.cpc.as_str(),
             item.source.as_str(),
-            if item.verified { "yes" } else { "no" },
+            if item.verified {
+                "Verified"
+            } else {
+                "Unverified"
+            },
             item.relevance.as_str(),
             item.url.as_str(),
         ];
@@ -162,7 +169,14 @@ fn revision_markdown(revision: &DocumentRevision) -> String {
     let note = if revision.note.trim().is_empty() {
         String::new()
     } else {
-        format!("\n> Edit note: {}\n", revision.note.trim())
+        // Every line of a multi-line note is quoted, or the later lines read as report text.
+        let quoted: Vec<String> = revision
+            .note
+            .trim()
+            .lines()
+            .map(|line| format!("> {}", line.trim()))
+            .collect();
+        format!("\n{}\n", quoted.join("\n"))
     };
     format!(
         "<!-- {} revision {} ({}{}) -->\n\n{}{}\n",
@@ -428,10 +442,17 @@ mod tests {
         let claims = revision(DocumentKind::Claims, 1, "1. A thing.");
         let files = build_package("Fixture", Some(&claims), None, &[reference()], None).unwrap();
         let csv = String::from_utf8(file(&files, "references.csv").bytes.clone()).unwrap();
-        assert!(csv.starts_with("reference,title,assignee,"));
+        // A byte-order mark for spreadsheets, then the shared vocabulary header.
+        assert!(
+            csv.trim_start_matches('\u{feff}')
+                .starts_with("reference,publication_number,title,assignee,")
+        );
         assert!(csv.contains("\"A container, with a comma\""));
         assert!(csv.contains("\"Acme \"\"Sensors\"\"\""));
-        assert!(csv.contains(",yes,"), "verified flag is recorded");
+        assert!(
+            csv.contains(",Verified,") || csv.contains(",Unverified,"),
+            "the verification column uses the IDS vocabulary"
+        );
     }
 
     #[test]

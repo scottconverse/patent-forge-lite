@@ -222,7 +222,8 @@ impl ResearchSource for HttpResearchSource {
                 url: record.url,
                 relevance: record.relevance,
                 source: "HTTP".into(),
-                verified: true,
+                // Only PatentsView records are verified; an arbitrary HTTP source is not.
+                verified: false,
                 ..Default::default()
             })
             .collect())

@@ -44,11 +44,14 @@ pub fn export_markdown(run: &RunSnapshot) -> Result<String> {
         "input_snapshot_provenance": provenance,
     }))
     .map_err(|e| Error::Invalid(e.to_string()))?;
-    let fence = if metadata.contains("```") {
-        "````````````````"
-    } else {
-        "```"
-    };
+    // The fence must be longer than any backtick run inside the metadata, or the block ends
+    // early and the rest renders as report prose.
+    let longest = metadata
+        .split(|c| c != '`')
+        .map(str::len)
+        .max()
+        .unwrap_or(0);
+    let fence = "`".repeat(longest.max(2) + 1);
     Ok(format!(
         "# Patent Forge Lite · saved analysis v{}\n\n{}\n\n---\n\n## Saved run identity and input snapshot\n\n{fence}json\n{metadata}\n{fence}\n",
         run.version, report.markdown
