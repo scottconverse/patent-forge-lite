@@ -263,7 +263,11 @@ pub fn validate(text: &str) -> ClaimReport {
     // dependent claim should reference an earlier claim.
     for claim in &parsed {
         let lower = claim.body.to_ascii_lowercase();
-        let refs = referenced_numbers(&lower);
+        // Distinct parents: a claim that names the same parent twice ("dependent on claim 2 …
+        // of claim 2") is not a multiple dependent claim.
+        let mut refs = referenced_numbers(&lower);
+        refs.sort_unstable();
+        refs.dedup();
         for &referenced in &refs {
             if referenced == claim.number {
                 report.issues.push(ClaimIssue {
