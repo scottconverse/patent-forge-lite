@@ -36,13 +36,16 @@ without adding ad hoc shared-domain fields.
 - Cancelling is an atomic state/event change. It rejects all subsequent stage,
   delta and checkpoint writes, including checkpoint retries. Terminal
   cancellation still uses `finish_attempt`, preserving prior checkpoints.
-- Finishing with a saved report requires all six checkpoints and matching
-  run/version identity. Report, terminal attempt state and terminal event commit
-  together. Identical finish retries do not create events.
+- Finishing with a saved report requires every checkpoint of **that workflow** — six for
+  feasibility, four for claims or compliance, five for application — plus matching run/version
+  identity. Report, terminal attempt state and terminal event commit together. Identical finish
 - Subscriptions and saved-result reads never start, resume or recover work.
   Cursor sequences are durable; transient deltas are not completed checkpoints.
 
 `intake_history(&ProjectId)` returns immutable `IntakeRevision` records.
+`save_revision`, `revisions` and `revision` are the document-revision store: numbered per
+project and kind, anchored to the run a revision was edited from, and listed in order. A
+revision with no text is refused, and a stored revision is never mutated.
 Monetary cost is not a current shared-domain field. Optional token usage retains
 unknown as `None`, not zero; legacy monetary values are preserved in the archive.
 
@@ -128,18 +131,20 @@ snapshot per-run intake, so imported run inputs reflect the source intake
 available at import, not a claim to reconstruct unavailable earlier edits.
 Lite intake edits cannot mutate those imported snapshots or saved reports.
 
-The lossless `legacy_records(identity, table)` archive preserves every source
-field, including original intake fields, original timestamps/status, raw partial
-stage text, claims/dependencies, compliance links, edited application versions,
-prior-art links/results, patent/family caches, prosecution records, nullable
-usage ownership, settings, export paths, monetary costs, salt and ciphertext.
-It is **not yet usable workflow migration parity** for those archive-only
-entities. Do not display/log secret-bearing archived settings.
+The `legacy_records(identity, table)` archive preserves every source field with one
+deliberate exception: **credential values are redacted at import**. Every non-credential
+column is kept verbatim — original intake fields, timestamps/status, raw partial stage text,
+claims/dependencies, compliance links, edited application versions, prior-art links/results,
+patent/family caches, prosecution records, nullable usage ownership, export paths and monetary
+costs — while a credential-named column stores a redaction marker instead of its value.
+`is_credential_column` matches credential suffixes (`apikey`, `token`, `secret`, `password`,
+`salt`, `key`, `credentials`, `authheader`, `authorization`) and URL userinfo is stripped from
+a legacy endpoint before it is copied. Credentials must be re-entered for the new session; the
+archive is not a place to recover them.
 
-Legacy encrypted credential derivation/decryption is not implemented here.
-Opaque original fake ciphertext/salt are preserved. Actual credential access,
-key re-entry flows, rich typed workflow migration and user-data import remain
-later authorized work. Numeric legacy timestamps project into milliseconds;
+Legacy credential derivation or decryption is not attempted: the values are redacted, not
+carried. Key re-entry happens in the new application and is session-only. Rich typed workflow
+migration parity for archive-only entities and a real-database import remain authorized work.
 unrecognized textual timestamps remain exact in the archive and project as 0.
 No DSH endpoint, legacy executable, old database or model is changed.
 

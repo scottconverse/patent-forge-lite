@@ -1,6 +1,6 @@
 # Cloud consent design
 
-Status: **proposal, not implemented.** The engine already enforces the paid-call gate; the desktop
+Status: **implemented: the window configures Cloud with a session-only key, and the service refuses a paid run without a per-run approval.** The engine already enforces the paid-call gate; the desktop
 has no Cloud path. This note records exactly what the desktop change will do, and the one decision
 that is not mine to make.
 

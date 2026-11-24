@@ -54,8 +54,10 @@ pub enum Request {
     ConfigureResearch {
         api_key: String,
     },
-    /// Holds the Cloud key in memory for this session only. A `None` clears it.
-    /// The value is never stored, logged, exported or echoed back in a reply.
+    /// Holds the Cloud key in memory for this session only. A `None` clears the stored key,
+    /// but a provider already built keeps the key it was built with until the next
+    /// `ConfigureCloud`; clearing does not revoke a live provider. The value is never stored,
+    /// logged, exported or echoed back in a reply.
     SetCloudKey(Option<String>),
     /// Configures Cloud in one step: the key is installed and the mode is built
     /// together, so no ordering race can leave the mode unset or the key missing.

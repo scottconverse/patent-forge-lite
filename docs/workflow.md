@@ -102,18 +102,26 @@ HTTP credentials/query/fragment in the endpoint are rejected. A remote endpoint
 is explicitly remote even though the inference-provider kind is `Local`;
 `is_on_machine()` distinguishes loopback. No model availability is fabricated.
 
-All entry paths require synthetic authorization; actual Ollama also requires
-explicit local-inference authorization for the immutable endpoint/model/input.
-Cloud/paid requests are disabled even if a caller sets the approval boolean.
-Credential presence cannot authorize calls. Research opt-ins do not cause
-research in this slice. Later real research/Cloud acceptance needs separate
-destination/data/cost authorization and a scoped approval contract, not this
-first-slice boolean alone.
+Every entry path needs an explicit data declaration: synthetic test material or a
+real-invention acknowledgement, never both. A real-invention run is local-only: Cloud
+and prior-art research both refuse it, because either would send the invention off the
+machine.
+
+Local inference additionally requires explicit authorization for the immutable
+endpoint/model. Cloud requires a paid approval **for that run**, carried in the run's own
+authorization and checked by the service: a stored approval is not reused by resume or by
+regeneration, both of which take a fresh one. Credential presence never authorizes a call,
+and a run without the approval boolean is refused before any provider request.
+
+Research is opt-in per run. Without the opt-in no query is made; with it the recorded
+references are snapshotted into the run input and rendered under "USPTO Prior Art Results".
+The query happens only after authorization and the idempotency check pass, so a refused
+start sends nothing, and shutdown can cancel a query in flight.
 
 NDJSON output preserves UTF-8 across network boundaries; real token counts come
 from Ollama completion fields and remain unknown when absent. This slice's
 domain has no monetary ledger; it must not present unknown costs as free.
-Generation uses the explicit first-slice 32,000 output-token cap; a richer
+Local generation uses the explicit first-slice 32,000 output-token cap; Cloud uses 16,000, which is above the largest prompt target. A richer
 immutable inference-settings contract is later parity.
 
 ## Reports and boundaries
@@ -127,7 +135,7 @@ Imported historical reports explicitly label input as reconstructed from intake
 available at import, not recovered historical per-run input.
 HTML is a self-contained, escaped plain-text report with UTF-8 and a restrictive
 content security policy, not a rich Markdown renderer. The destination write is
-owned by desktop/CLI. Word and full rich-format parity remain later work.
+owned by desktop/CLI. Word (`.docx`) is exported from the same saved run identity in both the report exporter and the package exporter, with identical bytes for the same revision.
 
 Use only the new application's Store/paths. No old application service,
 installation, private configuration, database or process is a runtime dependency.

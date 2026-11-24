@@ -202,8 +202,8 @@ fn revision_html(revision: &DocumentRevision) -> String {
 }
 
 /// Renders a revision as a Word document. Deterministic: the same revision text
-/// always produces the same paragraphs, so a re-export is byte-stable apart from
-/// the container's own timestamps.
+/// always produces the same paragraphs, and re-exporting the same revision produces
+/// identical bytes — measured across separate processes, not just in one.
 fn revision_docx(revision: &DocumentRevision) -> Result<Vec<u8>> {
     use docx_rs::*;
 

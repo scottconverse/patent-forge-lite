@@ -1,8 +1,10 @@
 //! Cost estimation from recorded usage.
 //!
-//! Prices are **supplied by the operator**; this module never invents a price and
-//! never claims a total it cannot justify. When any stage's usage is unknown the
-//! estimate is `None` — "unknown", never `0.0`, which would read as free.
+//! A total is computed only from recorded usage and a rate this build knows about. The rates
+//! in `pricing_for` are a documented table of published list prices for the models it names;
+//! for any other model there is no rate, so the estimate is `None` and the window says the
+//! cost is unknown rather than inventing one. When any stage's usage is unknown the estimate is
+//! `None` too — "unknown", never `0.0`, which would read as free.
 use crate::{UsageSummary, usage_summary};
 use pfl_domain::RunSnapshot;
 use serde::{Deserialize, Serialize};

@@ -5,8 +5,10 @@ What this build actually serves, measured over loopback. The evidence for each r
 
 ## HTTP surface (`pfl-cli serve --workspace <dir> --addr <loopback>`)
 
-Verified in the installed-loopback sense: a real server, a real workspace, real
-responses. **No write endpoint has been exercised** — see the last table.
+Verified in the installed-loopback sense: a real server, a real workspace, real responses.
+Every write path in the last table is covered by `crates/pfl-api/tests/api.rs`: project
+creation, intake save, run start, download-token issue, resume and cancel. What remains unproven
+is any of this against a *remote* client or a live provider.
 
 | Method | Path | Verified | What it returns |
 | --- | --- | --- | --- |
@@ -25,12 +27,12 @@ without an operator present:
 
 | Method | Path | Status |
 | --- | --- | --- |
-| POST | `/api/health/download-token` | unverified |
-| POST | `/api/projects` | unverified |
-| POST | `/api/projects/{id}/intake` | unverified |
-| POST | `/api/runs` | unverified |
-| POST | `/api/runs/{id}/resume` | unverified |
-| POST | `/api/runs/{id}/cancel` | unverified |
+| POST | `/api/health/download-token` | verified (`api.rs`) |
+| POST | `/api/projects` | verified (`api.rs`) |
+| POST | `/api/projects/{id}/intake` | verified (`api.rs`) |
+| POST | `/api/runs` | verified (`api.rs`) |
+| POST | `/api/runs/{id}/resume` | verified (`api.rs`) |
+| POST | `/api/runs/{id}/cancel` | verified (`api.rs`) |
 
 The desktop application does not use this surface; it is the compatibility surface for
 external callers such as DSH. Both talk to the same workspace format.

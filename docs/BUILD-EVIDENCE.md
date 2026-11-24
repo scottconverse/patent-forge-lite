@@ -1345,3 +1345,24 @@ was unsigned until signing was chosen (release signing exists), and that no upgr
 exercised (it is verified). Its recipe omitted `/DAppVersion`, so following the page overwrote the
 published 0.1.0 installer used as the upgrade proof's old artifact. The recipe now states the
 version and records the hash.
+## Audit Majors F-046, F-047, F-048 fixed (2026-11-24)
+
+F-046: `workflow.md` claimed synthetic-only entry, Cloud disabled even when approved, and research
+that never runs — all three describe the system as stricter than it is. The policy section now
+states the real rule: one data declaration per run, real data refused by Cloud *and* research,
+paid approval per run and never reused by resume or regeneration, research opt-in with the query
+after authorization. It also stops calling Word export "later work". The Cloud consent design's
+"proposal, not implemented" line is corrected, and `cost.rs` no longer claims prices are
+operator-supplied when `pricing_for` carries a documented table. The storage contract now says
+each workflow's own checkpoint count rather than "all six", and documents the revision store.
+
+F-047: every import receipt said encrypted credentials were preserved while the importer redacts
+them. The warning, the archive doc comment and the storage document now say the same thing as the
+code: credential values are redacted, the suffix list is named, URL userinfo is stripped, and keys
+must be re-entered.
+
+F-048: three comments contradicted the code — Word byte-stability ("apart from timestamps" when
+the bytes are identical), the API doc claiming no write endpoint was exercised, and `SetCloudKey`
+saying a `None` clears the key when a built provider keeps it. Each corrected, and the API doc's
+unverified list is now honest in both directions: intake, resume and cancel gained tests, so every
+write path in the table is verified and only remote-client behaviour is unproven.

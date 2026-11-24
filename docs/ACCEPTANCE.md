@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 98 |
+| pass | 101 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -52,6 +52,9 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
+| The workflow, consent and storage documents describe the shipped behaviour: per-run paid approval, opt-in research, per-workflow checkpoints and document revisions | review | pass — F-046 |
+| Import receipts and the storage document say credentials are redacted and must be re-entered | unit + review | pass — F-047 |
+| Every HTTP write path has a test: create, intake save, start, download-token, resume and cancel | integration (`api`) | pass — F-048 |
 | `inspect` opens read-only and refuses a missing database; `settings` takes the window's profile lock | unit + code | pass — F-018 |
 | The upgrade proof refuses to run where Patent Forge Lite is really installed, installs without shortcuts, and removes its test install on failure as well as success | run (`upgrade-proof`) | pass — F-051 |
 | The schema change is additive and keeps version 1, so a rolled-back build still opens the workspace | run (`upgrade-proof`, rollback launch) | pass — F-050 |

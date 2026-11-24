@@ -362,3 +362,85 @@ async fn download_tokens_are_random_and_limited_to_the_download_route() {
         .unwrap();
     assert_eq!(rebound.status(), reqwest::StatusCode::UNAUTHORIZED);
 }
+
+/// Intake save, cancel and resume over HTTP: the three write paths that had no test.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn intake_cancel_and_resume_are_accepted_over_http() {
+    let (base, _state) = base_url(None).await;
+    let client = reqwest::Client::new();
+    let project: serde_json::Value = client
+        .post(format!("{base}/api/projects"))
+        .json(&json!({ "intake": intake() }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let project_id = project["id"].as_str().unwrap().to_string();
+
+    // Intake save.
+    let mut edited = intake();
+    edited["title"] = json!("SYNTHETIC API fixture, edited over HTTP");
+    let saved = client
+        .post(format!("{base}/api/projects/{project_id}/intake"))
+        .json(&json!({ "intake": edited }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(saved.status(), 200, "intake save should be accepted");
+    let reread: serde_json::Value = client
+        .get(format!("{base}/api/projects/{project_id}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        reread["intake"]["title"], "SYNTHETIC API fixture, edited over HTTP",
+        "the saved intake should read back"
+    );
+
+    // Start, cancel, then resume with an authorization body.
+    let run: serde_json::Value = client
+        .post(format!("{base}/api/runs"))
+        .json(&json!({
+            "projectId": project_id,
+            "workflow": "feasibility",
+            "idempotencyKey": "api-cancel",
+            "authorization": authorization()
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let run_id = run["id"].as_str().unwrap().to_string();
+    let cancelled = client
+        .post(format!("{base}/api/runs/{run_id}/cancel"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cancelled.status(), 200, "cancel should be accepted");
+    let status: serde_json::Value = cancelled.json().await.unwrap();
+    assert!(
+        matches!(status["outcome"].as_str(), Some("cancelled" | "cancelling")),
+        "the run should be cancelled or cancelling, got {status}"
+    );
+
+    let resumed = client
+        .post(format!("{base}/api/runs/{run_id}/resume"))
+        .json(&authorization())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resumed.status(),
+        200,
+        "resume with an authorization should be accepted"
+    );
+    let completed = wait_completed(&client, &base, &run_id).await;
+    assert_eq!(completed["outcome"], "completed");
+}
