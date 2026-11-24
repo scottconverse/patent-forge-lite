@@ -16,6 +16,20 @@ fn saved(run: &RunSnapshot) -> Result<&SavedReport> {
     Ok(report)
 }
 
+/// Text that can be stored in an Office XML part.
+///
+/// docx-rs escapes markup but passes control characters through, and characters below U+0020
+/// (other than tab, newline and carriage return) are illegal in XML 1.0: Word then reports a
+/// corrupt file and offers to repair it. Model output does contain them, so they are removed
+/// before the text reaches the document.
+pub fn xml_safe(text: &str) -> String {
+    text.chars()
+        .filter(|c| {
+            matches!(c, '\t' | '\n' | '\r') || !(*c < '\u{20}' || ('\u{7f}'..='\u{9f}').contains(c))
+        })
+        .collect()
+}
+
 pub fn export_markdown(run: &RunSnapshot) -> Result<String> {
     let report = saved(run)?;
     let provenance = if run.input.prompts.version == "legacy-unavailable" {
@@ -81,7 +95,7 @@ pub fn export_docx(run: &RunSnapshot) -> Result<Vec<u8>> {
             Some(_) => trimmed.trim_start_matches('#').trim().to_string(),
             None => trimmed.to_string(),
         };
-        let run = Run::new().add_text(&body);
+        let run = Run::new().add_text(xml_safe(&body));
         let paragraph = match heading_level {
             Some(2) => Paragraph::new().add_run(run.bold()).style("Heading2"),
             Some(_) => Paragraph::new().add_run(run.bold()).style("Heading3"),

@@ -4,6 +4,7 @@
 //! revisions and reference records it contains, with a SHA-256 for every file. It
 //! is built from stored revisions, never regenerated from a model, so the package
 //! always describes the revisions the operator selected.
+use crate::export::xml_safe;
 use crate::*;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -220,7 +221,8 @@ fn revision_docx(revision: &DocumentRevision) -> Result<Vec<u8>> {
     );
     if !revision.note.trim().is_empty() {
         document = document.add_paragraph(
-            Paragraph::new().add_run(Run::new().add_text(format!("Edit note: {}", revision.note))),
+            Paragraph::new()
+                .add_run(Run::new().add_text(xml_safe(&format!("Edit note: {}", revision.note)))),
         );
     }
     for line in revision.text.lines() {
@@ -233,7 +235,7 @@ fn revision_docx(revision: &DocumentRevision) -> Result<Vec<u8>> {
             Some(_) => trimmed.trim_start_matches('#').trim().to_string(),
             None => trimmed.to_string(),
         };
-        let run = Run::new().add_text(&body);
+        let run = Run::new().add_text(xml_safe(&body));
         let paragraph = match heading_level {
             Some(2) => Paragraph::new().add_run(run.bold()).style("Heading2"),
             Some(_) => Paragraph::new().add_run(run.bold()).style("Heading3"),
@@ -530,6 +532,36 @@ mod tests {
             "an existing file is never overwritten"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn word_parts_contain_no_xml_illegal_control_characters() {
+        use std::io::Read;
+        // ANSI escape and form feed: both illegal in XML 1.0 and both appear in model output.
+        let text = "Heading\n\nA line with \u{1b}[31mcolour and a form feed \u{0c} here.";
+        let revision = DocumentRevision {
+            text: text.into(),
+            ..revision(DocumentKind::Claims, 1, text)
+        };
+        let files = build_package("Fixture", Some(&revision), None, &[], None).unwrap();
+        let docx = files
+            .iter()
+            .find(|file| file.name == "claims.docx")
+            .unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&docx.bytes)).unwrap();
+        let mut document = String::new();
+        archive
+            .by_name("word/document.xml")
+            .unwrap()
+            .read_to_string(&mut document)
+            .unwrap();
+        assert!(
+            !document
+                .chars()
+                .any(|c| c < '\u{20}' && !matches!(c, '\t' | '\n' | '\r')),
+            "document.xml must not carry XML-illegal control characters"
+        );
+        assert!(document.contains("colour"), "the text itself is kept");
     }
     #[test]
     fn an_empty_selection_is_refused() {

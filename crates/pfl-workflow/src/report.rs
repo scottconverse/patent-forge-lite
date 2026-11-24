@@ -10,8 +10,17 @@ fn section(title: &str, body: &str) -> String {
 /// Remove leading markdown headings from a generated section, matching the
 /// upstream application generator's cleanup step.
 fn strip_headings(text: &str) -> String {
-    text.lines()
-        .filter(|line| !line.trim_start().starts_with('#'))
+    // Only the leading run of headings is markup from the model. A `#` later in the body is
+    // content: "#10 machine screw" is a part, not a heading, and dropping it loses text.
+    let mut lines = text.lines().peekable();
+    while let Some(line) = lines.peek() {
+        if line.trim_start().starts_with('#') {
+            lines.next();
+        } else {
+            break;
+        }
+    }
+    lines
         .collect::<Vec<_>>()
         .join("\n")
         .trim_start_matches('\n')
@@ -270,5 +279,28 @@ mod tests {
         .map(|label| report.find(label).unwrap())
         .collect();
         assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+    }
+}
+
+#[cfg(test)]
+mod heading_tests {
+    use super::strip_headings;
+
+    #[test]
+    fn only_the_leading_headings_are_removed() {
+        let text = "## Detail\n### Claims\n\n1. A container.\n\n#10 machine screw secures it.\n";
+        let stripped = strip_headings(text);
+        assert!(!stripped.contains("## Detail"));
+        assert!(!stripped.contains("### Claims"));
+        assert!(
+            stripped.contains("#10 machine screw"),
+            "a body line starting with # is content, got: {stripped:?}"
+        );
+    }
+
+    #[test]
+    fn text_without_headings_is_untouched() {
+        let text = "1. A claim.\n\n2. Another.";
+        assert_eq!(strip_headings(text), text);
     }
 }

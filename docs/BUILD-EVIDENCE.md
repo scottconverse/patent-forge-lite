@@ -1160,3 +1160,16 @@ refuses a non-empty directory, and both callers use it.
 
 F-021: CSV cells beginning with `=`, `+`, `-`, `@`, tab or carriage return are prefixed with a
 quote, so a third-party title cannot run as a spreadsheet formula.
+## Audit Majors F-025 and F-026 fixed (2026-11-24)
+
+F-025: docx-rs escapes markup but passes control characters through, and characters below
+U+0020 are illegal in XML 1.0, so model output containing an ANSI escape or a form feed
+produced a Word file that Word offers to repair. `xml_safe` now strips those characters from
+every text run in both Word builders. The test exports a revision containing an escape and a
+form feed, unzips the package and parses `word/document.xml`, asserting no illegal character
+survives and the text itself is kept.
+
+F-026: `strip_headings` dropped every line whose trimmed start was `#`, not just the leading
+run, so a drafted specification lost body lines such as "#10 machine screw". It now removes
+only the leading headings. A test keeps the leading-heading removal and asserts a mid-body
+`#` line survives.

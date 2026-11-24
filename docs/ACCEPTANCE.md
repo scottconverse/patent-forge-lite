@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 76 |
+| pass | 78 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -53,6 +53,8 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
 | `inspect` opens read-only and refuses a missing database; `settings` takes the window's profile lock | unit + code | pass — F-018 |
+| Word parts contain no XML-illegal control characters; parsed from `word/document.xml` after an export with an escape and a form feed | unit (`package`) | pass — F-025 |
+| Only the leading run of headings is stripped, so a body line starting with `#` survives | unit (`heading_tests`) | pass — F-026 |
 | A package is written only into an empty directory, so an existing package is never overwritten or left stale | unit (`write_package`) | pass — F-020 |
 | CSV cells cannot start a spreadsheet formula | unit | pass — F-021 |
 | The viewer keeps `snake_case` and `2 * 3`, stripping emphasis only at a line start | unit (`marker_tests`) | pass — F-019 |
