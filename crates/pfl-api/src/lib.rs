@@ -232,7 +232,15 @@ impl IntoResponse for ApiError {
             Error::NotFound(_) => (StatusCode::NOT_FOUND, self.0.to_string()),
             Error::Invalid(_) => (StatusCode::BAD_REQUEST, self.0.to_string()),
             Error::Conflict(_) => (StatusCode::CONFLICT, self.0.to_string()),
-            _ => (StatusCode::INTERNAL_SERVER_ERROR, self.0.to_string()),
+            _ => {
+                // A client gets a fixed sentence: storage and I/O errors name files and
+                // paths, and that detail belongs in the local log, not in a response.
+                eprintln!("pfl-api internal error: {}", self.0);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal error; see the server log".to_string(),
+                )
+            }
         };
         (
             status,

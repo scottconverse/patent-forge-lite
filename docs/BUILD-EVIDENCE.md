@@ -1398,3 +1398,22 @@ failing, and the provider's own `error.type` is included instead of dropped.
 F-054: the Lean-profile rule lived only in the three `start_workflow*` helpers, so `execute`,
 `resume`, `rerun` and `regenerate_from` skipped it. The rule moved into `authorize`, which every
 path that authorizes a run already calls; the per-helper copies are gone.
+## Audit Minors F-059, F-061, F-062, F-063 fixed (2026-11-24)
+
+F-059: `--mark-chosen` was only accepted as the last argument, a second `--out` arm was
+unreachable, the usage text listed 8 of the 19 accepted commands, and the generic research
+endpoint accepted any host. Boolean flags now consume no value and work anywhere, both usage and
+acceptance come from one `COMMANDS` list, and the generic research endpoint is loopback-only so an
+API key cannot be sent to a host the operator did not name. The manual lists the full command set.
+
+F-061: a pasted key is trimmed in `Secret::new`, so a newline or trailing space from a password
+manager no longer produces an authentication failure with no visible cause.
+
+F-062: an API internal error returned `self.0.to_string()`, which can name file paths. It now
+returns a fixed sentence and writes the detail to the local log.
+
+F-063: the preview omitted `AppSettings` from its known tables, so settings were reported as
+archived; its `archived_records` counted a different thing from the receipt's
+`records_preserved`; and its count query interpolated a table name without escaping. The preview
+now carries `records_preserved` (asserted equal to the receipt's), `AppSettings` is known, and the
+query escapes the name the way the snapshot query does.

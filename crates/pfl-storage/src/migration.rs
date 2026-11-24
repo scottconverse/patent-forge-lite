@@ -664,6 +664,11 @@ pub struct ImportPreview {
     pub source_identity: String,
     pub projects: usize,
     pub runs: usize,
+    /// Every source row the import preserves, in any table. This is the number the receipt
+    /// reports afterwards, so a preview and its receipt agree.
+    #[serde(default)]
+    pub records_preserved: usize,
+    /// The subset of `records_preserved` that lives in tables the importer does not interpret.
     pub archived_records: usize,
     /// Tables the importer preserves verbatim but does not interpret.
     pub unknown_tables: Vec<String>,
@@ -694,7 +699,8 @@ pub fn preview_legacy_synthetic(source: &Path) -> Result<ImportPreview> {
         tables.push(row.map_err(db)?);
     }
     let count = |table: &str| -> Result<usize> {
-        let sql = format!("SELECT COUNT(*) FROM \"{table}\"");
+        // Same escaping as the snapshot query: a table name with a quote must not break out.
+        let sql = format!("SELECT COUNT(*) FROM \"{}\"", table.replace('"', "\"\""));
         connection
             .query_row(&sql, [], |row| row.get::<_, i64>(0))
             .map(|value| value as usize)
@@ -711,12 +717,15 @@ pub fn preview_legacy_synthetic(source: &Path) -> Result<ImportPreview> {
         0
     };
     // Everything the importer preserves but does not interpret.
+    // Every table the importer interprets. `AppSettings` was missing here, so a fixture with
+    // settings reported that table as archived when it is actually projected into settings.
     let known = [
         "PFLFixture",
         "Project",
         "InventionInput",
         "FeasibilityRun",
         "FeasibilityStage",
+        "AppSettings",
     ];
     let mut unknown_tables: Vec<String> = tables
         .iter()
@@ -728,10 +737,15 @@ pub fn preview_legacy_synthetic(source: &Path) -> Result<ImportPreview> {
     for table in &unknown_tables {
         archived_records += count(table)?;
     }
+    let mut records_preserved = 0usize;
+    for table in &tables {
+        records_preserved += count(table)?;
+    }
     Ok(ImportPreview {
         source_identity: identity,
         projects,
         runs,
+        records_preserved,
         archived_records,
         unknown_tables,
         warnings: provenance_warnings(),

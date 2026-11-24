@@ -519,6 +519,22 @@ fn the_preview_counts_and_leaves_the_source_untouched() {
     let preview = preview_legacy_synthetic(&source).unwrap();
     assert_eq!(preview.projects, 1);
     assert!(preview.runs >= 1);
+    // The preview and the receipt must agree on what an import preserves: the fixture carries
+    // settings, which the importer projects rather than archives.
+    let target = dir.path().join("new");
+    let receipt = migrate_legacy_synthetic(&source, &target).unwrap();
+    assert_eq!(
+        preview.records_preserved, receipt.records_preserved,
+        "the preview and the receipt must report the same preserved count"
+    );
+    assert!(
+        !preview
+            .unknown_tables
+            .iter()
+            .any(|table| table == "AppSettings"),
+        "settings are interpreted, not archived: {:?}",
+        preview.unknown_tables
+    );
     // The fixture carries archived rows the importer preserves but does not interpret.
     assert_eq!(fs::read(&source).unwrap(), before, "a preview is read-only");
 

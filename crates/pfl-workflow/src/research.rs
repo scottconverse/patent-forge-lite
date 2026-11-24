@@ -120,6 +120,14 @@ impl HttpResearchSource {
                 "research endpoint must be an HTTP(S) URL with a host".into(),
             ));
         }
+        // The generic source exists for loopback verification. Anywhere else it would send the
+        // API key to a host the operator did not name as the real provider; live search is
+        // PatentsView, not this.
+        if !crate::providers::is_loopback_url(&endpoint) {
+            return Err(Error::Invalid(
+                "the generic research endpoint is for loopback verification only; live search uses PatentsView".into(),
+            ));
+        }
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(std::time::Duration::from_secs(10))

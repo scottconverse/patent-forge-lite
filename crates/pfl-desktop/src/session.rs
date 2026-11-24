@@ -49,7 +49,9 @@ pub struct Secret(String);
 
 impl Secret {
     pub fn new(value: impl Into<String>) -> Self {
-        Self(value.into())
+        // A key pasted from a password manager often carries a newline or a trailing space,
+        // which produces an authentication failure with no visible cause.
+        Self(value.into().trim().to_string())
     }
     /// The only way to read the value. Deliberately not Deref, so a key does not silently
     /// behave like a string in formatting code.

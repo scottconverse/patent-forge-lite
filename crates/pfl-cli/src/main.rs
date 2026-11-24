@@ -812,36 +812,49 @@ async fn inspect(database: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Every command this binary accepts. The usage text is generated from this list, so help and
+/// behaviour cannot disagree.
+const COMMANDS: &[&str] = &[
+    "replay",
+    "import-replay",
+    "pause-fixture",
+    "resume",
+    "pipeline",
+    "serve",
+    "live",
+    "inspect",
+    "validate-claims",
+    "package",
+    "save-revision",
+    "models",
+    "usage",
+    "revisions",
+    "diff",
+    "legacy-fixture",
+    "legacy-preview",
+    "migrate",
+    "settings",
+];
+
+fn usage_text() -> String {
+    format!(
+        "usage: pfl-cli <{}> [--workspace <directory>] [--database <path>] [--stage <1..6>] [--addr <host:port>] [--endpoint <url> --model <name>]",
+        COMMANDS.join("|")
+    )
+}
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = async {
-        let command = args.first().map(String::as_str).ok_or_else(|| invalid(
-            "usage: pfl-cli <replay|import-replay|pause-fixture|resume|pipeline|serve|live|inspect> --workspace <directory> [--stage <1..6>] [--addr <host:port>] [--endpoint <url> --model <name>] [--database <path>]"
-        ))?;
-        if !matches!(
-            command,
-            "replay"
-                | "import-replay"
-                | "pause-fixture"
-                | "resume"
-                | "pipeline"
-                | "serve"
-                | "live"
-                | "inspect"
-                | "validate-claims"
-                | "package"
-                | "save-revision"
-                | "models"
-                | "usage"
-                | "revisions"
-                | "diff"
-                | "legacy-fixture"
-                | "legacy-preview"
-                | "migrate"
-                | "settings"
-        ) {
-            return Err(invalid("unknown command; only live performs real inference"));
+        let command = args
+            .first()
+            .map(String::as_str)
+            .ok_or_else(|| invalid(&usage_text()))?;
+        if !COMMANDS.contains(&command) {
+            return Err(invalid(&format!(
+                "unknown command {command}; {}",
+                usage_text()
+            )));
         }
         let mut workspace = None;
         let mut stage = None;
@@ -866,12 +879,20 @@ async fn main() {
         let mut i = 1;
         while i < args.len() {
             match (args[i].as_str(), args.get(i + 1)) {
-                ("--workspace", Some(value)) if workspace.is_none() => workspace = Some(PathBuf::from(value)),
-                ("--database", Some(value)) if database.is_none() => database = Some(PathBuf::from(value)),
+                ("--workspace", Some(value)) if workspace.is_none() => {
+                    workspace = Some(PathBuf::from(value))
+                }
+                ("--database", Some(value)) if database.is_none() => {
+                    database = Some(PathBuf::from(value))
+                }
                 ("--addr", Some(value)) if addr.is_none() => addr = Some(value.to_string()),
-                ("--endpoint", Some(value)) if endpoint.is_none() => endpoint = Some(value.to_string()),
+                ("--endpoint", Some(value)) if endpoint.is_none() => {
+                    endpoint = Some(value.to_string())
+                }
                 ("--model", Some(value)) if model.is_none() => model = Some(value.to_string()),
-                ("--references", Some(value)) if references.is_none() => references = Some(PathBuf::from(value)),
+                ("--references", Some(value)) if references.is_none() => {
+                    references = Some(PathBuf::from(value))
+                }
                 ("--research-endpoint", Some(value)) if research_endpoint.is_none() => {
                     research_endpoint = Some(value.to_string())
                 }
@@ -882,20 +903,35 @@ async fn main() {
                 ("--application", Some(value)) if application_revision.is_none() => {
                     application_revision = Some(RevisionId(value.to_string()))
                 }
-                ("--out", Some(value)) if out.is_none() => out = Some(PathBuf::from(value)),
                 ("--kind", Some(value)) if kind.is_none() => kind = Some(value.to_string()),
                 ("--from-run", Some(value)) if from_run.is_none() => {
                     from_run = Some(RunId(value.to_string()))
                 }
                 ("--note", Some(value)) if note.is_none() => note = Some(value.to_string()),
-                ("--source", Some(value)) if source.is_none() => source = Some(PathBuf::from(value)),
+                ("--source", Some(value)) if source.is_none() => {
+                    source = Some(PathBuf::from(value))
+                }
                 ("--profile", Some(value)) => setup_profile = Some(value.to_string()),
-                ("--mark-chosen", None) => mark_chosen = true,
+                ("--mark-chosen", _) if !mark_chosen => {
+                    // A boolean flag takes no value, so it must not swallow the next
+                    // argument and it works wherever it appears.
+                    mark_chosen = true;
+                    i += 1;
+                    continue;
+                }
                 ("--out", Some(value)) if out.is_none() => out = Some(PathBuf::from(value)),
-                ("--a", Some(value)) if diff_a.is_none() => diff_a = Some(RevisionId(value.to_string())),
-                ("--b", Some(value)) if diff_b.is_none() => diff_b = Some(RevisionId(value.to_string())),
+                ("--a", Some(value)) if diff_a.is_none() => {
+                    diff_a = Some(RevisionId(value.to_string()))
+                }
+                ("--b", Some(value)) if diff_b.is_none() => {
+                    diff_b = Some(RevisionId(value.to_string()))
+                }
                 ("--stage", Some(value)) if stage.is_none() => {
-                    stage = Some(value.parse::<usize>().map_err(|_| invalid("invalid pause stage"))?);
+                    stage = Some(
+                        value
+                            .parse::<usize>()
+                            .map_err(|_| invalid("invalid pause stage"))?,
+                    );
                 }
                 _ => return Err(invalid("unknown, repeated or incomplete argument")),
             }
@@ -904,7 +940,9 @@ async fn main() {
         if stage.is_some_and(|n| !(1..=6).contains(&n))
             || (command == "pause-fixture") != stage.is_some()
         {
-            return Err(invalid("only pause-fixture accepts and requires --stage 1..6"));
+            return Err(invalid(
+                "only pause-fixture accepts and requires --stage 1..6",
+            ));
         }
         if addr.is_some() != (command == "serve") {
             return Err(invalid("only serve accepts --addr"));
@@ -921,7 +959,8 @@ async fn main() {
         }
 
         if command == "settings" {
-            let database = database.ok_or_else(|| invalid("settings requires --database <path>"))?;
+            let database =
+                database.ok_or_else(|| invalid("settings requires --database <path>"))?;
             // Same lock the desktop takes, so a profile change cannot happen underneath a
             // running window.
             let _profile_lock = take_profile_lock(Path::new(&database))?;
@@ -945,10 +984,13 @@ async fn main() {
             if profile_requested || mark_chosen {
                 store.save_settings(&settings)?;
             }
-            println!("{}", serde_json::json!({
-                "profile": format!("{:?}", settings.profile),
-                "profile_chosen": settings.profile_chosen,
-            }));
+            println!(
+                "{}",
+                serde_json::json!({
+                    "profile": format!("{:?}", settings.profile),
+                    "profile_chosen": settings.profile_chosen,
+                })
+            );
             return Ok(());
         }
         if command == "legacy-fixture" {
@@ -961,14 +1003,16 @@ async fn main() {
             return Ok(());
         }
         if command == "legacy-preview" {
-            let source = source.ok_or_else(|| invalid("legacy-preview requires --source <path>"))?;
+            let source =
+                source.ok_or_else(|| invalid("legacy-preview requires --source <path>"))?;
             let preview = pfl_storage::preview_legacy_synthetic(&source)?;
             println!("{}", serde_json::json!(preview));
             return Ok(());
         }
         if command == "migrate" {
             let source = source.ok_or_else(|| invalid("migrate requires --source <path>"))?;
-            let workspace = workspace.ok_or_else(|| invalid("migrate requires --workspace <dir>"))?;
+            let workspace =
+                workspace.ok_or_else(|| invalid("migrate requires --workspace <dir>"))?;
             std::fs::create_dir_all(&workspace).map_err(|e| Error::Storage(e.to_string()))?;
             // The migration writes a NEW workspace beside the source: a backup plus the
             // activated database, never an in-place edit.
@@ -1103,7 +1147,9 @@ async fn main() {
             .await;
         }
         if command == "validate-claims" {
-            return validate_claims(file.ok_or_else(|| invalid("validate-claims requires --file"))?);
+            return validate_claims(
+                file.ok_or_else(|| invalid("validate-claims requires --file"))?,
+            );
         }
         if command == "package" {
             return write_package(
@@ -1115,10 +1161,7 @@ async fn main() {
             .await;
         }
         if command == "inspect" {
-            return inspect(
-                database.ok_or_else(|| invalid("inspect requires --database"))?,
-            )
-            .await;
+            return inspect(database.ok_or_else(|| invalid("inspect requires --database"))?).await;
         }
         let workspace = workspace.ok_or_else(|| invalid("--workspace is required"))?;
         if command == "pipeline" {
@@ -1138,7 +1181,8 @@ async fn main() {
             .await;
         }
         journey(command, workspace, stage).await
-    }.await;
+    }
+    .await;
     if let Err(error) = result {
         eprintln!("{error}");
         std::process::exit(1);

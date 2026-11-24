@@ -374,6 +374,14 @@ impl Provider for CloudProvider {
 
 /// Loopback means the endpoint resolves to this machine: the literal names, or a
 /// loopback IP. Everything else is a remote runtime and is refused for local mode.
+/// True when a URL's host is the loopback interface.
+pub fn is_loopback_url(endpoint: &str) -> bool {
+    reqwest::Url::parse(endpoint)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_string))
+        .map(|host| is_loopback_host(&host))
+        .unwrap_or(false)
+}
 fn is_loopback_host(host: &str) -> bool {
     host.eq_ignore_ascii_case("localhost")
         || host == "[::1]"

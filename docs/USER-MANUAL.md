@@ -461,6 +461,11 @@ pfl-cli replay   --workspace ./synthetic        # one feasibility run
 pfl-cli inspect  --database <path>              # read-only inventory of a profile
 pfl-cli live --workspace ./w --endpoint http://127.0.0.1:11434 --model phi4-mini:latest
 pfl-cli serve    --workspace ./w --addr 127.0.0.1:4330
+
+Other commands: `import-replay`, `pause-fixture`, `resume`, `models`, `usage`, `revisions`,
+`diff`, `save-revision`, `package`, `validate-claims`, `legacy-fixture`, `legacy-preview`,
+`migrate` and `settings`. Run `pfl-cli` with no command to print the full list; boolean flags
+such as `--mark-chosen` may appear anywhere in the argument list.
 ```
 
 `serve` exposes the compatibility HTTP API (health, projects, runs, events, report, export) over
