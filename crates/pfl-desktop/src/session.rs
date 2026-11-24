@@ -524,6 +524,19 @@ impl Actor {
                 claims_revision,
                 specification_revision,
             } => {
+                // A duplicate of a run already started is idempotent, not a second run:
+                // replay it instead of reporting the active-work conflict.
+                if let Some(existing) = self
+                    .service
+                    .history(project.clone())
+                    .await?
+                    .into_iter()
+                    .find(|run| run.idempotency_key == idempotency_key)
+                {
+                    self.started_runs.insert(existing.id.clone());
+                    self.selected(existing).await;
+                    return Ok(());
+                }
                 self.ensure_idle("starting another run").await?;
                 for id in &self.started_runs {
                     if !self.service.run(id.clone()).await?.outcome.is_terminal() {
@@ -635,6 +648,19 @@ impl Actor {
                 idempotency_key,
                 authorization,
             } => {
+                // A duplicate of a run already started is idempotent, not a second run:
+                // replay it instead of reporting the active-work conflict.
+                if let Some(existing) = self
+                    .service
+                    .history(project.clone())
+                    .await?
+                    .into_iter()
+                    .find(|run| run.idempotency_key == idempotency_key)
+                {
+                    self.started_runs.insert(existing.id.clone());
+                    self.selected(existing).await;
+                    return Ok(());
+                }
                 self.ensure_idle("starting another run").await?;
                 let mode = self.mode.as_ref().ok_or_else(|| {
                     Error::Invalid(
