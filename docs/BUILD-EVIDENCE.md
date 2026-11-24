@@ -1218,3 +1218,20 @@ target receiving nothing).
 F-029: the in-flight save refusal is now a pure `save_block` with a test, and both button
 helpers repaint after their action, as does the keyboard save. A notice that does not render
 reads as a dead button, which is the failure these notices exist to prevent.
+## Audit Majors F-030, F-031 and F-034 fixed (2026-11-24)
+
+F-030: the importer deserialized the legacy context object directly, and `#[serde(default)]`
+fills only missing keys, so a stored `null` for an optional field aborted the entire import
+with a raw serde message. Null values are dropped before deserializing, and a test sets
+`problemSolved` to NULL and imports.
+
+F-031: redaction matched five suffixes, missing provider-named keys, private keys, credentials,
+auth headers and userinfo embedded in a URL — the URL case was copied into the new settings.
+The suffix list is wider, a bare `key` column is deliberately excluded (it is a key of a
+key-value table, as `PFLFixture.key` proved by failing), and URL userinfo is stripped before a
+legacy endpoint is copied. Table-driven tests cover both directions.
+
+F-034: a comment claimed gapped legacy checkpoints are "preserved in the archive" when the code
+refuses the import and rolls the archive back with it. The comment now says what happens, and a
+test deletes a stage, asserts the refusal names the gap, and asserts nothing partial was
+imported.

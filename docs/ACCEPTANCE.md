@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 85 |
+| pass | 88 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -53,6 +53,9 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
 | `inspect` opens read-only and refuses a missing database; `settings` takes the window's profile lock | unit + code | pass — F-018 |
+| A legacy row storing null for an optional context field imports instead of rolling back | integration (`migration`) | pass — F-030 |
+| Credential redaction covers provider-named keys, private keys, credentials, auth headers and URL userinfo; a bare key column is not redacted | unit (`credential_tests`) | pass — F-031 |
+| A gapped legacy run is refused with a named reason and nothing partial is imported | integration (`migration`) | pass — F-034 |
 | The paid gate refuses with a real Cloud provider, sends nothing declined, and reaches the stand-in when approved | integration (`workflow`) | pass — F-028 |
 | Cloud stream faults are each refused: error frame, malformed frame, mid-stream end, output-limit stop, and a redirect that is not followed | integration (`cloud_frames`, 5 tests) | pass — F-028 |
 | A save refused because a request is in flight says so, and every button action repaints so the notice is visible | unit (`gate_tests`) + code | pass — F-029 |

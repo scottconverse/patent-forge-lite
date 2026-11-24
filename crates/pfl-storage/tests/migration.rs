@@ -450,3 +450,60 @@ fn actual_legacy_complete_status_and_completed_alias_preserve_checkpoints_and_ed
         );
     }
 }
+
+/// A legacy row that stores `null` for an optional context field must import: `#[serde(default)]`
+/// only fills missing keys, so a present null used to abort the whole migration.
+#[test]
+fn a_null_optional_context_column_does_not_abort_the_import() {
+    let dir = tempdir().unwrap();
+    let source = dir.path().join("legacy.sqlite");
+    let connection = fixture(&source);
+    connection
+        .execute(
+            "UPDATE InventionInput SET problemSolved = NULL WHERE rowid = 1",
+            [],
+        )
+        .unwrap();
+    drop(connection);
+
+    let target = dir.path().join("new");
+    let receipt = migrate_legacy_synthetic(&source, &target).unwrap();
+    assert_eq!(receipt.projects_imported, 1);
+    let activated = receipt
+        .activated_path
+        .clone()
+        .expect("an import activates its database");
+    let store = SqliteStore::open(&activated).unwrap();
+    let projects = store.list_projects().unwrap();
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects[0].intake.context.problem_solved, "");
+}
+
+/// A gapped checkpoint chain is refused, and because the archive is written in the same
+/// transaction nothing is imported: the operator is told rather than given a truncated run.
+#[test]
+fn a_gapped_legacy_run_is_refused_and_nothing_is_imported() {
+    let dir = tempdir().unwrap();
+    let source = dir.path().join("legacy.sqlite");
+    let connection = fixture(&source);
+    connection
+        .execute("DELETE FROM FeasibilityStage WHERE stageNumber = 2", [])
+        .unwrap();
+    drop(connection);
+
+    let target = dir.path().join("new");
+    let error =
+        migrate_legacy_synthetic(&source, &target).expect_err("a gapped run must be refused");
+    assert!(
+        error.to_string().to_lowercase().contains("gap")
+            || error.to_string().to_lowercase().contains("contiguous"),
+        "the refusal should name the gap, got: {error}"
+    );
+    let leftover = SqliteStore::open(&target)
+        .map(|store| store.list_projects().unwrap_or_default().len())
+        .unwrap_or(0);
+    assert_eq!(
+        leftover, 0,
+        "a refused import must not leave a partial project behind"
+    );
+}

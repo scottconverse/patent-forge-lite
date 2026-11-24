@@ -127,12 +127,46 @@ fn is_credential_column(name: &str) -> bool {
         .chars()
         .filter(|c| c.is_ascii_alphanumeric())
         .collect();
-    // Suffix matching, not substring: `maxTokens` is a budget, not a secret.
-    compact.ends_with("apikey")
-        || compact.ends_with("token")
-        || compact.ends_with("secret")
-        || compact.ends_with("password")
-        || compact.ends_with("salt")
+    // Suffix matching, not substring: `maxTokens` is a budget, not a secret. The list covers
+    // the names a legacy build is likely to have used, including keys stored under a
+    // provider name (`openaiKey`, `privateKey`) and an authorization header.
+    const SUFFIXES: &[&str] = &[
+        "apikey",
+        "token",
+        "secret",
+        "password",
+        "passwd",
+        "salt",
+        "key",
+        "privatekey",
+        "credentials",
+        "credential",
+        "authheader",
+        "authorization",
+    ];
+    // A column literally named `key` is not a credential: it is a key of a key-value table
+    // (`PFLFixture.key` holds setting names). Provider-named keys still match.
+    if compact == "key" {
+        return false;
+    }
+    SUFFIXES.iter().any(|suffix| compact.ends_with(suffix))
+}
+
+/// Removes `user:password@` from a URL, leaving the host and path intact.
+///
+/// A legacy settings row may hold an endpoint with credentials embedded in it; copying that
+/// into the new settings would carry the secret across inside an innocent-looking field.
+fn strip_url_userinfo(value: &str) -> String {
+    let Some((scheme, rest)) = value.split_once("://") else {
+        return value.to_string();
+    };
+    let Some((authority, tail)) = rest.split_once('/') else {
+        return value.to_string();
+    };
+    match authority.rsplit_once('@') {
+        Some((_credentials, host)) => format!("{scheme}://{host}/{tail}"),
+        None => value.to_string(),
+    }
 }
 
 fn snapshot(connection: &Connection) -> Result<Snapshot> {
@@ -385,7 +419,15 @@ impl SqliteStore {
                         .unwrap_or_default()
                         .to_string(),
                     context: invention
-                        .map(|v| serde_json::from_value::<InventionContext>(v.clone()).map_err(db))
+                        .map(|v| {
+                            // A legacy row may store `null` for an optional field, and
+                            // `#[serde(default)]` only fills missing keys: drop nulls first or
+                            // one empty column aborts the entire import.
+                            let mut object = v.as_object().cloned().unwrap_or_default();
+                            object.retain(|_, value| !value.is_null());
+                            serde_json::from_value::<InventionContext>(Value::Object(object))
+                                .map_err(db)
+                        })
                         .transpose()?
                         .unwrap_or_default(),
                 };
@@ -458,8 +500,9 @@ impl SqliteStore {
                     });
                 }
                 checkpoints.sort_by_key(|c| c.stage);
-                // Preserve gaps verbatim in the archive, but do not make a
-                // non-contiguous checkpoint chain executable as a resumed run.
+                // A gapped chain is refused rather than imported: the archive is written in the
+                // same transaction, so the whole import rolls back and the error names the run.
+                // Importing a truncated run would silently lose completed stages.
                 if checkpoints
                     .iter()
                     .enumerate()
@@ -569,10 +612,12 @@ impl SqliteStore {
                     } else {
                         SetupProfile::Lean
                     },
+                    // A legacy endpoint may embed userinfo; it must not travel into the new
+                    // settings disguised as a URL.
                     local_endpoint: record
                         .get("ollamaUrl")
                         .and_then(Value::as_str)
-                        .map(str::to_string),
+                        .map(strip_url_userinfo),
                     local_model: record
                         .get("localDefaultModel")
                         .or_else(|| record.get("ollamaModel"))
@@ -755,4 +800,52 @@ pub fn migrate_legacy_synthetic_with_options(
     receipt.activated_path = Some(active);
     interrupt(MigrationPhase::Activation)?;
     Ok(receipt)
+}
+
+#[cfg(test)]
+mod credential_tests {
+    use super::{is_credential_column, strip_url_userinfo};
+
+    #[test]
+    fn credential_columns_are_recognised_by_name() {
+        for name in [
+            "cloudApiKey",
+            "usptoApiKey",
+            "openaiKey",
+            "privateKey",
+            "encryptionSalt",
+            "authHeader",
+            "credentials",
+            "authorization",
+            "sessionToken",
+            "dbPassword",
+            "clientSecret",
+        ] {
+            assert!(
+                is_credential_column(name),
+                "{name} must be treated as a credential"
+            );
+        }
+    }
+
+    #[test]
+    fn ordinary_columns_are_not_redacted() {
+        // `maxTokens` is a budget, and a bare `key` is a key in a key-value table.
+        for name in ["maxTokens", "key", "tokenCount", "title", "createdAt"] {
+            assert!(!is_credential_column(name), "{name} must not be redacted");
+        }
+    }
+
+    #[test]
+    fn userinfo_is_stripped_from_a_legacy_endpoint() {
+        assert_eq!(
+            strip_url_userinfo("http://user:secret@127.0.0.1:11434/api"),
+            "http://127.0.0.1:11434/api"
+        );
+        assert_eq!(
+            strip_url_userinfo("http://127.0.0.1:11434/api"),
+            "http://127.0.0.1:11434/api"
+        );
+        assert_eq!(strip_url_userinfo("not a url"), "not a url");
+    }
 }
