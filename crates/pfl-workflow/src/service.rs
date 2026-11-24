@@ -448,6 +448,31 @@ impl WorkflowService {
         if self.stopping.load(Ordering::Acquire) {
             return Err(Error::Conflict("application is shutting down".into()));
         }
+        // A regeneration plan can arrive on any `NewRun`, so its base is checked here: the
+        // base must belong to the same project and workflow and must have completed the
+        // restart stage.
+        if let Some(plan) = &request.input.regeneration {
+            let base = self.run(plan.base_run.clone()).await?;
+            if base.project_id != request.project_id {
+                return Err(Error::Invalid(
+                    "a regeneration base must belong to the same project".into(),
+                ));
+            }
+            if base.input.kind != request.input.kind {
+                return Err(Error::Invalid(
+                    "a regeneration base must belong to the same workflow".into(),
+                ));
+            }
+            if !base
+                .checkpoints
+                .iter()
+                .any(|checkpoint| checkpoint.stage == plan.from_stage)
+            {
+                return Err(Error::Invalid(
+                    "the regeneration base did not complete the restart stage".into(),
+                ));
+            }
+        }
         self.authorize(&request.input).await?;
         if request.idempotency_key.trim().is_empty() {
             return Err(Error::Invalid("idempotency key is required".into()));

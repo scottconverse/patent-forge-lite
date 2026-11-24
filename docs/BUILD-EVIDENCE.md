@@ -1430,3 +1430,18 @@ heading survives an unclosed fence.
 F-066: an application report without claims text fell back to the final stage — the figures text —
 so a drawing description could appear under "Claims". It now states that no claims text was
 supplied and what to do about it.
+## Audit Minors F-064 and F-065 fixed (2026-11-24)
+
+F-064: `save_revision` accepted any `base_run_id`, so lineage could cross projects or document
+kinds; a repeated revision id produced a raw UNIQUE error; and a `RegenerationPlan` supplied on a
+`NewRun` was never checked. A revision now must be anchored to a run of its own project and its
+own kind's generating workflow, a repeat with identical content is idempotent while a conflicting
+one is a clear conflict, and `start_locked` validates a supplied regeneration base (same project,
+same workflow, base completed the restart stage).
+
+F-065: imported legacy runs could break the application's own rules. A NULL `completedAt` became
+`Some(0)`, a finish earlier than the start; it now falls back to `startedAt`. A legacy run marked
+COMPLETE without every stage was imported as `Completed`, which the UI shows as a finished run
+that cannot be opened; it is now `Interrupted`. Both are tested: a fixture with the last stage
+deleted imports as interrupted with five checkpoints, and a fixture with a NULL completion time
+shows `finished_at_ms == started_at_ms`.

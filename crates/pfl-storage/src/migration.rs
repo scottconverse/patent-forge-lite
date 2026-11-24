@@ -469,7 +469,11 @@ impl SqliteStore {
                 let project_id = ProjectId(text(record, "projectId"));
                 let project = load_project(tx, &project_id)?;
                 let attempt_id = AttemptId(format!("{}:legacy-attempt", run_id.0));
-                let outcome = terminal(&text(record, "status"));
+                let mut outcome = terminal(&text(record, "status"));
+                let started_at = timestamp(record, "startedAt");
+                let completed_at = record
+                    .get("completedAt")
+                    .and_then(|value| value.as_u64().or_else(|| value.as_str()?.parse().ok()));
                 let version = record
                     .get("version")
                     .and_then(Value::as_u64)
@@ -511,6 +515,12 @@ impl SqliteStore {
                     });
                 }
                 checkpoints.sort_by_key(|c| c.stage);
+                // A run that claims completion without every stage completed is imported as
+                // interrupted: "Completed" with no report is a state the application never
+                // produces, and the UI would show a finished run that cannot be opened.
+                if outcome == RunOutcome::Completed && checkpoints.len() != Stage::ALL.len() {
+                    outcome = RunOutcome::Interrupted;
+                }
                 // A gapped chain is refused rather than imported: the archive is written in the
                 // same transaction, so the whole import rolls back and the error names the run.
                 // Importing a truncated run would silently lose completed stages.
@@ -553,13 +563,15 @@ impl SqliteStore {
                         upstream: Upstream::default(),
                     },
                     rerun_of: None,
-                    created_at_ms: timestamp(record, "startedAt"),
+                    created_at_ms: started_at,
                     outcome,
                     attempts: vec![Attempt {
                         id: attempt_id.clone(),
                         number: 1,
-                        started_at_ms: timestamp(record, "startedAt"),
-                        finished_at_ms: Some(timestamp(record, "completedAt")),
+                        started_at_ms: started_at,
+                        // A NULL completion time becomes the start, not the epoch: a finish
+                        // before the start makes no sense to any reader.
+                        finished_at_ms: Some(completed_at.unwrap_or(started_at)),
                         outcome,
                     }],
                     checkpoints,

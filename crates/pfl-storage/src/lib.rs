@@ -410,6 +410,54 @@ impl Store for SqliteStore {
             return Err(Error::Invalid("a document revision needs text".into()));
         }
         self.transaction(|tx| {
+            // Lineage must stay inside one project and one document kind: a revision anchored
+            // to another project's run is a false provenance claim.
+            if let Some(base) = &revision.base_run_id {
+                let run: Option<String> = tx
+                    .query_row("SELECT payload FROM runs WHERE id=?1", [&base.0], |r| r.get(0))
+                    .optional()
+                    .map_err(db)?;
+                let run = run.ok_or_else(|| Error::NotFound(format!("base run {base}")))?;
+                let run: RunSnapshot = decode(&run)?;
+                if run.input.kind != revision.kind.workflow() {
+                    return Err(Error::Invalid(
+                        "a revision must be anchored to a run of its own document kind".into(),
+                    ));
+                }
+                if let Some(project) = tx
+                    .query_row(
+                        "SELECT project_id FROM runs WHERE id=?1",
+                        [&base.0],
+                        |r| r.get::<_, String>(0),
+                    )
+                    .optional()
+                    .map_err(db)?
+                    && project != revision.project_id.0
+                {
+                    return Err(Error::Invalid(
+                        "a revision must be anchored to a run of its own project".into(),
+                    ));
+                }
+            }
+            // A repeated write of the same revision is idempotent; a repeated id with different
+            // content is a clear conflict rather than a raw UNIQUE failure.
+            if let Some(existing) = read_json::<DocumentRevision>(
+                tx,
+                "SELECT payload FROM document_revisions WHERE id=?1",
+                &revision.id.0,
+            )? {
+                let mut same = existing.clone();
+                same.version = revision.version;
+                if same.text == revision.text
+                    && same.project_id == revision.project_id
+                    && same.kind == revision.kind
+                {
+                    return Ok(existing);
+                }
+                return Err(Error::Conflict(
+                    "a revision with this id already exists with different content".into(),
+                ));
+            }
             let next: i64 = tx
                 .query_row(
                     "SELECT COALESCE(MAX(version),0)+1 FROM document_revisions WHERE project_id=?1 AND kind=?2",

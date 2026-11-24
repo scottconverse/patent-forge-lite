@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 111 |
+| pass | 113 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -51,6 +51,8 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Masked key field: the mask preserves byte offsets, never paints the secret, and neither copies nor cuts | unit (`masking_tests`, compiled and run in CI with `--features native`) | pass — F-014 |
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
+| A revision must be anchored to a run of its own project and kind, a repeated revision id is idempotent, and a supplied regeneration base is validated | unit (`persistence`, `workflow`) | pass — F-064 |
+| An imported legacy run that claims completion without every stage is Interrupted, and a NULL completion time falls back to the start | unit (`migration`) | pass — F-065 |
 | The viewer clamps long hash runs, requires a space after `#`, and never lets an unclosed fence swallow later sections | unit (`block_edge_tests`) | pass — F-060 |
 | An application report without claims text says so instead of printing the figures section as claims | unit + code | pass — F-066 |
 | CLI: one command list drives both acceptance and usage; a boolean flag works anywhere; the generic research endpoint is loopback-only | run (`pfl-cli`) + unit | pass — F-059 |

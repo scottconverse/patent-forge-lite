@@ -582,3 +582,50 @@ fn importing_into_a_non_empty_workspace_is_refused() {
         "nothing was merged"
     );
 }
+
+/// A legacy run that claims completion without every stage is imported as interrupted, not as a
+/// "Completed" run that cannot be opened.
+#[test]
+fn an_incomplete_complete_run_is_imported_as_interrupted() {
+    let dir = tempdir().unwrap();
+    let source = dir.path().join("legacy.sqlite");
+    let connection = fixture(&source);
+    connection
+        .execute("DELETE FROM FeasibilityStage WHERE stageNumber = 6", [])
+        .unwrap();
+    drop(connection);
+    let target = dir.path().join("new");
+    let receipt = migrate_legacy_synthetic(&source, &target).unwrap();
+    let store = SqliteStore::open(receipt.activated_path.clone().unwrap()).unwrap();
+    let projects = store.list_projects().unwrap();
+    let history = store.history(&projects[0].id).unwrap();
+    let truncated = history
+        .iter()
+        .find(|run| run.checkpoints.len() == 5)
+        .expect("the truncated run should be imported");
+    assert_eq!(
+        truncated.outcome,
+        RunOutcome::Interrupted,
+        "a run with five of six stages is not Completed"
+    );
+}
+
+/// A NULL completion time falls back to the start, never to the epoch.
+#[test]
+fn a_null_completion_time_is_not_the_epoch() {
+    let dir = tempdir().unwrap();
+    let source = dir.path().join("legacy.sqlite");
+    let connection = fixture(&source);
+    connection
+        .execute("UPDATE FeasibilityRun SET completedAt = NULL", [])
+        .unwrap();
+    drop(connection);
+    let target = dir.path().join("new");
+    let receipt = migrate_legacy_synthetic(&source, &target).unwrap();
+    let store = SqliteStore::open(receipt.activated_path.clone().unwrap()).unwrap();
+    let projects = store.list_projects().unwrap();
+    let history = store.history(&projects[0].id).unwrap();
+    let attempt = &history[0].attempts[0];
+    assert_eq!(attempt.finished_at_ms, Some(attempt.started_at_ms));
+    assert_ne!(attempt.finished_at_ms, Some(0), "never the epoch");
+}
