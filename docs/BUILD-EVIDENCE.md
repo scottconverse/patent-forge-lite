@@ -1173,3 +1173,17 @@ F-026: `strip_headings` dropped every line whose trimmed start was `#`, not just
 run, so a drafted specification lost body lines such as "#10 machine screw". It now removes
 only the leading headings. A test keeps the leading-heading removal and asserts a mid-body
 `#` line survives.
+## Audit Majors F-023 and F-024 fixed (2026-11-24)
+
+F-023: range expansion was unbounded and `first + 1` overflowed at u32::MAX, so a model
+artefact such as "claims 1-4000000000" could hang or crash `validate-claims`, and the
+missing-claim loop pushed one issue per gap. Claim numbers are now capped at 999, range
+expansion at 200 with checked arithmetic, the gap loop is bounded by the cap, and a number
+beyond the cap is reported rather than followed.
+
+F-024: the parser read only the first line of a wrapped claim, treated "2.5 mm" as claim 2,
+matched "independently" as independent, and understood no range form but a hyphen. A claim now
+starts only at `N. `, continuation lines fold into the claim above, matching is on word
+boundaries, `or` / `to` / en-dash ranges parse, and a dependent claim naming several parents
+without the alternative is flagged. Seven tests cover those cases, including that a huge range
+returns in well under a second.
