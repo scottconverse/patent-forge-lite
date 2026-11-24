@@ -1242,3 +1242,19 @@ repeat across workflows, so a caller other than the driver could complete a Clai
 Feasibility checkpoints. The storage boundary now refuses a checkpoint whose
 `stage.kind()` is not the run's workflow kind. The test creates a claims run and commits a
 feasibility stage 1 into it: refused, with no checkpoint left behind.
+## Audit Major F-032 fixed (2026-11-24)
+
+Every streamed text delta loaded, re-encoded and rewrote the whole run record under
+synchronous=FULL, so writes grew roughly quadratically with stage length, and `events_after`
+had no limit. Schema v2 adds `runs.last_sequence`: a delta or stage start now inserts its event
+and updates one column, while checkpoints and outcome changes still save the payload. Every
+read path reconciles the payload with the column, because a payload written before the last
+deltas is behind. `events_after` returns at most 500 events and a poller advances its cursor.
+
+Two defects surfaced while doing it, both caught by existing tests: a positional
+`INSERT INTO runs` broke when the column was added (twice — the storage path and the migration
+path), and `recover_interrupted` read payloads without the column, so it recomputed an
+already-used sequence and hit the events primary key.
+
+The test compares the stored payload bytes before and after 50 deltas: identical, while the
+sequence column advances by exactly 50.

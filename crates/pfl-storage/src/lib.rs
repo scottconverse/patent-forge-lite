@@ -51,8 +51,18 @@ fn read_json<T: DeserializeOwned>(
     value.map(|s| decode(&s)).transpose()
 }
 fn load_run(connection: &Connection, id: &RunId) -> Result<RunSnapshot> {
-    read_json(connection, "SELECT payload FROM runs WHERE id=?1", &id.0)?
-        .ok_or_else(|| Error::NotFound(format!("run {id}")))
+    let mut run: RunSnapshot =
+        read_json(connection, "SELECT payload FROM runs WHERE id=?1", &id.0)?
+            .ok_or_else(|| Error::NotFound(format!("run {id}")))?;
+    // A delta advances the column without touching the payload, so the column is the newer of
+    // the two until the next full save.
+    let stored: i64 = connection
+        .query_row("SELECT last_sequence FROM runs WHERE id=?1", [&id.0], |r| {
+            r.get(0)
+        })
+        .map_err(db)?;
+    run.last_sequence = run.last_sequence.max(stored.max(0) as u64);
+    Ok(run)
 }
 fn load_project(connection: &Connection, id: &ProjectId) -> Result<Project> {
     read_json(
@@ -65,8 +75,23 @@ fn load_project(connection: &Connection, id: &ProjectId) -> Result<Project> {
 fn save_run(transaction: &Transaction<'_>, run: &RunSnapshot) -> Result<()> {
     transaction
         .execute(
-            "UPDATE runs SET payload=?2 WHERE id=?1",
-            params![run.id.0, encode(run)?],
+            "UPDATE runs SET payload=?2, last_sequence=?3 WHERE id=?1",
+            params![run.id.0, encode(run)?, integer(run.last_sequence)?],
+        )
+        .map_err(db)?;
+    Ok(())
+}
+
+/// Records the newest event sequence without rewriting the run payload.
+///
+/// Every streamed text delta used to re-encode and rewrite the whole run record under
+/// synchronous=FULL, so writes grew roughly quadratically with stage length. The payload does
+/// not change for a delta or a stage start, so only this column moves.
+fn bump_sequence(transaction: &Transaction<'_>, run_id: &RunId, sequence: u64) -> Result<()> {
+    transaction
+        .execute(
+            "UPDATE runs SET last_sequence=?2 WHERE id=?1",
+            params![run_id.0, integer(sequence)?],
         )
         .map_err(db)?;
     Ok(())
@@ -170,7 +195,7 @@ impl SqliteStore {
                     |r| r.get(0),
                 )
                 .map_err(db)?;
-            if version != 1 {
+            if !(1..=2).contains(&version) {
                 return Err(Error::Invalid(format!(
                     "unsupported Lite schema version {version}"
                 )));
@@ -194,6 +219,7 @@ impl SqliteStore {
              CREATE TABLE IF NOT EXISTS runs(
                id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES projects(id),
                version INTEGER NOT NULL CHECK(version>0),idempotency_key TEXT NOT NULL,payload TEXT NOT NULL,
+               last_sequence INTEGER NOT NULL DEFAULT 0,
                UNIQUE(project_id,version),UNIQUE(project_id,idempotency_key));
              CREATE TABLE IF NOT EXISTS events(
                run_id TEXT NOT NULL REFERENCES runs(id),sequence INTEGER NOT NULL CHECK(sequence>0),
@@ -203,12 +229,39 @@ impl SqliteStore {
              CREATE TABLE IF NOT EXISTS legacy_records(
                identity TEXT NOT NULL REFERENCES legacy_imports(identity),table_name TEXT NOT NULL,
                ordinal INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(identity,table_name,ordinal));
+             INSERT INTO schema_migrations(version) SELECT 1
+               WHERE NOT EXISTS (SELECT 1 FROM schema_migrations);
              CREATE TABLE IF NOT EXISTS document_revisions(
                id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES projects(id),
                kind TEXT NOT NULL,version INTEGER NOT NULL CHECK(version>0),payload TEXT NOT NULL,
                UNIQUE(project_id,kind,version));
              INSERT OR IGNORE INTO schema_migrations(version) VALUES(1);"
         ).map_err(db)?;
+        // v2: a streamed delta updates one column instead of rewriting the run payload.
+        let has_sequence = {
+            let mut statement = transaction.prepare("PRAGMA table_info(runs)").map_err(db)?;
+            let names = statement
+                .query_map([], |r| r.get::<_, String>(1))
+                .map_err(db)?;
+            names
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(db)?
+                .iter()
+                .any(|name| name == "last_sequence")
+        };
+        if !has_sequence {
+            transaction
+                .execute_batch(
+                    "ALTER TABLE runs ADD COLUMN last_sequence INTEGER NOT NULL DEFAULT 0;",
+                )
+                .map_err(db)?;
+        }
+        transaction
+            .execute(
+                "INSERT OR IGNORE INTO schema_migrations(version) VALUES(2)",
+                [],
+            )
+            .map_err(db)?;
         transaction
             .pragma_update(None, "application_id", APPLICATION_ID)
             .map_err(db)?;
@@ -494,7 +547,7 @@ impl Store for SqliteStore {
                 return Err(Error::Conflict("run ID already exists".into()));
             }
             tx.execute(
-                "INSERT INTO runs VALUES(?1,?2,?3,?4,?5)",
+                "INSERT INTO runs(id,project_id,version,idempotency_key,payload) VALUES(?1,?2,?3,?4,?5)",
                 params![
                     run.id.0,
                     run.project_id.0,
@@ -524,12 +577,22 @@ impl Store for SqliteStore {
         self.transaction(|tx| {
             load_project(tx, project_id)?;
             let mut statement = tx
-                .prepare("SELECT payload FROM runs WHERE project_id=?1 ORDER BY version")
+                .prepare(
+                    "SELECT payload, last_sequence FROM runs WHERE project_id=?1 ORDER BY version",
+                )
                 .map_err(db)?;
             let rows = statement
-                .query_map([&project_id.0], |r| r.get::<_, String>(0))
+                .query_map([&project_id.0], |r| {
+                    Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+                })
                 .map_err(db)?;
-            rows.map(|r| decode(&r.map_err(db)?)).collect()
+            rows.map(|row| {
+                let (payload, stored) = row.map_err(db)?;
+                let mut run: RunSnapshot = decode(&payload)?;
+                run.last_sequence = run.last_sequence.max(stored.max(0) as u64);
+                Ok(run)
+            })
+            .collect()
         })
     }
 
@@ -586,7 +649,7 @@ impl Store for SqliteStore {
                 ));
             }
             let result = push_event(tx, &mut run, Some(attempt.clone()), event, at_ms)?;
-            save_run(tx, &run)?;
+            bump_sequence(tx, run_id, run.last_sequence)?;
             Ok(result)
         })
     }
@@ -737,7 +800,9 @@ impl Store for SqliteStore {
             }
             let mut statement = tx
                 .prepare(
-                    "SELECT payload FROM events WHERE run_id=?1 AND sequence>?2 ORDER BY sequence",
+                    // Paged: a long stage can produce thousands of deltas, and a poller advances
+                    // its cursor and asks again rather than loading the whole history.
+                    "SELECT payload FROM events WHERE run_id=?1 AND sequence>?2 ORDER BY sequence LIMIT 500",
                 )
                 .map_err(db)?;
             let rows = statement
@@ -753,13 +818,20 @@ impl Store for SqliteStore {
     fn recover_interrupted(&self, at_ms: u64) -> Result<Vec<RunId>> {
         self.transaction(|tx| {
             let mut statement = tx
-                .prepare("SELECT payload FROM runs ORDER BY id")
+                .prepare("SELECT payload, last_sequence FROM runs ORDER BY id")
                 .map_err(db)?;
             let rows = statement
-                .query_map([], |r| r.get::<_, String>(0))
+                .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
                 .map_err(db)?;
             let runs: Vec<RunSnapshot> = rows
-                .map(|r| decode(&r.map_err(db)?))
+                .map(|row| {
+                    let (payload, stored) = row.map_err(db)?;
+                    let mut run: RunSnapshot = decode(&payload)?;
+                    // A delta advances the column without rewriting the payload, so the
+                    // payload's own sequence can be stale here.
+                    run.last_sequence = run.last_sequence.max(stored.max(0) as u64);
+                    Ok(run)
+                })
                 .collect::<Result<_>>()?;
             drop(statement);
             let mut recovered = vec![];

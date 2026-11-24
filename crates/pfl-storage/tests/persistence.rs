@@ -1,6 +1,6 @@
 use pfl_domain::*;
 use pfl_storage::SqliteStore;
-use rusqlite::Connection;
+use rusqlite::{Connection, OpenFlags};
 use std::sync::{Arc, Barrier};
 use tempfile::tempdir;
 
@@ -747,4 +747,59 @@ fn a_checkpoint_from_another_workflow_is_refused() {
         "the refusal should name the workflow mismatch, got: {error}"
     );
     assert!(store.run(&run.id).unwrap().checkpoints.is_empty());
+}
+
+/// A streamed delta must not rewrite the run payload: the column moves and the bytes do not.
+#[test]
+fn a_streamed_delta_does_not_rewrite_the_run_payload() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("lite.sqlite3");
+    let store = SqliteStore::open(&path).unwrap();
+    let (id, attempt) = prepared(&store);
+    let payload_before: String = {
+        let connection =
+            Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        connection
+            .query_row("SELECT payload FROM runs WHERE id=?1", [&id.0], |r| {
+                r.get(0)
+            })
+            .unwrap()
+    };
+    let baseline = store.run(&id).unwrap().last_sequence;
+    for index in 0..50 {
+        store
+            .append_event(
+                &id,
+                &attempt.id,
+                EventKind::TextDelta {
+                    stage: Stage::TechnicalRestatement,
+                    text: format!("chunk {index}"),
+                },
+                100 + index,
+            )
+            .unwrap();
+    }
+    let connection = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+    let payload_after: String = connection
+        .query_row("SELECT payload FROM runs WHERE id=?1", [&id.0], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    let sequence: i64 = connection
+        .query_row("SELECT last_sequence FROM runs WHERE id=?1", [&id.0], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(
+        payload_before, payload_after,
+        "a delta must not re-encode and rewrite the whole run record"
+    );
+    assert_eq!(
+        sequence as u64,
+        baseline + 50,
+        "the sequence column advances with the events"
+    );
+    // And the run still reads back with its events.
+    let run = store.run(&id).unwrap();
+    assert_eq!(run.last_sequence, baseline + 50);
 }

@@ -556,7 +556,7 @@ impl SqliteStore {
                     report,
                 };
                 tx.execute(
-                    "INSERT INTO runs VALUES(?1,?2,?3,?4,?5)",
+                    "INSERT INTO runs(id,project_id,version,idempotency_key,payload) VALUES(?1,?2,?3,?4,?5)",
                     params![
                         run.id.0,
                         run.project_id.0,
