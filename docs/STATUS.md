@@ -44,7 +44,7 @@ automated UI checks against the real native window.
 | macOS and Linux | **Compile and test green in CI** (run 44950601970): fmt, tests, clippy and native build pass on macOS arm64 and Linux x86_64. No installed package, launched window or interactive acceptance on either platform. |
 | Packaging, signing, notarization | Windows installer built and install-accepted (7.15 MB, per-user, uninstall preserves history) but **unsigned**; signing policy still undecided. No macOS or Linux package. |
 | Full data migration of a real PatentForge database | Only the synthetic fixture importer exists; real migration needs explicit authorization. |
-| Legacy tray lifecycle and DSH integration | Not implemented; Lite has no tray-resident background mode. |
+| Legacy tray lifecycle and DSH integration | Lite closes when the window closes and refuses a second instance; there is no tray-resident mode. |
 
 ## Suggested next steps
 

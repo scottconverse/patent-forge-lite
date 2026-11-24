@@ -81,7 +81,7 @@ administrator rights) and uninstalling never deletes your projects.
 
 These are limitations of the shipped build, not future ideas:
 
-- **Cloud is not selectable.** The engine has an Anthropic adapter with a fail-closed paid-call
+- **Cloud is selectable with a paid approval per run.** The engine has an Anthropic adapter with a fail-closed paid-call
   gate, but the application offers only Recorded replay and Local. There is no key entry and no
   Cloud run path in the UI.
 - **The Lean setup profile has no usable mode**, because it is Cloud-only and Cloud is not in the

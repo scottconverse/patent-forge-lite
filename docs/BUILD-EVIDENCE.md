@@ -1271,3 +1271,24 @@ those gaps. Now covered:
 - importing into a non-empty store: refused, with nothing merged. The migration workspace has
   its own emptiness guard; the test uses a separate empty work directory so the store-level
   rule is the one being exercised.
+## Audit Majors F-036..F-039 fixed (2026-11-24)
+
+F-036: every CI run in this report had to be started by hand, so "CI green" proved only that
+someone remembered. `native-manual.yml` now runs on push and pull request as well as by hand,
+and `release.yml` gained a `verify` job (format, workspace tests, clippy, acceptance check) that
+the Linux, macOS and Windows builds all depend on: a tag can no longer publish untested code.
+
+F-037: the matrix header was 27 commits behind and cited an installer hash that no longer
+matched the file. The installer is rebuilt from `9e5d168` (SHA-256 `09298bd6…`, 12,038,800
+bytes), the header, installer row and per-row counts are corrected, and the documentation
+agreement row is open until F-040 to F-048 close.
+
+F-038: the drift guard could not see any of that. It now compares the matrix revision with HEAD
+and the manifest, checks every hash the matrix cites against the manifest, refuses a restated
+pass count in HANDOFF, and scans README, the user manual, STATUS, release notes and the matrix
+for stale claims. Ten checks, and the new ones earned their place immediately: the cross-document
+scan found three live stale claims (Cloud "not selectable" twice, and a tray "not implemented")
+which are now corrected.
+
+F-039: HANDOFF restated the pass count and had fallen behind. It now points at the summary table,
+and the check refuses a restated count.

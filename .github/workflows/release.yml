@@ -26,6 +26,26 @@ permissions:
   contents: write
 
 jobs:
+  # A tag must never publish code that was not tested: this job is the gate, and every build
+  # job depends on it.
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - name: Repository-pinned Rust
+        run: rustup show
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Workspace tests
+        run: cargo test --workspace --locked
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Acceptance matrix consistency
+        shell: pwsh
+        run: ./scripts/acceptance-check.ps1
+
   preflight:
     runs-on: ubuntu-24.04
     outputs:
@@ -44,6 +64,7 @@ jobs:
           fi
 
   linux:
+    needs: verify
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -80,6 +101,7 @@ jobs:
           if-no-files-found: error
 
   macos:
+    needs: verify
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +129,7 @@ jobs:
           if-no-files-found: error
 
   windows:
-    needs: preflight
+    needs: [verify, preflight]
     if: needs.preflight.outputs.azure == 'true'
     runs-on: windows-latest
     steps:

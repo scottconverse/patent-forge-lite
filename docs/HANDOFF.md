@@ -49,8 +49,11 @@ pipeline, not cargo, and has produced false greens in this work.
 
 ## What is proven, and where
 
-`docs/ACCEPTANCE.md` is the matrix: 56 pass, one blocked on harness, two on hardware, one on
-a key, one on authorization. It is checked by `scripts/acceptance-check.ps1` in CI, so counts,
+`docs/ACCEPTANCE.md` is the matrix. Read its summary table rather than a count repeated
+here: a restated number is exactly how this document fell behind before, and the check
+now refuses one. `scripts/acceptance-check.ps1` runs in CI and compares the summary with
+the rows, the cited revision and hashes with the release manifest, and scans the
+reader-facing documents for stale claims.
 evidence paths, stale claims and single-stage wording cannot drift silently.
 
 `docs/BUILD-EVIDENCE.md` is the chronological trail, including the failures and every claim

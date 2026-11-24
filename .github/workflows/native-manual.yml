@@ -1,6 +1,10 @@
 name: Manual native feasibility
 
 on:
+  # Every push and pull request runs this: "CI green" must not depend on someone remembering
+  # to start a run by hand.
+  push:
+  pull_request:
   workflow_dispatch:
 
 permissions:

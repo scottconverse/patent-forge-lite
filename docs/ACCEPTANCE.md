@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `cc92d2a` |
+| Revision | `9e5d168` |
 | Candidate version | 0.2.0 (crates still declare 0.1.0 — see `docs/RELEASE-MANIFEST.md`) |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,13 +19,13 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 94 |
+| pass | 95 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
 | blocked — authorization | 1 |
 | blocked — harness | 1 |
-| open defect | 0 |
+| open defect | 1 |
 
 ## Phase A — Cloud correctness and consent
 
@@ -65,6 +65,8 @@ Anything installed writes its JSON and, where relevant, its request log into
 | The paid gate refuses with a real Cloud provider, sends nothing declined, and reaches the stand-in when approved | integration (`workflow`) | pass — F-028 |
 | Cloud stream faults are each refused: error frame, malformed frame, mid-stream end, output-limit stop, and a redirect that is not followed | integration (`cloud_frames`, 5 tests) | pass — F-028 |
 | A save refused because a request is in flight says so, and every button action repaints so the notice is visible | unit (`gate_tests`) + code | pass — F-029 |
+| CI runs the gate on every push and pull request, and a release tag cannot publish untested code | workflow config (`native-manual.yml`, `release.yml` verify job) | pass — F-036 |
+| The acceptance check compares the matrix revision and hashes with the release manifest, refuses a restated HANDOFF count, and scans the reader-facing documents | run (`acceptance-check`, 10 checks) | pass — F-038 |
 | The revision diff trims the common prefix and suffix and caps the table, reporting an approximate comparison instead of allocating | unit (`bounds_tests`) | pass — F-022 |
 | References reach the model with title, assignee and dates, under the heading the prompt acts on; the prompt version records the change | unit (`reference_tests`) + `providers` | pass — F-027 |
 | The claim validator is bounded: a huge range cannot hang it and a claim number beyond the maximum is reported | unit (`parser_tests`) | pass — F-023 |
@@ -83,7 +85,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | The PatentsView key never reaches the persisted database; an opted-in run makes exactly one query and records the reference | integration (`research_consent`) | pass |
 | Cloud decline and approval through the session actor: declined run sends nothing, approved run completes with one request per stage | integration (`cloud_consent`), loopback SSE stand-in | pass — 0 requests declined, 6 approved |
 | Cost line states *unknown* plus the rates, never a fabricated total | unit, `cost.rs` | pass |
-| Cost line displayed in the window before a paid run | installed + mock, 11/11 twice | pass — 11/11 run also asserts `3.00 input / 15.00 output` |
+| Cost line displayed in the window before a paid run | installed + mock, 7/7 twice | pass — the consent proof asserts `3.00 input / 15.00 output` |
 
 ## Phase B — a product a person can use
 
@@ -95,7 +97,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Claim structure validation (numbering, dependencies, references) | unit, CLI run | pass |
 | Edit → validate → save → package chain | run | pass |
 | `SaveRevision` / `ListRevisions` session commands, anchored to the latest completed run | unit, reply-draining helper | pass |
-| Editing surface: revision field, Load run text, Save revision, List revisions | installed, harness 37/37 | pass |
+| Editing surface: revision field, Load run text, Save revision, List revisions | installed, harness 38/38 | pass |
 | Editing end to end: load text, save v1, edit, save v2, both listed | installed, 4/4 twice | pass — `docs/evidence/editing/` |
 | Deterministic line diff (LCS) | unit, 6 tests | pass |
 | `pfl-cli diff` between two stored revisions | run | pass |
@@ -137,7 +139,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Item | Evidence | Result |
 | --- | --- | --- |
-| Copy-first importer: fixture, preview counts, provenance warnings, preserved archive, re-runnable, source untouched, missing source refused | run, 15/15 twice | pass — `docs/evidence/migration/` |
+| Copy-first importer: fixture, preview counts, provenance warnings, preserved archive, re-runnable, source untouched, missing source refused | run, 16/16 twice | pass — `docs/evidence/migration/` |
 | Credentials redacted at import (column recorded, value never carried); re-entered per session | unit + run | pass — the proof scans the activated database bytes for the fixture's key material |
 | Read API contracts verified over loopback; CLI matrix and DSH compatibility documented | run, 13/13 twice | pass — `docs/API-CONTRACTS.md`, `docs/evidence/api/` |
 | HTTP write endpoints | — | **not verified** (they change state; nothing exercised them) |
@@ -147,14 +149,14 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Item | Evidence | Result |
 | --- | --- | --- |
-| One Windows installer from one revision, both profiles, SHA-256 recorded | run | pass — `docs/RELEASE-MANIFEST.md` |
+| One Windows installer from one revision, both profiles, SHA-256 recorded | run | pass — `docs/RELEASE-MANIFEST.md`, revision `9e5d168`, `09298bd6…`, 12,038,800 bytes, unsigned |
 | The release workflow builds the requested tag, versions the installer from it, requires versioned notes, and refuses to overwrite a published release without `replace: true` (never rewriting notes) | review + YAML parse | pass — F-005, F-006 |
 | Windows install, upgrade, rollback, uninstall, data retained | run, 11/11 twice | pass — `docs/evidence/upgrade/` |
 | Signature status recorded truthfully | review + `Get-AuthenticodeSignature` | pass — v0.1.0 signed; candidate unsigned |
 | Licence metadata agrees with the committed licence | run, `cargo metadata` reports MIT | pass |
 | macOS and Linux artifacts from this revision | — | **blocked — hardware**; runbook delivered |
 | macOS and Linux installed acceptance | — | **blocked — hardware** — `docs/PLATFORM-RUNBOOK.md` |
-| Documentation agreement at this revision | review | pass — manual, packaging, release notes and this matrix describe what the build does |
+| Documentation agreement at this revision | review | **open** — F-040 to F-048 are being worked; this row flips to pass when that block closes |
 | This matrix checks itself, in CI: counts match rows, evidence paths exist, no stale claims, no single-stage promise | run (`scripts/acceptance-check.ps1`) + CI step | pass — verified to fail on an injected bad count, a missing evidence path and a stale claim |
 
 ## Open defects
@@ -186,4 +188,4 @@ list and each item is a tab, measured in the window as `TabItem` with
 - That any live provider has been contacted.
 - That a real legacy database has been migrated.
 - That the HTTP write surface works.
-- That the accessibility tree is complete, given the open nav defect.
+- That every documentation page matches the build while F-040 to F-048 remain open.

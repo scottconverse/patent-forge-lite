@@ -198,7 +198,7 @@ Open **Setup**. Nothing here sends a request by itself; it only decides what *ma
 | --- | --- | --- | --- |
 | **Recorded replay** | Plays bundled synthetic model output for every stage | None | Free |
 | **Local** | Calls an Ollama endpoint you name, with a model you already have | Loopback only | Free |
-| **Cloud** | Anthropic API — **not selectable in this build** | Yes | Paid, per run |
+| **Cloud** | Anthropic API — selectable on the Setup page, below the local runtime card | Yes | Paid, per run, approved each time |
 
 Start with replay. It is instant, deterministic and free, and it lets you learn the interface
 without a model.

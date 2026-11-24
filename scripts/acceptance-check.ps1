@@ -85,6 +85,57 @@ foreach ($match in [regex]::Matches($text, 'docs/[A-Za-z0-9_\-]+\.md')) {
 $docMissing = @($docMissing | Select-Object -Unique)
 Record 'every document named exists' ($docMissing.Count -eq 0) "(missing: $($docMissing -join ', '))"
 
+
+# --- Revision and hash agreement with the release manifest -------------------------------
+$root = Split-Path -Parent $PSScriptRoot
+$manifestPath = Join-Path $root 'docs\RELEASE-MANIFEST.md'
+$manifest = if (Test-Path $manifestPath) { Get-Content $manifestPath -Raw } else { '' }
+$head = ''
+try {
+    # A polluted git environment (GIT_CONFIG_COUNT without keys) makes every git call fail;
+    # clear it for this probe so the revision comparison is real.
+    Get-ChildItem Env: | Where-Object { $_.Name -like 'GIT_*' } | ForEach-Object { Remove-Item "Env:$($_.Name)" }
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $head = (& git -C $root rev-parse --short HEAD 2>$null | Out-String).Trim()
+    $ErrorActionPreference = $previous
+} catch { $head = '' }
+
+$header = [regex]::Match($text, '\| Revision \| `([0-9a-f]+)` \|')
+$citedRevision = if ($header.Success) { $header.Groups[1].Value } else { '' }
+$manifestRevision = [regex]::Match($manifest, '\| Revision \| `([0-9a-f]+)` \|')
+$manifestRev = if ($manifestRevision.Success) { $manifestRevision.Groups[1].Value } else { '' }
+Record 'the matrix names a revision the manifest knows' (
+    [bool]$citedRevision -and ($citedRevision -eq $head -or $citedRevision -eq $manifestRev)
+) "(matrix: $citedRevision, head: $head, manifest: $manifestRev)"
+
+$citedHashes = @([regex]::Matches($text, '\b[0-9a-f]{64}\b') | ForEach-Object { $_.Value } | Select-Object -Unique)
+$unknownHashes = @($citedHashes | Where-Object { $manifest -notmatch [regex]::Escape($_) })
+Record 'every hash the matrix cites is in the manifest' ($unknownHashes.Count -eq 0) "(unknown: $($unknownHashes -join ', '))"
+
+# --- HANDOFF must point at the summary, not restate it ------------------------------------
+$handoffPath = Join-Path $root 'docs\HANDOFF.md'
+if (Test-Path $handoffPath) {
+    $handoff = Get-Content $handoffPath -Raw
+    $restated = [regex]::Match($handoff, '(\d+)\s+pass')
+    # A restated count is exactly how HANDOFF fell behind before; it must point instead.
+    $handoffDetail = ''
+    if ($restated.Success) { $handoffDetail = "(found: $($restated.Groups[0].Value))" }
+    Record 'HANDOFF does not restate the pass count' (-not $restated.Success) $handoffDetail
+}
+
+# --- Stale claims are scanned in every document a reader meets ----------------------------
+$scan = @('docs\ACCEPTANCE.md', 'docs\HANDOFF.md', 'docs\USER-MANUAL.md', 'docs\STATUS.md', 'docs\RELEASE-NOTES.md', 'README.md')
+$staleHits = @()
+foreach ($relative in $scan) {
+    $path = Join-Path $root $relative
+    if (-not (Test-Path $path)) { continue }
+    $body = Get-Content $path -Raw
+    foreach ($phrase in @('not implemented', 'not selectable', 'not tested yet')) {
+        if ($body -match [regex]::Escape($phrase)) { $staleHits += "$relative : $phrase" }
+    }
+}
+Record 'no document says a proven feature is unimplemented' ($staleHits.Count -eq 0) "(found: $($staleHits -join '; '))"
 # Stale language: a row may not call something unimplemented if a pass row proves it.
 $stale = @()
 foreach ($phrase in @('not implemented', 'not tested', 'not selectable')) {
