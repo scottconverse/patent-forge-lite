@@ -453,8 +453,79 @@ async fn cancel_acknowledges_dropped_late_provider_before_replacement() {
     assert_eq!(provider.maximum.load(Ordering::SeqCst), 1);
 }
 
+/// The paid gate itself, with the service actually holding a Cloud provider.
+///
+/// The previous version of this test used a replay service and rewrote the request's provider
+/// to Cloud, so the refusal came from the provider-snapshot mismatch and proved nothing about
+/// consent. Here the service *is* a Cloud provider pointed at a loopback stand-in, so only the
+/// paid gate can refuse, and the stand-in proves no request escaped.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn paid_paths_declined_or_approved_are_blocked_before_any_provider_request() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let counter = calls.clone();
+    tokio::spawn(async move {
+        let app = axum::Router::new().route(
+            "/v1/messages",
+            axum::routing::post(move || {
+                let counter = counter.clone();
+                async move {
+                    counter.fetch_add(1, Ordering::SeqCst);
+                    (
+                        [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
+                        concat!(
+                            "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":7}}}\n\n",
+                            "data: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"Loopback stage output.\"}}\n\n",
+                            "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":11}}\n\n",
+                            "data: {\"type\":\"message_stop\"}\n\n"
+                        ),
+                    )
+                }
+            }),
+        );
+        axum::serve(listener, app).await.unwrap();
+    });
+    let cloud = Arc::new(
+        CloudProvider::with_endpoint("sk-ant-test", "claude-mock", format!("http://{address}"))
+            .unwrap(),
+    );
+    let store = Arc::new(SqliteStore::in_memory().unwrap());
+    let service = WorkflowService::new(store.clone(), cloud.clone(), Handle::current());
+    let p = service.create_project(intake()).await.unwrap();
+
+    // Declined: refused by the paid gate, and the stand-in is never contacted.
+    let mut declined = request(&p, cloud.as_ref(), "paid-declined");
+    declined.input.authorization.paid_provider = false;
+    let refused = service
+        .execute(Command::Start(declined))
+        .await
+        .expect_err("an unapproved paid run must be refused");
+    assert!(
+        refused.to_string().contains("paid-provider authorization"),
+        "the refusal must come from the paid gate, got: {refused}"
+    );
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "a declined paid run must not reach the provider"
+    );
+
+    // Approved: the same request runs and every stage reaches the stand-in.
+    let mut approved = request(&p, cloud.as_ref(), "paid-approved");
+    approved.input.authorization.paid_provider = true;
+    let run = service
+        .execute(Command::Start(approved))
+        .await
+        .expect("an approved paid run should start");
+    let _ = terminal(&service, &run.id).await;
+    assert!(
+        calls.load(Ordering::SeqCst) > 0,
+        "an approved paid run should reach the provider"
+    );
+
+    // Resume and rerun still honour the gate for a stored Cloud request with no approval.
     let provider = Arc::new(ReplayProvider::synthetic());
     let store = Arc::new(SqliteStore::in_memory().unwrap());
     let service = WorkflowService::new(store.clone(), provider.clone(), Handle::current());

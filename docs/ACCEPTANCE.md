@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 82 |
+| pass | 85 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -53,6 +53,9 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
 | `inspect` opens read-only and refuses a missing database; `settings` takes the window's profile lock | unit + code | pass — F-018 |
+| The paid gate refuses with a real Cloud provider, sends nothing declined, and reaches the stand-in when approved | integration (`workflow`) | pass — F-028 |
+| Cloud stream faults are each refused: error frame, malformed frame, mid-stream end, output-limit stop, and a redirect that is not followed | integration (`cloud_frames`, 5 tests) | pass — F-028 |
+| A save refused because a request is in flight says so, and every button action repaints so the notice is visible | unit (`gate_tests`) + code | pass — F-029 |
 | The revision diff trims the common prefix and suffix and caps the table, reporting an approximate comparison instead of allocating | unit (`bounds_tests`) | pass — F-022 |
 | References reach the model with title, assignee and dates, under the heading the prompt acts on; the prompt version records the change | unit (`reference_tests`) + `providers` | pass — F-027 |
 | The claim validator is bounded: a huge range cannot hang it and a claim number beyond the maximum is reported | unit (`parser_tests`) | pass — F-023 |

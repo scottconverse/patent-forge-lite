@@ -265,6 +265,17 @@ pub struct StartGate {
     pub cloud_approved: bool,
 }
 
+/// The reason a save cannot be requested, or `None` when it can.
+///
+/// Pure, like `start_block`, so the in-flight refusal has a test rather than only a code path.
+pub fn save_block(pending: bool) -> Option<&'static str> {
+    if pending {
+        Some("Another request is still in flight; wait for it to finish.")
+    } else {
+        None
+    }
+}
+
 /// The reason a run may not start, or `None` when it may. Every refusal carries text, so
 /// no path can silently do nothing.
 pub fn start_block(gate: &StartGate) -> Option<&'static str> {
@@ -306,6 +317,15 @@ mod gate_tests {
             mode_is_cloud: false,
             cloud_approved: false,
         }
+    }
+
+    #[test]
+    fn a_save_while_a_request_is_in_flight_says_so() {
+        assert_eq!(super::save_block(false), None);
+        assert!(
+            super::save_block(true).unwrap().contains("in flight"),
+            "the in-flight save refusal must carry text"
+        );
     }
 
     #[test]

@@ -617,11 +617,9 @@ impl Desktop {
     }
 
     fn save(&mut self, cx: &mut Context<Self>) {
-        if self.pending {
-            // Silently ignoring the action looks like a broken button, so say why nothing
-            // happened instead.
-            self.state.notice =
-                Some("Another request is still in flight; wait for it to finish.".into());
+        // One pure decision, tested in `state::gate_tests`.
+        if let Some(reason) = crate::state::save_block(self.pending) {
+            self.state.notice = Some(reason.to_string());
             return;
         }
         let intake = self.intake(cx);
@@ -768,11 +766,17 @@ impl Desktop {
             .hover(|s| s.bg(rgb(0x1f2c3c)).border_color(rgb(0x36506e)))
             .focus_visible(|s| s.border_color(rgb(theme::ACCENT)).bg(rgb(0x1f2c3c)))
             .child(text)
-            .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
+            // The action may only set a notice. Without this repaint the notice is invisible
+            // and the button reads as dead, which is the failure the notices exist to avoid.
+            .on_click(cx.listener(move |this, _, window, cx| {
+                action(this, window, cx);
+                cx.notify();
+            }))
             .on_key_down(
                 cx.listener(move |this, event: &gpui::KeyDownEvent, window, cx| {
                     if event.keystroke.key == "enter" || event.keystroke.key == "space" {
                         keyboard_action(this, window, cx);
+                        cx.notify();
                         cx.stop_propagation();
                     }
                 }),
@@ -812,11 +816,17 @@ impl Desktop {
             .hover(|s| s.bg(rgb(0x6ba0ff)))
             .focus_visible(|s| s.border_color(rgb(theme::TEXT)).border_1())
             .child(text)
-            .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
+            // The action may only set a notice. Without this repaint the notice is invisible
+            // and the button reads as dead, which is the failure the notices exist to avoid.
+            .on_click(cx.listener(move |this, _, window, cx| {
+                action(this, window, cx);
+                cx.notify();
+            }))
             .on_key_down(
                 cx.listener(move |this, event: &gpui::KeyDownEvent, window, cx| {
                     if event.keystroke.key == "enter" || event.keystroke.key == "space" {
                         keyboard_action(this, window, cx);
+                        cx.notify();
                         cx.stop_propagation();
                     }
                 }),
@@ -852,11 +862,17 @@ impl Desktop {
                     .text_color(rgb(theme::TEXT))
             })
             .child(text)
-            .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
+            // The action may only set a notice. Without this repaint the notice is invisible
+            // and the button reads as dead, which is the failure the notices exist to avoid.
+            .on_click(cx.listener(move |this, _, window, cx| {
+                action(this, window, cx);
+                cx.notify();
+            }))
             .on_key_down(
                 cx.listener(move |this, event: &gpui::KeyDownEvent, window, cx| {
                     if event.keystroke.key == "enter" || event.keystroke.key == "space" {
                         keyboard_action(this, window, cx);
+                        cx.notify();
                         cx.stop_propagation();
                     }
                 }),
@@ -2940,7 +2956,10 @@ impl Render for Desktop {
             .bg(rgb(theme::BG))
             .text_color(rgb(theme::TEXT))
             .font_family(assets::FONT_FAMILY)
-            .on_action(cx.listener(|this, _: &SaveIntake, _, cx| this.save(cx)))
+            .on_action(cx.listener(|this, _: &SaveIntake, _, cx| {
+                this.save(cx);
+                cx.notify();
+            }))
             .on_action(cx.listener(|this, _: &StartRun, window, cx| {
                 this.state.navigate(Page::Workflow);
                 this.focus_body(window, cx);

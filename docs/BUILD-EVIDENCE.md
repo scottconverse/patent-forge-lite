@@ -1204,3 +1204,17 @@ number, title, assignee and grant/filing dates under "USPTO Prior Art Results", 
 the change. Resume compares the whole prompt snapshot, so a run interrupted under different
 instructions is not silently continued under new ones; the test that pinned v1 now pins v2 and
 says why.
+## Audit Majors F-028 and F-029 fixed (2026-11-24)
+
+F-028: the paid-path test built a replay service and rewrote the request's provider to Cloud, so
+the refusal it asserted came from the provider-snapshot mismatch and proved nothing about
+consent. It now runs against a real CloudProvider pointed at a loopback stand-in: a declined
+start is refused by the paid gate itself and the stand-in records zero requests, while the
+approved start reaches it. Five new integration tests cover the stream faults the audit listed
+— an error frame, a malformed frame, a stream that ends before its completion frame, an
+output-limit stop that names the limit, and a redirect that is not followed (with the redirect
+target receiving nothing).
+
+F-029: the in-flight save refusal is now a pure `save_block` with a test, and both button
+helpers repaint after their action, as does the keyboard save. A notice that does not render
+reads as a dead button, which is the failure these notices exist to prevent.
