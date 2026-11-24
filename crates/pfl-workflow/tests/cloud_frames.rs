@@ -181,3 +181,35 @@ async fn a_redirect_is_not_followed() {
         "the key must never reach the redirect target"
     );
 }
+
+/// A status the operator can act on is named: 401 means the key, 429 means wait.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_rejected_key_and_a_rate_limit_read_differently() {
+    for (status, expected) in [
+        (StatusCode::UNAUTHORIZED, "key was rejected"),
+        (StatusCode::TOO_MANY_REQUESTS, "rate-limiting"),
+        (StatusCode::INTERNAL_SERVER_ERROR, "provider is failing"),
+    ] {
+        let endpoint = serve("", status).await;
+        let error = generate(&endpoint).await.unwrap_err().to_string();
+        assert!(
+            error.contains(expected),
+            "{status}: expected '{expected}', got: {error}"
+        );
+    }
+}
+
+/// A stream that never sends a newline is refused at the buffer limit rather than growing
+/// memory without bound.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_frame_without_a_newline_is_capped() {
+    // 3 MiB of non-newline bytes: past the 2 MiB frame cap.
+    let body = "x".repeat(3 * 1024 * 1024);
+    let leaked: &'static str = Box::leak(body.into_boxed_str());
+    let endpoint = serve(leaked, StatusCode::OK).await;
+    let error = generate(&endpoint).await.unwrap_err();
+    assert!(
+        error.to_string().contains("frame buffer limit"),
+        "got: {error}"
+    );
+}

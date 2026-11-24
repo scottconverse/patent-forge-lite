@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 103 |
+| pass | 105 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -51,6 +51,8 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Masked key field: the mask preserves byte offsets, never paints the secret, and neither copies nor cuts | unit (`masking_tests`, compiled and run in CI with `--features native`) | pass — F-014 |
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
+| The PatentsView body read is cancellable, the Cloud frame buffer is capped at 2 MiB, and 401/403/429/5xx read differently | unit + integration (`cloud_frames`) | pass — F-052, F-053 |
+| The Lean-profile rule lives in `authorize`, so start, resume, rerun and regenerate all honour it | unit (`consent`) + code | pass — F-054 |
 | A request carrying a key prints `[redacted]` under `Debug`; clearing the key drops the Cloud provider; the key-never-in-database scans read every file in the directory, WAL included | unit (`session`, `cloud_consent`, `research_consent`) | pass — F-055, F-056, F-057 |
 | Package references come only from a completed feasibility run | unit + code | pass — F-058 |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |

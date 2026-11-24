@@ -249,10 +249,16 @@ impl Provider for CloudProvider {
             r = send => r.map_err(|_| Error::Provider("cloud request failed; no alternate destination attempted".into()))?
         };
         if !response.status().is_success() {
-            return Err(Error::Provider(format!(
-                "cloud HTTP {}; no fallback attempted",
-                response.status().as_u16()
-            )));
+            // A status the operator can act on gets its own sentence: a bad key, a rate limit
+            // and an outage need different responses.
+            let status = response.status().as_u16();
+            let advice = match status {
+                401 | 403 => "the key was rejected; check the session key",
+                429 => "the provider is rate-limiting this account; wait and try again",
+                500..=599 => "the provider is failing; try again later",
+                _ => "the provider refused the request",
+            };
+            return Err(Error::Provider(format!("cloud HTTP {status}: {advice}")));
         }
         let mut stream = response.bytes_stream();
         let mut pending: Vec<u8> = Vec::new();
@@ -268,7 +274,14 @@ impl Provider for CloudProvider {
                 item = stream.next() => item
             };
             match item {
-                Some(Ok(bytes)) => pending.extend_from_slice(&bytes),
+                Some(Ok(bytes)) => {
+                    pending.extend_from_slice(&bytes);
+                    if pending.len() > CLOUD_MAX_FRAME_BYTES {
+                        return Err(Error::Incomplete(
+                            "cloud stream exceeded the frame buffer limit; partial text was not committed".into(),
+                        ));
+                    }
+                }
                 Some(Err(_)) => {
                     return Err(Error::Provider(
                         "cloud stream interrupted; partial stage not committed".into(),
@@ -328,7 +341,15 @@ impl Provider for CloudProvider {
                     }
                     Some("message_stop") => complete = true,
                     Some("error") => {
-                        return Err(Error::Provider("cloud provider reported an error".into()));
+                        // The provider names the fault in `error.type`; dropping it leaves
+                        // the operator with "an error" and nothing to act on.
+                        let kind = frame["error"]["type"]
+                            .as_str()
+                            .map(|kind| format!(" ({kind})"))
+                            .unwrap_or_default();
+                        return Err(Error::Provider(format!(
+                            "cloud provider reported an error{kind}"
+                        )));
                     }
                     _ => {}
                 }
@@ -384,6 +405,10 @@ fn take_ndjson_line(pending: &mut Vec<u8>) -> Option<Vec<u8>> {
 /// continuation state such as `tool_use`, or no reason at all — is incomplete.
 const OLLAMA_COMPLETE_STOPS: &[&str] = &["stop"];
 const CLOUD_COMPLETE_STOPS: &[&str] = &["end_turn", "stop_sequence"];
+
+/// Largest partial frame the Cloud stream may hold. A stream that never sends a newline
+/// would otherwise grow this buffer without limit.
+const CLOUD_MAX_FRAME_BYTES: usize = 2 * 1024 * 1024;
 
 /// Output ceiling for one Cloud turn.
 ///
@@ -578,7 +603,14 @@ impl Provider for OllamaProvider {
                 item = stream.next() => item
             };
             match item {
-                Some(Ok(bytes)) => pending.extend_from_slice(&bytes),
+                Some(Ok(bytes)) => {
+                    pending.extend_from_slice(&bytes);
+                    if pending.len() > CLOUD_MAX_FRAME_BYTES {
+                        return Err(Error::Incomplete(
+                            "cloud stream exceeded the frame buffer limit; partial text was not committed".into(),
+                        ));
+                    }
+                }
                 Some(Err(_)) => {
                     return Err(Error::Provider(
                         "Ollama stream interrupted; partial stage not committed".into(),

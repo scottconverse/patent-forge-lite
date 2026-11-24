@@ -317,9 +317,15 @@ impl ResearchSource for PatentsViewSource {
                 response.status().as_u16()
             )));
         }
-        let payload: serde_json::Value = response.json().await.map_err(|_| {
-            Error::Provider("PatentsView returned a malformed body; nothing was recorded".into())
-        })?;
+        // Reading the body is part of the request: a cancel must not wait for a slow read to
+        // finish before it takes effect.
+        let payload: serde_json::Value = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(Error::Cancelled),
+            body = response.json() => body.map_err(|_| {
+                Error::Provider("PatentsView returned a malformed body; nothing was recorded".into())
+            })?,
+        };
         // "Search failed" must never be recorded as "no prior art exists": a body without a
         // `patents` array, or one that flags an error, is a failed search.
         if payload["error"].as_bool() == Some(true) {

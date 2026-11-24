@@ -174,7 +174,7 @@ impl WorkflowService {
         self.db(move |s| s.events_after(&cursor)).await
     }
 
-    fn authorize(&self, input: &RunInput) -> Result<()> {
+    async fn authorize(&self, input: &RunInput) -> Result<()> {
         if input.provider.kind == ProviderKind::Cloud && !input.authorization.paid_provider {
             return Err(Error::Invalid(
                 "paid/cloud providers require explicit paid-provider authorization for this run"
@@ -229,6 +229,16 @@ impl WorkflowService {
                     .into(),
             ));
         }
+        // Setup profiles decide which provider families an installation may use, and the rule
+        // belongs here rather than in the start helpers: every path that authorizes a run --
+        // start, resume, rerun, regenerate -- must honour it.
+        if self.settings().await?.profile == SetupProfile::Lean
+            && input.provider.kind == ProviderKind::Local
+        {
+            return Err(Error::Invalid(
+                "Lean setup is Cloud-only: it never acquires or uses a local runtime".into(),
+            ));
+        }
         if input.provider.kind == ProviderKind::Local && !input.authorization.local_inference {
             return Err(Error::Invalid(
                 "local inference has not been explicitly authorized for this endpoint and model"
@@ -272,13 +282,6 @@ impl WorkflowService {
         let project = self.project(project_id.clone()).await?;
         let upstream = self.upstream(&project_id, kind).await?;
         // Setup profiles decide which provider families an installation may use.
-        if self.settings().await?.profile == SetupProfile::Lean
-            && self.provider.snapshot().kind == ProviderKind::Local
-        {
-            return Err(Error::Invalid(
-                "Lean setup is Cloud-only: it never acquires or uses a local runtime".into(),
-            ));
-        }
         let mut input = RunInput {
             kind,
             intake: project.intake.clone(),
@@ -290,7 +293,7 @@ impl WorkflowService {
         };
         // Consent and prerequisites are decided before anything leaves the machine: a start
         // that will be refused must not send the invention's title to a prior-art service.
-        self.authorize(&input)?;
+        self.authorize(&input).await?;
         // A retry with the same idempotency key returns the stored run: rebuilding the input
         // would either query PatentsView a second time or differ from the immutable payload.
         if let Some(existing) = self
@@ -407,13 +410,6 @@ impl WorkflowService {
     ) -> Result<RunSnapshot> {
         let project = self.project(project_id.clone()).await?;
         let mut upstream = self.upstream(&project_id, kind).await?;
-        if self.settings().await?.profile == SetupProfile::Lean
-            && self.provider.snapshot().kind == ProviderKind::Local
-        {
-            return Err(Error::Invalid(
-                "Lean setup is Cloud-only: it never acquires or uses a local runtime".into(),
-            ));
-        }
         upstream.prior_art = prior_art;
         self.start(NewRun {
             id: RunId::new(),
@@ -452,7 +448,7 @@ impl WorkflowService {
         if self.stopping.load(Ordering::Acquire) {
             return Err(Error::Conflict("application is shutting down".into()));
         }
-        self.authorize(&request.input)?;
+        self.authorize(&request.input).await?;
         if request.idempotency_key.trim().is_empty() {
             return Err(Error::Invalid("idempotency key is required".into()));
         }
@@ -545,13 +541,6 @@ impl WorkflowService {
     ) -> Result<RunSnapshot> {
         let project = self.project(project_id.clone()).await?;
         let mut upstream = self.upstream(&project_id, kind).await?;
-        if self.settings().await?.profile == SetupProfile::Lean
-            && self.provider.snapshot().kind == ProviderKind::Local
-        {
-            return Err(Error::Invalid(
-                "Lean setup is Cloud-only: it never acquires or uses a local runtime".into(),
-            ));
-        }
         upstream.prior_art = prior_art;
         if let Some(revision_id) = claims_revision {
             let revision = self.revision(revision_id.clone()).await?;
@@ -620,7 +609,7 @@ impl WorkflowService {
         // the caller's authorization is what the retry is judged on.
         let mut run = run;
         run.input.authorization = authorization;
-        self.authorize(&run.input)?;
+        self.authorize(&run.input).await?;
         if self
             .jobs
             .lock()

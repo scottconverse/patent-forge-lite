@@ -1384,3 +1384,17 @@ mode. They now read every file in the temporary directory, so a key in `-wal` wo
 F-058: package references came from the newest feasibility run of any outcome, so a newer cancelled
 run could replace the completed analysis's references. Both the session and the CLI now require a
 completed run.
+## Audit Minors F-052..F-054 fixed (2026-11-24)
+
+F-052: the PatentsView body read sat outside the cancellation `select!`, so a cancel waited for a
+slow read to finish. The read now participates in cancellation. The Cloud SSE buffer had no frame
+cap while Ollama's had 2 MiB: a stream that never sends a newline grew memory without limit. It is
+capped at 2 MiB and refused as incomplete at the limit.
+
+F-053: `cloud HTTP 401; no fallback attempted` told the operator nothing about what to fix. 401 and
+403 now say the key was rejected, 429 says the account is rate-limited, 5xx says the provider is
+failing, and the provider's own `error.type` is included instead of dropped.
+
+F-054: the Lean-profile rule lived only in the three `start_workflow*` helpers, so `execute`,
+`resume`, `rerun` and `regenerate_from` skipped it. The rule moved into `authorize`, which every
+path that authorizes a run already calls; the per-helper copies are gone.
