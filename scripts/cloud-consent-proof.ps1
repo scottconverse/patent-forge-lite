@@ -10,7 +10,10 @@
 param(
     [Parameter(Mandatory)] [string] $Exe,
     [int] $Port = 0,
-    [string] $OutDir = ""
+    [string] $OutDir = "",
+    # Evidence is written here. Point it outside the repository for a throwaway run; an
+    # undeclared parameter meant every run wrote into the tracked tree.
+    [string] $EvidenceDir = ""
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms
@@ -274,7 +277,7 @@ $script:appPid = (Start-Process -FilePath $Exe -ArgumentList '--select-latest' -
 if (-not (Wait-Window)) { throw 'the application window did not appear' }
 
 Invoke-Named 'Setup page'
-    $null = Wait-ById 'input-Cloud model name' 10
+    $null = Wait-ById 'input-Cloud model name'
 
 # Declare the data first, while the page is at the top.
 Invoke-Named 'Synthetic test data'
@@ -330,13 +333,10 @@ Start-Sleep -Milliseconds 400
 Select-Feasibility-Run
 Start-Until "paid Cloud"
 Start-Sleep -Milliseconds 1500
-Select-Feasibility-Run
-Start-Until "paid Cloud"
-Start-Sleep -Milliseconds 1500
 
 # Approved: grant the per-run approval, then start again.
 Invoke-Named 'Setup page'
-$null = Wait-ById 'input-Cloud model name' 10
+$null = Wait-ById 'input-Cloud model name'
 Start-Sleep -Milliseconds 600
 Invoke-Named 'Approve paid Cloud request'
 Record 'paid approval recorded' ([bool](Find-Contains '✓  Approve paid Cloud request')) "(notice: $(Notice))"
@@ -346,9 +346,6 @@ $runCost = Wait-ById 'cost-confirmation' 6
 $runCostText = if ($runCost) { $runCost.Current.Name } else { '' }
 Record 'the cost line is shown before the paid run' (($runCostText -like '*unknown*') -or ($runCostText -like '*per 1M tokens*')) "(cost: $runCostText)"
 Select-Feasibility-Run
-Start-Until "paid Cloud"
-$deadline = (Get-Date).AddSeconds(30)
-while ((Get-Date) -lt $deadline -and (Requests) -eq 0) { Start-Sleep -Milliseconds 300 }
 Start-Until "paid Cloud"
 $deadline = (Get-Date).AddSeconds(30)
 while ((Get-Date) -lt $deadline -and (Requests) -eq 0) { Start-Sleep -Milliseconds 300 }

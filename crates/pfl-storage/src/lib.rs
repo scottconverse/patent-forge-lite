@@ -256,12 +256,9 @@ impl SqliteStore {
                 )
                 .map_err(db)?;
         }
-        transaction
-            .execute(
-                "INSERT OR IGNORE INTO schema_migrations(version) VALUES(2)",
-                [],
-            )
-            .map_err(db)?;
+        // The v2 change is additive: the column has a default and an older build simply
+        // ignores it, so the version row stays at 1. Bumping it would make a v1 build
+        // refuse the workspace after a rollback -- which the upgrade proof observed.
         transaction
             .pragma_update(None, "application_id", APPLICATION_ID)
             .map_err(db)?;

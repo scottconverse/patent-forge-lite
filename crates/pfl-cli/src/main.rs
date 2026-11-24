@@ -919,6 +919,7 @@ async fn main() {
                 "only pipeline and live accept --references and --research-endpoint",
             ));
         }
+
         if command == "settings" {
             let database = database.ok_or_else(|| invalid("settings requires --database <path>"))?;
             // Same lock the desktop takes, so a profile change cannot happen underneath a

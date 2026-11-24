@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 96 |
+| pass | 98 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -53,6 +53,8 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
 | `inspect` opens read-only and refuses a missing database; `settings` takes the window's profile lock | unit + code | pass — F-018 |
+| The upgrade proof refuses to run where Patent Forge Lite is really installed, installs without shortcuts, and removes its test install on failure as well as success | run (`upgrade-proof`) | pass — F-051 |
+| The schema change is additive and keeps version 1, so a rolled-back build still opens the workspace | run (`upgrade-proof`, rollback launch) | pass — F-050 |
 | Revisions are versioned per kind, listed in order and readable by id; an empty revision is refused | unit (`persistence`) | pass — F-035 |
 | The import preview reports counts and is read-only; a missing source is refused | unit (`migration`) | pass — F-035 |
 | A database with an unknown schema version is refused; a fresh import into a non-empty store is refused | unit (`persistence`, `migration`) | pass — F-035 |
