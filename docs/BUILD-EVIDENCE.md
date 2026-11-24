@@ -1417,3 +1417,16 @@ archived; its `archived_records` counted a different thing from the receipt's
 `records_preserved`; and its count query interpolated a table name without escaping. The preview
 now carries `records_preserved` (asserted equal to the receipt's), `AppSettings` is known, and the
 query escapes the name the way the snapshot query does.
+## Audit Minors F-060 and F-066 fixed (2026-11-24)
+
+F-060: three viewer edge cases. A run of 256 hashes overflowed the `u8` heading level and panicked
+debug builds; `#1 priority` became a heading; and an unclosed code fence swallowed the rest of the
+report. A heading is now a single predicate (one to six hashes, a space, then text) used by both
+the heading branch and the paragraph collector, so `#1 priority` is ordinary text and a long run
+cannot overflow. A fence opens a code block only when a closer exists; otherwise the fence line is
+text and the following sections still render. Four tests cover the cases, including that a later
+heading survives an unclosed fence.
+
+F-066: an application report without claims text fell back to the final stage — the figures text —
+so a drawing description could appear under "Claims". It now states that no claims text was
+supplied and what to do about it.

@@ -145,7 +145,11 @@ pub(crate) fn compose(
                 )),
             ));
             let claims = if upstream.claims_text.trim().is_empty() {
-                stage_text(checkpoints, final_stage).to_string()
+                // Never fall back to the last stage: in an application run that is the figures
+                // text, and a drawing description would appear as the claims.
+                "Not supplied: this draft has no claims text. Run the claims workflow, or record \
+                 that the application is filed without claims."
+                    .to_string()
             } else {
                 upstream.claims_text.clone()
             };

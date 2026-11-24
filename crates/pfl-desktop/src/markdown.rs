@@ -98,6 +98,14 @@ fn is_separator_row(line: &str) -> bool {
         && trimmed.contains('-')
 }
 
+/// A heading is a run of one to six hashes, a space, then text. Anything else that starts with
+/// `#` — `#1 priority`, a 256-hash line — is ordinary text.
+fn heading(trimmed: &str) -> Option<(u8, &str)> {
+    let hashes = trimmed.chars().take_while(|c| *c == '#').count();
+    let rest = &trimmed[hashes.min(trimmed.len())..];
+    let text = rest.trim_start();
+    (hashes <= 6 && rest.starts_with(' ') && !text.is_empty()).then_some((hashes as u8, text))
+}
 /// Parses report Markdown into display blocks.
 pub fn parse(markdown: &str) -> Vec<Block> {
     let lines: Vec<&str> = markdown.lines().collect();
@@ -114,14 +122,21 @@ pub fn parse(markdown: &str) -> Vec<Block> {
         }
 
         if trimmed.starts_with("```") {
-            index += 1;
-            let mut body = Vec::new();
-            while index < lines.len() && !lines[index].trim().starts_with("```") {
-                body.push(lines[index]);
-                index += 1;
+            // Only a fence with a closer opens a code block. An unclosed fence is the line
+            // itself, so the sections after it still render.
+            let closer =
+                (index + 1..lines.len()).find(|next| lines[*next].trim().starts_with("```"));
+            match closer {
+                Some(end) => {
+                    let body: Vec<&str> = lines[index + 1..end].to_vec();
+                    blocks.push(Block::Code(body.join("\n")));
+                    index = end + 1;
+                }
+                None => {
+                    blocks.push(Block::Paragraph(trimmed.to_string()));
+                    index += 1;
+                }
             }
-            index += 1; // closing fence (or end of input)
-            blocks.push(Block::Code(body.join("\n")));
             continue;
         }
 
@@ -131,11 +146,9 @@ pub fn parse(markdown: &str) -> Vec<Block> {
             continue;
         }
 
-        if let Some(rest) = trimmed.strip_prefix('#') {
-            let level = 1 + rest.chars().take_while(|c| *c == '#').count() as u8;
-            let text = rest.trim_start_matches('#').trim();
+        if let Some((level, text)) = heading(trimmed) {
             blocks.push(Block::Heading {
-                level: level.min(6),
+                level,
                 text: text.to_string(),
             });
             index += 1;
@@ -190,7 +203,7 @@ pub fn parse(markdown: &str) -> Vec<Block> {
             let candidate = lines[index];
             let candidate_trimmed = candidate.trim();
             if candidate_trimmed.is_empty()
-                || candidate_trimmed.starts_with('#')
+                || heading(candidate_trimmed).is_some()
                 || candidate_trimmed.starts_with("```")
                 || candidate_trimmed.starts_with('|')
                 || candidate_trimmed.starts_with("- ")
@@ -347,5 +360,55 @@ mod marker_tests {
     #[test]
     fn a_line_start_marker_is_still_emphasis() {
         assert_eq!(plain("*The need is clear."), "The need is clear.");
+    }
+}
+
+#[cfg(test)]
+mod block_edge_tests {
+    use super::*;
+
+    #[test]
+    fn a_long_hash_run_does_not_overflow_or_become_a_heading() {
+        // 256 hashes overflowed u8 in debug builds; now it is ordinary text.
+        let hashes = "#".repeat(256);
+        let blocks = parse(&format!("{hashes} not a heading"));
+        assert!(
+            matches!(blocks[0], Block::Paragraph(_)),
+            "got {:?}",
+            blocks[0]
+        );
+    }
+
+    #[test]
+    fn an_item_number_is_not_a_heading() {
+        let blocks = parse("#1 priority for the container");
+        assert!(
+            matches!(blocks[0], Block::Paragraph(_)),
+            "`#1 priority` must not become a heading: {:?}",
+            blocks[0]
+        );
+    }
+
+    #[test]
+    fn a_real_heading_still_works() {
+        let blocks = parse("## Claims");
+        match blocks[0] {
+            Block::Heading { level, ref text } => {
+                assert_eq!(level, 2);
+                assert_eq!(text, "Claims");
+            }
+            ref other => panic!("expected a heading, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_unclosed_fence_does_not_swallow_the_report() {
+        let blocks = parse("Before\n\n```\nunclosed code\n\n## Later section\n\ntext");
+        assert!(
+            blocks.iter().any(
+                |block| matches!(block, Block::Heading { text, .. } if text == "Later section")
+            ),
+            "a later heading must still render: {blocks:?}"
+        );
     }
 }

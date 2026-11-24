@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 109 |
+| pass | 111 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -51,6 +51,8 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Masked key field: the mask preserves byte offsets, never paints the secret, and neither copies nor cuts | unit (`masking_tests`, compiled and run in CI with `--features native`) | pass — F-014 |
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
+| The viewer clamps long hash runs, requires a space after `#`, and never lets an unclosed fence swallow later sections | unit (`block_edge_tests`) | pass — F-060 |
+| An application report without claims text says so instead of printing the figures section as claims | unit + code | pass — F-066 |
 | CLI: one command list drives both acceptance and usage; a boolean flag works anywhere; the generic research endpoint is loopback-only | run (`pfl-cli`) + unit | pass — F-059 |
 | An API internal error returns a fixed sentence and logs the detail locally | unit + code | pass — F-062 |
 | The import preview and the receipt report the same preserved count, and preview queries escape the table name | unit (`migration`) | pass — F-063 |
