@@ -1089,3 +1089,26 @@ was invoked with no `/DAppVersion`. The tag now supplies the version (validated 
 vMAJOR.MINOR.PATCH) and names the file. The notes fallback to `docs/RELEASE-NOTES.md` is
 gone: a missing `docs/RELEASE-NOTES-<version>.md` is a refusal, because the fallback text
 begins "Candidate 0.2.0 — built, not released". That file now exists for 0.2.0.
+## Audit Majors F-007, F-008, F-009, F-011, F-012, F-013 fixed (2026-11-24)
+
+F-007: the PatentsView client used reqwest's default redirect policy, and the key travels in
+a custom header that reqwest does not strip on a cross-host redirect. The client now follows
+no redirects, ignores proxies, and validates the endpoint URL (HTTP(S), host, no credentials,
+query or fragment).
+
+F-012: real-invention data was refused for Cloud but allowed for research, so an unfiled
+invention's title could be posted to PatentsView. `authorize` now refuses `real_data` with
+`research`.
+
+F-013: a body without a `patents` array was parsed as an empty result, recording "no prior
+art" for what was really a failed search. A missing array or `"error": true` is now a
+provider error.
+
+F-011: the prior-art query ran before authorization and before the idempotency lookup, so a
+refused start still disclosed the title and a retry queried again. Authorization and the
+idempotency lookup now happen first, and the query takes a token that shutdown cancels.
+
+F-008/F-009: one `ensure_idle` guard now covers Start, StartSelected, Resume, RegenerateFrom
+and every service-replacing configuration, including research. Before this, two runs could be
+active at once and configuring research during a run orphaned a job that could not be
+cancelled.

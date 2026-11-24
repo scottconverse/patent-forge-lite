@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 65 |
+| pass | 69 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -52,6 +52,10 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
+| The PatentsView client follows no redirects, uses no proxy, validates its endpoint, and sends the key only to the configured host | unit + code | pass — F-007 |
+| Real-invention data is refused with research, so text never leaves the machine | integration (`research_run`) | pass — refused start makes zero queries |
+| An error-shaped PatentsView response fails the run instead of recording an empty set; a repeated idempotency key does not query again | integration (`research_run`) | pass |
+| Every start and reconfigure path shares one idle guard; a second run cannot start beside the first | integration (`cloud_consent`) + code | pass |
 | The PatentsView key never reaches the persisted database; an opted-in run makes exactly one query and records the reference | integration (`research_consent`) | pass |
 | Cloud decline and approval through the session actor: declined run sends nothing, approved run completes with one request per stage | integration (`cloud_consent`), loopback SSE stand-in | pass — 0 requests declined, 6 approved |
 | Cost line states *unknown* plus the rates, never a fabricated total | unit, `cost.rs` | pass |

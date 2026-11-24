@@ -51,6 +51,8 @@ fn spawn_cloud(calls: Arc<AtomicUsize>) -> String {
                 let calls = calls.clone();
                 async move {
                     calls.fetch_add(1, Ordering::SeqCst);
+                    // Slow enough that a second start lands while this run is active.
+                    tokio::time::sleep(Duration::from_millis(250)).await;
                     let body = concat!(
                         "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":7}}}\n\n",
                         "data: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"Loopback stage output.\"}}\n\n",
@@ -194,6 +196,30 @@ fn a_declined_cloud_run_sends_nothing_and_an_approved_one_completes() {
         Reply::Run(run) => run,
         other => panic!("the approved start did not produce a run: {other:?}"),
     };
+    // While that run is in flight, a second start must be refused: the window's other start
+    // paths already refuse, and this one must too.
+    session
+        .request(Request::Start {
+            project: project.id.clone(),
+            kind: WorkflowKind::Feasibility,
+            idempotency_key: "concurrent".into(),
+            authorization: Authorization {
+                synthetic_data: true,
+                paid_provider: true,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    match wait_for(&session, "concurrent start", &mut seen, |reply| {
+        matches!(reply, Reply::Run(_) | Reply::Error(_))
+    }) {
+        Reply::Error(error) => assert!(
+            error.to_lowercase().contains("active work"),
+            "the refusal should name the active work, got: {error}"
+        ),
+        Reply::Run(run) => panic!("a second run started beside the first: {run:?}"),
+        other => panic!("unexpected reply for a concurrent start: {other:?}"),
+    }
     let approved_id = started.id.clone();
     // Ask the session for the run by id instead of relying on poll timing: a fast
     // platform can finish the run before any Poll reply is emitted.

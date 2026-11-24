@@ -358,6 +358,22 @@ impl Actor {
     /// Builds the provider for a mode. Cloud accepts only a loopback verification
     /// endpoint from the environment; anything else is refused, so a real key can
     /// never be redirected off this machine.
+    /// Refuses when anything this session started is still running.
+    ///
+    /// Every path that starts work, or that replaces the service those jobs live in, must
+    /// pass through this one check: a second paid run must not start beside the first, and a
+    /// job must not be orphaned by a service swap that cannot cancel it.
+    async fn ensure_idle(&self, action: &str) -> Result<()> {
+        for id in &self.started_runs {
+            if !self.service.run(id.clone()).await?.outcome.is_terminal() {
+                return Err(Error::Conflict(format!(
+                    "finish or cancel active work before {action}"
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// Rebinds the service to a provider while keeping the configured research source.
     fn rebuild_service(&mut self, provider: Arc<dyn Provider>) {
         self.service = WorkflowService::new_with_research(
@@ -426,13 +442,7 @@ impl Actor {
                 // One step: install the key, then configure. No ordering race and no
                 // second reply.
                 self.cloud_key = Some(key).filter(|value| !value.trim().is_empty());
-                for id in &self.started_runs {
-                    if !self.service.run(id.clone()).await?.outcome.is_terminal() {
-                        return Err(Error::Conflict(
-                            "Finish or cancel active work before changing execution mode".into(),
-                        ));
-                    }
-                }
+                self.ensure_idle("changing execution mode").await?;
                 let mode = Mode::Cloud { model };
                 let provider = self.build_provider(&mode)?;
                 self.rebuild_service(provider);
@@ -448,13 +458,7 @@ impl Actor {
                 stage,
                 authorization,
             } => {
-                for id in &self.started_runs {
-                    if !self.service.run(id.clone()).await?.outcome.is_terminal() {
-                        return Err(Error::Conflict(
-                            "Finish or cancel active work before regenerating".into(),
-                        ));
-                    }
-                }
+                self.ensure_idle("regenerating").await?;
                 let regenerated = self
                     .service
                     .regenerate_from(run, stage, authorization)
@@ -520,6 +524,7 @@ impl Actor {
                 claims_revision,
                 specification_revision,
             } => {
+                self.ensure_idle("starting another run").await?;
                 for id in &self.started_runs {
                     if !self.service.run(id.clone()).await?.outcome.is_terminal() {
                         return Err(Error::Conflict(
@@ -577,6 +582,7 @@ impl Actor {
                 self.reply(Reply::Revisions(revisions));
             }
             Request::ConfigureResearch { api_key } => {
+                self.ensure_idle("changing research settings").await?;
                 if api_key.trim().is_empty() {
                     return Err(Error::Invalid(
                         "research needs a PatentsView API key".into(),
@@ -617,13 +623,7 @@ impl Actor {
                 self.reply(Reply::Settings(settings));
             }
             Request::Configure(mode) => {
-                for id in &self.started_runs {
-                    if !self.service.run(id.clone()).await?.outcome.is_terminal() {
-                        return Err(Error::Conflict(
-                            "Finish or cancel active work before changing execution mode".into(),
-                        ));
-                    }
-                }
+                self.ensure_idle("changing execution mode").await?;
                 let provider = self.build_provider(&mode)?;
                 self.rebuild_service(provider);
                 self.mode = Some(mode.clone());
@@ -635,6 +635,7 @@ impl Actor {
                 idempotency_key,
                 authorization,
             } => {
+                self.ensure_idle("starting another run").await?;
                 let mode = self.mode.as_ref().ok_or_else(|| {
                     Error::Invalid(
                         "Choose recorded replay or configure local inference first".into(),

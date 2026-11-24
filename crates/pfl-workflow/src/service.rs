@@ -27,6 +27,9 @@ pub struct WorkflowService {
     /// Optional prior-art source. Absent means no research is performed at all;
     /// it is only consulted for runs that explicitly authorized research.
     research: Option<Arc<dyn ResearchSource>>,
+    /// Cancels an in-flight prior-art query when the application shuts down, so a research
+    /// request cannot outlive the run that asked for it.
+    research_cancel: CancellationToken,
     commands: Mutex<()>,
     jobs: StdMutex<HashMap<RunId, Job>>,
     stopping: AtomicBool,
@@ -52,6 +55,7 @@ impl WorkflowService {
             provider,
             runtime,
             research,
+            research_cancel: CancellationToken::new(),
             commands: Mutex::new(()),
             jobs: StdMutex::new(HashMap::new()),
             stopping: AtomicBool::new(false),
@@ -203,6 +207,15 @@ impl WorkflowService {
                     .into(),
             ));
         }
+        // Real-invention text must not leave the machine: not to a Cloud model, and not to
+        // a prior-art service. PatentsView receives the title or technical field, which is
+        // enough to disclose an unfiled invention.
+        if input.authorization.real_data && input.authorization.research {
+            return Err(Error::Invalid(
+                "real-invention data is local-only in this build; prior-art search requires synthetic test data"
+                    .into(),
+            ));
+        }
         // Real-invention data is Local-only until a Cloud consent model is designed.
         if input.authorization.real_data && input.provider.kind == ProviderKind::Cloud {
             return Err(Error::Invalid(
@@ -257,7 +270,7 @@ impl WorkflowService {
         authorization: Authorization,
     ) -> Result<RunSnapshot> {
         let project = self.project(project_id.clone()).await?;
-        let mut upstream = self.upstream(&project_id, kind).await?;
+        let upstream = self.upstream(&project_id, kind).await?;
         // Setup profiles decide which provider families an installation may use.
         if self.settings().await?.profile == SetupProfile::Lean
             && self.provider.snapshot().kind == ProviderKind::Local
@@ -266,31 +279,51 @@ impl WorkflowService {
                 "Lean setup is Cloud-only: it never acquires or uses a local runtime".into(),
             ));
         }
-        if let Some(research) = &self.research
-            && authorization.research
-            && kind == WorkflowKind::Feasibility
+        let mut input = RunInput {
+            kind,
+            intake: project.intake.clone(),
+            provider: self.provider.snapshot(),
+            prompts: prompts::snapshot(kind),
+            authorization,
+            upstream,
+            regeneration: None,
+        };
+        // Consent and prerequisites are decided before anything leaves the machine: a start
+        // that will be refused must not send the invention's title to a prior-art service.
+        self.authorize(&input)?;
+        // A retry with the same idempotency key returns the stored run: rebuilding the input
+        // would either query PatentsView a second time or differ from the immutable payload.
+        if let Some(existing) = self
+            .history(project_id.clone())
+            .await?
+            .into_iter()
+            .find(|run| run.idempotency_key == idempotency_key)
         {
-            upstream.prior_art = research
-                .prior_art(&project.intake, CancellationToken::new())
-                .await?;
+            return Ok(existing);
         }
+        self.maybe_research(&mut input).await?;
         self.start(NewRun {
             id: RunId::new(),
             project_id,
             idempotency_key,
-            input: RunInput {
-                kind,
-                intake: project.intake,
-                provider: self.provider.snapshot(),
-                prompts: prompts::snapshot(kind),
-                authorization,
-                upstream,
-                regeneration: None,
-            },
+            input,
             rerun_of: None,
             created_at_ms: now_ms(),
         })
         .await
+    }
+
+    /// Runs the prior-art query for an authorized feasibility start, cancellable by shutdown.
+    async fn maybe_research(&self, input: &mut RunInput) -> Result<()> {
+        if let Some(research) = &self.research
+            && input.authorization.research
+            && input.kind == WorkflowKind::Feasibility
+        {
+            input.upstream.prior_art = research
+                .prior_art(&input.intake, self.research_cancel.child_token())
+                .await?;
+        }
+        Ok(())
     }
 
     /// Resolves and snapshots the upstream text a workflow consumes. Requires a
@@ -963,6 +996,7 @@ impl WorkflowService {
         let ids: Vec<_> = {
             let _commands = self.commands.lock().await;
             self.stopping.store(true, Ordering::Release);
+            self.research_cancel.cancel();
             self.jobs
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())

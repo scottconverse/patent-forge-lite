@@ -91,6 +91,28 @@ async fn opt_in_research_records_verified_references_and_opt_out_queries_nothing
     assert_eq!(prior_art[0].publication_number, "10123456");
     assert!(prior_art[0].verified);
 
+    // A retry with the same idempotency key replays the stored run rather than disclosing
+    // the same title to PatentsView a second time.
+    let replay = service
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Feasibility,
+            "research-on".into(),
+            Authorization {
+                synthetic_data: true,
+                research: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(replay.id, done.id, "the same key returns the same run");
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "a repeated key must not query again"
+    );
+
     // Opted out: no query, no references, and nothing silently invented.
     let opted_out = service
         .start_workflow(
@@ -177,4 +199,103 @@ async fn wait(service: &WorkflowService, id: &RunId) -> RunSnapshot {
     })
     .await
     .expect("terminal")
+}
+
+/// A refused start must not send the invention to the prior-art service: consent is decided
+/// before anything leaves the machine.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_refused_start_makes_no_research_call() {
+    let (endpoint, calls) = spawn_patentsview().await;
+    let source = Arc::new(PatentsViewSource::with_endpoint("key", &endpoint).unwrap());
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider: Arc<dyn Provider> = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new_with_research(
+        store,
+        provider,
+        tokio::runtime::Handle::current(),
+        Some(source),
+    );
+    let project = service.create_project(intake()).await.unwrap();
+
+    // Real-invention data may not reach PatentsView, so the start is refused.
+    let refused = service
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Feasibility,
+            "research-real".into(),
+            Authorization {
+                real_data: true,
+                local_inference: true,
+                research: true,
+                ..Default::default()
+            },
+        )
+        .await;
+    assert!(refused.is_err(), "real data with research must be refused");
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "a refused start must not query the prior-art service"
+    );
+}
+
+/// A response without a `patents` array, or one flagged as an error, is a failed search —
+/// never "no prior art exists".
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_error_shaped_response_is_a_failure_not_an_empty_result() {
+    async fn serve(body: &'static str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route(
+                    "/api/v1/patent/",
+                    post(move || async move {
+                        (
+                            [(axum::http::header::CONTENT_TYPE, "application/json")],
+                            body,
+                        )
+                            .into_response()
+                    }),
+                ),
+            )
+            .await
+            .unwrap();
+        });
+        format!("http://{address}/api/v1/patent/")
+    }
+
+    for (label, body) in [
+        ("no array", r#"{"message":"ok"}"#),
+        ("error flag", r#"{"error":true}"#),
+    ] {
+        let endpoint = serve(body).await;
+        let source = Arc::new(PatentsViewSource::with_endpoint("key", &endpoint).unwrap());
+        let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+        let provider: Arc<dyn Provider> = Arc::new(ReplayProvider::all_workflows());
+        let service = WorkflowService::new_with_research(
+            store,
+            provider,
+            tokio::runtime::Handle::current(),
+            Some(source),
+        );
+        let project = service.create_project(intake()).await.unwrap();
+        let refused = service
+            .start_workflow(
+                project.id.clone(),
+                WorkflowKind::Feasibility,
+                format!("research-{label}"),
+                Authorization {
+                    synthetic_data: true,
+                    research: true,
+                    ..Default::default()
+                },
+            )
+            .await;
+        assert!(
+            refused.is_err(),
+            "{label}: an error-shaped body must fail the start, not record an empty set"
+        );
+    }
 }

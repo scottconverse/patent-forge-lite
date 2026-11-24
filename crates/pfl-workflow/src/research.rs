@@ -245,13 +245,34 @@ impl PatentsViewSource {
         if api_key.trim().is_empty() {
             return Err(Error::Invalid("PatentsView requires an API key".into()));
         }
+        let endpoint = endpoint.into();
+        // The key travels in a custom header, which reqwest does not strip on a cross-host
+        // redirect, so a redirect would hand the key to whoever the host points at next.
+        // No redirects and no proxy: one request, to the configured host only.
+        let url = reqwest::Url::parse(&endpoint)
+            .map_err(|_| Error::Invalid("invalid PatentsView endpoint URL".into()))?;
+        if !matches!(url.scheme(), "http" | "https")
+            || url.host_str().is_none()
+            || url.username() != ""
+            || url.password().is_some()
+            || url.query().is_some()
+            || url.fragment().is_some()
+        {
+            return Err(Error::Invalid(
+                "PatentsView endpoint must be HTTP(S), with a host and no credentials, query or fragment"
+                    .into(),
+            ));
+        }
         let client = reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(std::time::Duration::from_secs(10))
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|_| Error::Provider("cannot initialize the PatentsView client".into()))?;
+        // The endpoint is used verbatim: the API path is part of it.
         Ok(Self {
-            endpoint: endpoint.into(),
+            endpoint,
             api_key,
             client,
         })
@@ -299,7 +320,16 @@ impl ResearchSource for PatentsViewSource {
         let payload: serde_json::Value = response.json().await.map_err(|_| {
             Error::Provider("PatentsView returned a malformed body; nothing was recorded".into())
         })?;
-        let records = payload["patents"].as_array().cloned().unwrap_or_default();
+        // "Search failed" must never be recorded as "no prior art exists": a body without a
+        // `patents` array, or one that flags an error, is a failed search.
+        if payload["error"].as_bool() == Some(true) {
+            return Err(Error::Provider(
+                "PatentsView reported an error; no prior-art set was recorded".into(),
+            ));
+        }
+        let records = payload["patents"].as_array().cloned().ok_or_else(|| {
+            Error::Provider("PatentsView returned no patents array; nothing was recorded".into())
+        })?;
         Ok(records
             .into_iter()
             .filter_map(|record| {
