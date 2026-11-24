@@ -1076,3 +1076,16 @@ new claims beside findings about the old ones. `matching_findings` now selects o
 that recorded the exported revision ids, the manifest records `findings_run_id`, and the
 session and CLI share that one rule. An integration test reviews v1, edits to v2, and asserts
 the v2 package carries no findings while v1 still matches its review.
+## Audit Criticals F-005, F-006 fixed (2026-11-24)
+
+F-005: a manual release run checked out whichever branch started it, then published under the
+requested tag with `--clobber` and rewritten notes — following the input's own example
+(v0.1.0) would have replaced the only published release with main-built binaries. Every
+checkout now pins `ref` to the requested tag, an existing release is refused unless the new
+`replace` input is true, and even then its notes are never rewritten.
+
+F-006: a v0.2.0 tag would have produced an installer named and versioned 0.1.0, because ISCC
+was invoked with no `/DAppVersion`. The tag now supplies the version (validated as
+vMAJOR.MINOR.PATCH) and names the file. The notes fallback to `docs/RELEASE-NOTES.md` is
+gone: a missing `docs/RELEASE-NOTES-<version>.md` is a refusal, because the fallback text
+begins "Candidate 0.2.0 — built, not released". That file now exists for 0.2.0.

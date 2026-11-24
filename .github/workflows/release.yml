@@ -17,6 +17,10 @@ on:
       tag:
         description: "Existing tag to publish (e.g. v0.1.0)"
         required: true
+      replace:
+        description: "Overwrite the assets of an existing release. Leave false to protect a published release."
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -43,6 +47,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - name: Linux native dependencies
         run: |
           sudo apt-get update
@@ -77,6 +83,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - name: Install repository-pinned Rust
         run: rustup show
       - name: Build desktop
@@ -104,6 +112,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - name: Install repository-pinned Rust
         shell: bash
         run: rustup show
@@ -116,7 +126,12 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { throw "ISCC.exe not found" }
-          & $iscc packaging\windows\patent-forge-lite.iss
+          # The installer's version and file name come from the tag being released, so a
+          # v0.2.0 tag can never publish an installer that calls itself 0.1.0.
+          $tag = "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "tag '$tag' is not vMAJOR.MINOR.PATCH" }
+          & $iscc "/DAppVersion=$version" packaging\windows\patent-forge-lite.iss
           if ($LASTEXITCODE -ne 0) { throw "installer compile failed" }
       - name: Azure Trusted Signing
         uses: azure/artifact-signing-action@v2
@@ -151,6 +166,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -162,10 +179,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           SIGNED: ${{ needs.preflight.outputs.azure }}
+          REPLACE: ${{ inputs.replace }}
         run: |
           set -euo pipefail
+          # Notes are versioned. A candidate-draft fallback would label a release with text
+          # that says it is not released, so a missing file is a refusal, not a default.
           notes="docs/RELEASE-NOTES-${TAG#v}.md"
-          if [ ! -f "$notes" ]; then notes="docs/RELEASE-NOTES.md"; fi
+          if [ ! -f "$notes" ]; then
+            echo "::error::no release notes for $TAG: expected $notes"
+            exit 1
+          fi
           cp "$notes" release-notes.md
           if [ "${SIGNED}" != "true" ]; then
             {
@@ -177,10 +200,14 @@ jobs:
             } >> release-notes.md
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
-            # Idempotent re-run: add or replace assets on an existing release, so a
-            # later signing run can attach the Windows installer to the same tag.
+            # A published release is immutable here: without an explicit replace, refuse
+            # rather than overwrite the assets and notes of something people may have
+            # downloaded. Even with it, the notes are left as they were.
+            if [ "${REPLACE:-false}" != "true" ]; then
+              echo "::error::release $TAG already exists; re-run with replace=true to overwrite its assets (notes are never rewritten)"
+              exit 1
+            fi
             gh release upload "$TAG" dist/* --clobber
-            gh release edit "$TAG" --notes-file release-notes.md
           else
             gh release create "$TAG" dist/* --title "PatentForge Lite ${TAG#v}" --notes-file release-notes.md --verify-tag
           fi
