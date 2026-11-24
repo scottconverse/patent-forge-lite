@@ -676,6 +676,17 @@ async fn journeys(
 
 /// Serves the compatibility API over one synthetic workspace. The token is read
 /// from `PFL_API_TOKEN`; without it the API is open, matching legacy behaviour.
+/// True when a `host:port` address names the loopback interface.
+fn is_loopback_addr(addr: &str) -> bool {
+    let host = addr.rsplit_once(':').map(|(host, _)| host).unwrap_or(addr);
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    host == "localhost"
+        || host == "::1"
+        || host
+            .parse::<std::net::IpAddr>()
+            .map(|ip| ip.is_loopback())
+            .unwrap_or(false)
+}
 async fn serve(workspace: PathBuf, addr: String) -> Result<()> {
     let marker = read_marker(&workspace)?;
     let database = workspace.join(&marker.database);
@@ -689,6 +700,17 @@ async fn serve(workspace: PathBuf, addr: String) -> Result<()> {
     let provider: Arc<dyn Provider> = Arc::new(ReplayProvider::all_workflows());
     let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
     service.recover_interrupted().await?;
+    // Loopback only unless a token is configured. Binding an unauthenticated API to a
+    // routable address would expose its write endpoints to the network.
+    if !is_loopback_addr(&addr)
+        && std::env::var("PFL_API_TOKEN")
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+    {
+        return Err(invalid(
+            "serve binds loopback only unless PFL_API_TOKEN is set; refusing to expose an unauthenticated API",
+        ));
+    }
     let token = std::env::var("PFL_API_TOKEN")
         .ok()
         .filter(|v| !v.is_empty());

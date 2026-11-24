@@ -3,11 +3,11 @@
 //! GPUI is Apache-2.0 licensed. Editing and IME transactions live in editor.rs.
 use crate::editor::TextBuffer;
 use gpui::{
-    App, AvailableSpace, Bounds, ClipboardItem, Context, CursorStyle, ElementId,
-    ElementInputHandler, Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId,
-    KeyBinding, LayoutId, MouseButton, Pixels, Point, Role, ScrollHandle, SharedString, Style,
-    TextAlign, TextRun, UTF16Selection, UnderlineStyle, Window, WrappedLine, actions, div, fill,
-    point, prelude::*, px, relative, rgb, rgba, size,
+    App, AvailableSpace, Bounds, Context, CursorStyle, ElementId, ElementInputHandler, Entity,
+    EntityInputHandler, FocusHandle, Focusable, GlobalElementId, KeyBinding, LayoutId, MouseButton,
+    Pixels, Point, Role, ScrollHandle, SharedString, Style, TextAlign, TextRun, UTF16Selection,
+    UnderlineStyle, Window, WrappedLine, actions, div, fill, point, prelude::*, px, relative, rgb,
+    rgba, size,
 };
 use std::{cell::RefCell, ops::Range, rc::Rc};
 
@@ -230,7 +230,13 @@ impl EntityInputHandler for TextInput {
     ) -> Option<String> {
         let range = self.buffer.from_utf16(range);
         *actual = Some(self.buffer.to_utf16(range.clone()));
-        Some(self.buffer.text()[range].to_owned())
+        let text = &self.buffer.text()[range];
+        // A masked field never hands its plaintext to the platform, because that text is
+        // what ends up on the clipboard and in clipboard history.
+        if self.masked {
+            return Some(mask_bytes(text));
+        }
+        Some(text.to_owned())
     }
     fn selected_text_range(
         &mut self,
@@ -450,21 +456,15 @@ impl Render for TextInput {
                     this.changed(w, cx);
                 }
             }))
-            .on_action(cx.listener(|this, _: &Copy, _, cx| {
-                if !this.buffer.selection().is_empty() {
-                    cx.write_to_clipboard(ClipboardItem::new_string(
-                        this.buffer.selected_text().to_owned(),
-                    ));
-                }
+            // A masked field does not copy or cut: putting a session-only key on the
+            // clipboard, and from there into clipboard history, is the leak this prevents.
+            .on_action(cx.listener(|this, _: &Copy, _, _cx| {
+                let _ = this;
             }))
             .on_action(cx.listener(|this, _: &Cut, w, cx| {
-                if !this.buffer.selection().is_empty() {
-                    cx.write_to_clipboard(ClipboardItem::new_string(
-                        this.buffer.selected_text().to_owned(),
-                    ));
-                    this.buffer.replace_selection("");
-                    this.changed(w, cx);
-                }
+                let _ = w;
+                let _ = cx;
+                let _ = this;
             }))
             .on_action(cx.listener(|this, _: &Paste, w, cx| {
                 if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {

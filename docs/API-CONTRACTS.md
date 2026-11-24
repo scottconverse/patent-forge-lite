@@ -67,7 +67,14 @@ Known limits, stated plainly:
 
 - Write endpoints have not been verified, so anything that creates a project or starts a
   run through HTTP is **unproven** until it is exercised.
-- The server binds loopback only. There is no remote mode, and none is planned.
+- The server binds loopback unless `PFL_API_TOKEN` is set; `serve` refuses a routable
+  address without a token rather than exposing unauthenticated write endpoints.
+- Without a token every request must arrive with a loopback `Host`; anything else is
+  refused, which stops a browser page elsewhere from reaching a local server (DNS rebinding).
+- A one-time download token is accepted on the export route only. It is random and
+  single-use; the long-lived configured token keeps its legacy meaning on every route.
+- Remote access is not supported as a product: a token makes an exposed bind possible, it
+  does not make it safe.
 - Two builds cannot share a workspace: the second is refused with exit code 3.
 
 ## Not proven here

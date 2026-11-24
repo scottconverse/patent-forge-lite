@@ -64,11 +64,9 @@ impl ApiState {
 
     /// Single-use token valid for five minutes, pruning expired entries.
     pub fn generate_download_token(&self) -> String {
-        let token = format!(
-            "{:032x}{:032x}",
-            now_ms() as u128,
-            self as *const Self as usize as u128
-        );
+        // Random, not derived from the clock or the allocator's address: a token that can be
+        // guessed is a token that can be used.
+        let token = uuid::Uuid::new_v4().simple().to_string();
         let expiry = now_ms() + DOWNLOAD_TOKEN_TTL_MS;
         let mut tokens = self
             .download_tokens
@@ -111,6 +109,24 @@ fn unauthorized(message: &str) -> Response {
         .into_response()
 }
 
+/// True when the request's Host header names the loopback interface.
+fn host_is_loopback(headers: &HeaderMap) -> bool {
+    let Some(host) = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+    else {
+        // No Host header at all is an HTTP/1.0 caller; treat it as local tooling.
+        return true;
+    };
+    let host = host.rsplit_once(':').map(|(host, _)| host).unwrap_or(host);
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    host == "localhost"
+        || host == "::1"
+        || host
+            .parse::<std::net::IpAddr>()
+            .map(|ip| ip.is_loopback())
+            .unwrap_or(false)
+}
 async fn guard(
     State(state): State<Arc<ApiState>>,
     headers: HeaderMap,
@@ -118,6 +134,11 @@ async fn guard(
     next: Next,
 ) -> Response {
     let Some(token) = state.token.clone() else {
+        // Without a token this API is a loopback service, so a request whose Host is not
+        // loopback is a page elsewhere trying to reach it (DNS rebinding).
+        if !host_is_loopback(&headers) {
+            return unauthorized("This API answers loopback addresses only unless a token is set.");
+        }
         return next.run(request).await;
     };
     let query_token = request.uri().query().and_then(|query| {
@@ -138,10 +159,19 @@ async fn guard(
     {
         return next.run(request).await;
     }
-    if let Some(candidate) = &query_token
-        && state.accept_query_token(candidate)
-    {
-        return next.run(request).await;
+    // A one-time download token is honoured on the download route only: a leaked link must
+    // not be able to start runs or change projects. The long-lived configured token keeps
+    // its legacy meaning everywhere.
+    if let Some(candidate) = &query_token {
+        let download_route = request.uri().path().ends_with("/export");
+        let accepted = if download_route {
+            state.accept_query_token(candidate)
+        } else {
+            timing_safe_equal(candidate, &token)
+        };
+        if accepted {
+            return next.run(request).await;
+        }
     }
     if bearer.is_none() && query_token.is_none() {
         return unauthorized("Authentication required. Set Authorization: Bearer <token> header.");

@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 70 |
+| pass | 72 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -48,10 +48,12 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Loopback-only verification hook; a non-loopback Cloud endpoint is refused | unit | pass |
 | Lean refuses a local runtime with a clear message | unit, `consent.rs` | pass |
 | Lean permits Cloud past the profile gate (fails at the provider, not the gate) | unit, loopback 503 | pass |
-| Masked key field; the mask preserves byte offsets and never paints the secret | unit (`masking_tests`, compiled and run in CI with `--features native`) | pass — F-014 |
+| Masked key field: the mask preserves byte offsets, never paints the secret, and neither copies nor cuts | unit (`masking_tests`, compiled and run in CI with `--features native`) | pass — F-014 |
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
+| API download tokens are random and single-use, accepted on the export route only; a token-less server answers a loopback Host only | integration (`api`) | pass — F-016, F-017 |
+| `serve` refuses a routable bind without `PFL_API_TOKEN` | unit + code | pass — F-016 |
 | The PatentsView client follows no redirects, uses no proxy, validates its endpoint, and sends the key only to the configured host | unit + code | pass — F-007 |
 | Real-invention data is refused with research, so text never leaves the machine | integration (`research_run`) | pass — refused start makes zero queries |
 | An error-shaped PatentsView response fails the run instead of recording an empty set; a repeated idempotency key does not query again | integration (`research_run`) | pass |

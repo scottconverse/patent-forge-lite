@@ -1126,3 +1126,19 @@ could never be resumed although the documentation promised it could. The prefix 
 only while the run has no checkpoints. `regenerate_resume.rs` interrupts a regeneration at its
 first new stage and proves the resume completes with the carried stages byte-identical and no
 stage duplicated.
+## Audit Majors F-015, F-016, F-017 fixed (2026-11-24)
+
+F-015: Copy and Cut ignored the mask, so Ctrl+A Ctrl+C put a session-only API key on the
+clipboard and into clipboard history. A masked field now refuses both, and `text_for_range`
+returns the masked string so the platform never receives the plaintext.
+
+F-016: `serve --addr 0.0.0.0:…` bound an unauthenticated API to the network while the docs
+said loopback only. `serve` now refuses a non-loopback address unless `PFL_API_TOKEN` is set,
+a token-less server answers only a loopback `Host` (DNS rebinding), and `docs/API-CONTRACTS.md`
+states the real rule instead of the old one.
+
+F-017: download tokens were derived from the clock and the allocator address, and a query
+token authenticated every route. Tokens are now random UUIDs, and a one-time token is accepted
+on the export route only, so a leaked download link cannot start runs. The long-lived
+configured token keeps its legacy meaning, and the API test that encoded the old behaviour now
+asserts the new rule.

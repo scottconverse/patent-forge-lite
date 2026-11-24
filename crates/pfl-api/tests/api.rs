@@ -137,18 +137,25 @@ async fn bearer_auth_and_download_tokens_match_legacy_semantics() {
         .unwrap();
     let download = token["token"].as_str().unwrap().to_string();
     assert_ne!(download, "secret-token");
-    let first = client
+    // A one-time download token opens the download route only. Using it elsewhere must not
+    // authenticate: a leaked link must not be able to read projects or start a run.
+    let elsewhere = client
         .get(format!("{base}/api/projects?token={download}"))
         .send()
         .await
         .unwrap();
-    assert_eq!(first.status(), 200);
-    let second = client
-        .get(format!("{base}/api/projects?token={download}"))
+    assert_eq!(
+        elsewhere.status(),
+        401,
+        "a download token must not open other routes"
+    );
+    // The long-lived token still works on that same route, unchanged.
+    let long_lived = client
+        .get(format!("{base}/api/projects?token=secret-token"))
         .send()
         .await
         .unwrap();
-    assert_eq!(second.status(), 401, "a download token is single use");
+    assert_eq!(long_lived.status(), 200);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -304,4 +311,54 @@ async fn api_drives_feasibility_then_claims_and_exports_three_formats() {
     assert_eq!(sequences, (1..=sequences.len() as u64).collect::<Vec<_>>());
 
     state.service.shutdown().await.unwrap();
+}
+
+/// Download tokens are random and single-use, and a query token opens the download route
+/// only: a leaked link must not be able to start a run.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn download_tokens_are_random_and_limited_to_the_download_route() {
+    let (base, _state) = base_url(None).await;
+    let client = reqwest::Client::new();
+    let first: serde_json::Value = client
+        .post(format!("{base}/api/health/download-token"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let second: serde_json::Value = client
+        .post(format!("{base}/api/health/download-token"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let first_token = first["token"].as_str().unwrap();
+    let second_token = second["token"].as_str().unwrap();
+    assert_eq!(first_token.len(), 32, "a uuid-simple token is 32 hex chars");
+    assert!(first_token.chars().all(|c| c.is_ascii_hexdigit()));
+    assert_ne!(first_token, second_token, "tokens must not be predictable");
+
+    // A token supplied to a write route is ignored: the request is treated as unauthenticated
+    // and, with no long-lived token configured, is refused by the loopback Host rule only if
+    // its Host is not loopback — so assert the refusal on a non-loopback Host.
+    let refused = client
+        .post(format!("{base}/api/runs?token={first_token}"))
+        .header("host", "attacker.example")
+        .json(&json!({ "project": "unknown", "kind": "feasibility", "authorization": authorization() }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(refused.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    // And a non-loopback Host is refused in the token-less deployment.
+    let rebound = client
+        .get(format!("{base}/api/health"))
+        .header("host", "attacker.example")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(rebound.status(), reqwest::StatusCode::UNAUTHORIZED);
 }
