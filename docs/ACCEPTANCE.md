@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 116 |
+| pass | 119 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -51,6 +51,9 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Masked key field: the mask preserves byte offsets, never paints the secret, and neither copies nor cuts | unit (`masking_tests`, compiled and run in CI with `--features native`) | pass — F-014 |
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
+| No package carries `docs/evidence`, and the proof scripts write placeholder paths instead of the operator profile | run + code | pass — F-072 |
+| The release workflow is read-only by default, grants write only to the publish job, and pins every action to a commit SHA | review (`release.yml`) | pass — F-073 |
+| The macOS plist is a template filled from the release version, not a hard-coded 0.1.0 | code (`bundle.sh`) | pass — F-071 |
 | The CSV carries a UTF-8 BOM, a publication-number column and the IDS vocabulary; only PatentsView records are marked verified | unit (`package`, `research_http`) | pass — F-067 |
 | A start refusal names the one control that is missing | unit (`gate_tests`) | pass — F-069 |
 | The revision doc comment sits on the revision type, the metadata fence outgrows any backtick run, every note line is quoted, and cells strip carriage returns | unit + code | pass — F-075, F-076 |

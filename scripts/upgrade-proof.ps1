@@ -45,10 +45,7 @@ trap {
     Remove-TestInstall
     exit 1
 }
-function Record([string]$name, [bool]$ok, [string]$detail = '') {
-    $script:results[$name] = [ordered]@{ pass = $ok; detail = $detail }
-    Write-Host ("  {0}  {1} {2}" -f $(if ($ok) { 'PASS' } else { 'FAIL' }), $name, $detail) -ForegroundColor $(if ($ok) { 'Green' } else { 'Red' })
-}
+
 function InstalledExe { Join-Path $script:installDir 'pfl-desktop.exe' }
 function DataDir { Join-Path $env:LOCALAPPDATA 'patent-forge-lite' }
 function DataFile { Join-Path (DataDir) 'projects.sqlite3' }
@@ -176,7 +173,7 @@ $script:results['hashes'] = [ordered]@{
     pass   = $true
     detail = [ordered]@{ old = $oldHash; new = $newHash; rolled_back = $backHash; inventory = $signature }
 }
-$script:results | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $keep 'upgrade.json')
+$script:results | ConvertTo-Json -Depth 6 | ForEach-Object { Sanitise $_ } | Set-Content (Join-Path $keep 'upgrade.json')
 
 Clear-Harness
 $failed = @($script:results.Values | Where-Object { -not $_.pass }).Count

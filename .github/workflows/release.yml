@@ -22,8 +22,10 @@ on:
         type: boolean
         default: false
 
+# Read-only by default. The publish job asks for `contents: write`; nothing else has it, so a
+# compromised step in a build job cannot rewrite a release.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   # A tag must never publish code that was not tested: this job is the gate, and every build
@@ -31,7 +33,7 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - name: Repository-pinned Rust
@@ -67,7 +69,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - name: Linux native dependencies
@@ -88,13 +90,16 @@ jobs:
           mkdir -p "$stage/fonts"
           cp target/release/pfl-desktop "$stage/"
           cp README.md LICENSE LICENSE-PROMPTS LEGAL_NOTICE.md THIRD_PARTY_NOTICES.md "$stage/"
+          # Documentation ships; the proof evidence does not. Its files record absolute paths from
+          # the machine that produced them, which is not something to publish.
           cp -R docs prompts "$stage/"
+          rm -rf "$stage/docs/evidence"
           cp packaging/linux/pfl-desktop.desktop "$stage/"
           cp assets/brand/app-256.png "$stage/patent-forge-lite.png"
           cp -R assets/fonts/. "$stage/fonts/"
           tar -czf "dist/$name.tar.gz" -C dist "$name"
           ( cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256" )
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: linux
           path: dist/*.tar.gz*
@@ -104,7 +109,7 @@ jobs:
     needs: verify
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - name: Install repository-pinned Rust
@@ -112,7 +117,11 @@ jobs:
       - name: Build desktop
         run: cargo build -p pfl-desktop --features native --release --locked
       - name: Assemble app bundle
-        run: bash packaging/macos/bundle.sh
+        env:
+          PFL_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          export PFL_VERSION="${PFL_VERSION#v}"
+          bash packaging/macos/bundle.sh
       - name: Package
         run: |
           set -euo pipefail
@@ -122,7 +131,7 @@ jobs:
           cd ../..
           ( cd dist && shasum -a 256 "$name.zip" > "$name.zip.sha256" )
           echo "unsigned build: no Apple Developer ID, no notarization" > "dist/$name.UNSIGNED.txt"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: macos
           path: dist/*.zip*
@@ -133,7 +142,7 @@ jobs:
     if: needs.preflight.outputs.azure == 'true'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - name: Install repository-pinned Rust
@@ -156,7 +165,7 @@ jobs:
           & $iscc "/DAppVersion=$version" packaging\windows\patent-forge-lite.iss
           if ($LASTEXITCODE -ne 0) { throw "installer compile failed" }
       - name: Azure Trusted Signing
-        uses: azure/artifact-signing-action@v2
+        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
         with:
           endpoint: https://wcus.codesigning.azure.net
           signing-account-name: scottconverse-signing
@@ -176,21 +185,24 @@ jobs:
           $name = "${{ github.ref_name }}-$($exe.Name)"
           $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
           "$hash  $($exe.Name)" | Out-File -Encoding ascii "dist\$name.sha256"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows
           path: dist/*.exe*
           if-no-files-found: error
 
   publish:
+    # The only job that may write: it creates the release and uploads assets.
+    permissions:
+      contents: write
     needs: [preflight, linux, macos, windows]
     if: ${{ !cancelled() && needs.linux.result == 'success' && needs.macos.result == 'success' }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist
           merge-multiple: true

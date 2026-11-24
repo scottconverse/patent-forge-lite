@@ -51,11 +51,19 @@ function Clear-Harness {
 }
 trap { Write-Host "ABORTED: $($_.Exception.Message)" -ForegroundColor Red; Clear-Harness; exit 1 }
 
-$results = [ordered]@{}
-function Record([string]$name, [bool]$ok, [string]$detail = '') {
-    $results[$name] = [ordered]@{ pass = $ok; detail = $detail }
-    Write-Host ("  {0}  {1} {2}" -f $(if ($ok) { 'PASS' } else { 'FAIL' }), $name, $detail) -ForegroundColor $(if ($ok) { 'Green' } else { 'Red' })
+# Replaces machine-specific absolute paths with placeholders.
+#
+# Evidence is compiled into the package documentation, so a recorded user-profile path is a
+# path leak in every shipped copy. Details stay readable; the operator's name does not travel.
+function Sanitise([string]$text) {
+    $text = $text.Replace($env:USERPROFILE, '<profile>')
+    $text = $text.Replace($env:LOCALAPPDATA, '<localappdata>')
+    $text = $text.Replace($OutDir, '<workdir>')
+    $text
 }
+
+$results = [ordered]@{}
+
 function Requests { if (Test-Path $log) { (Get-Content $log | Measure-Object).Count } else { 0 } }
 function MainWindow {
     if (-not $script:appPid) { return $null }
@@ -350,7 +358,7 @@ Start-Until "paid Cloud"
 $deadline = (Get-Date).AddSeconds(30)
 while ((Get-Date) -lt $deadline -and (Requests) -eq 0) { Start-Sleep -Milliseconds 300 }
 
-$results | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $OutDir 'cloud-consent.json')
+$results | ConvertTo-Json -Depth 5 | ForEach-Object { Sanitise $_ } | Set-Content (Join-Path $OutDir 'cloud-consent.json')
 if ($EvidenceDir) {
     New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
     $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')

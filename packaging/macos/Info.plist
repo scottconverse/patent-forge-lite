@@ -2,7 +2,9 @@
 <!--
   Patent Forge Lite macOS bundle definition.
 
-  NOT BUILT, NOT SIGNED, NOT NOTARIZED. No macOS runner has executed this.
+  Unsigned, not notarized. v0.1.0 was built by the release workflow; this file is the
+  template the bundler fills in, and `bundle.sh` replaces the version placeholder from the
+  PFL_VERSION environment variable or the tag.
   The deployment target below is Lite's chosen floor and must be verified on a
   real runner; the legacy tray's macOS 15 minimum does not apply because Lite has
   no tray-resident lifecycle yet.
@@ -21,7 +23,7 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>__PFL_VERSION__</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>

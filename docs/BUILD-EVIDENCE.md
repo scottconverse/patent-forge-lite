@@ -1463,3 +1463,19 @@ F-075: the `DocumentRevision` doc comment sat above `DocumentKind`. Each type no
 F-076: the metadata code fence was a fixed 16 backticks; it is now one longer than the longest
 backtick run in the metadata. A multi-line revision note quotes every line instead of only the
 first, and table cells strip carriage returns as well as newlines.
+## Audit Minors F-071..F-074 fixed (2026-11-24)
+
+F-072: all three packages copied `docs/` wholesale, and 26 evidence files record an absolute path
+from the machine that produced them. The Linux archive, the Windows installer and the macOS
+bundle now exclude `docs/evidence`, and both proof scripts write `<profile>`, `<localappdata>` and
+`<workdir>` placeholders instead of the operator's paths.
+
+F-073: `release.yml` granted `contents: write` to the whole workflow and pinned actions to major
+tags. It is now read-only by default, grants write only to the publish job, and pins every action
+to a commit SHA (resolved from the tags). The native CI workflow is pinned the same way.
+
+F-071: `Info.plist` hard-coded `0.1.0` and still said "NOT BUILT". It is now a template with a
+version placeholder that `bundle.sh` fills from `PFL_VERSION`; the release workflow passes the tag.
+
+F-074: `cloud_consent.rs` collected snapshots that only appeared in debug output. Removed, along
+with the binding that produced them.

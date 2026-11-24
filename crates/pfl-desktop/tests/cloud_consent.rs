@@ -81,7 +81,6 @@ fn spawn_cloud(calls: Arc<AtomicUsize>) -> String {
 /// lost. A fast platform can deliver the terminal Poll before the Start reply is read.
 #[derive(Debug, Default)]
 struct Seen {
-    snapshots: Vec<RunSnapshot>,
     labels: Vec<String>,
 }
 
@@ -94,8 +93,7 @@ fn wait_for(
     let deadline = Instant::now() + Duration::from_secs(120);
     while Instant::now() < deadline {
         for reply in session.drain() {
-            if let Reply::Poll { events, snapshot } = &reply {
-                seen.snapshots.push(snapshot.clone());
+            if let Reply::Poll { events, .. } = &reply {
                 for event in events {
                     seen.labels.push(format!("{event:?}"));
                 }

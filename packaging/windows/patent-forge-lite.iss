@@ -57,7 +57,7 @@ Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE-PROMPTS"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LEGAL_NOTICE.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs
+Source: "..\..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs; Excludes: "..\..\docs\evidence\*"
 Source: "..\..\prompts\*"; DestDir: "{app}\prompts"; Flags: ignoreversion recursesubdirs
 Source: "..\..\assets\brand\patentforge.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\assets\brand\app-256.png"; DestDir: "{app}\assets"; Flags: ignoreversion
