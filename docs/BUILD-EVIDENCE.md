@@ -1316,3 +1316,32 @@ F-045: no crate declared a licence, so "cargo metadata reports MIT" reflected on
 and THIRD_PARTY_NOTICES said no source licence was declared. `license = "MIT"` is in
 `[workspace.package]` and inherited by all six crates; the notices, LICENSE-PROMPTS scope and the
 prompt provenance sentence are corrected.
+## Audit Majors F-043, F-049, F-050, F-051 fixed (2026-11-24)
+
+F-051: the upgrade proof ran the product's own installers, which register the real Start-menu
+and uninstall entries, and its error trap did not uninstall -- on a machine with Patent Forge
+Lite installed that would strand the operator's registration. It now refuses to run when the
+uninstall key exists, installs with `/NOICONS /TASKS=""`, waits for a graceful quit before
+killing, clears a stale profile lock if it had to kill, and uninstalls inside the trap.
+
+F-049: the Cloud proof carried duplicated decline and approved blocks that fired a second paid
+run and asserted nothing about it. One attempt per path remains, `$EvidenceDir` is a declared
+parameter so a throwaway run can write outside the repository, and the ignored `Wait-ById`
+argument is gone.
+
+F-050: the upgrade evidence predated the candidate installer. Re-running it against the rebuilt
+artifact exposed two real defects rather than just stale evidence:
+
+- the new schema column bumped the schema version to 2, so a **rolled-back v0.1.0 build refused
+  the workspace** it had just been upgraded from;
+- the proof force-killed the app, leaving a profile lock that could block the next launch.
+
+The column is additive and the version row now stays at 1, which is what makes rollback safe;
+the harness quits gracefully and clears a stale lock. With the fixed installer the proof passes
+12/12, and the rollback launch step is the check that proves backward compatibility.
+
+F-043: PACKAGING claimed macOS and Linux were never built (v0.1.0 shipped both), that the package
+was unsigned until signing was chosen (release signing exists), and that no upgrade path had been
+exercised (it is verified). Its recipe omitted `/DAppVersion`, so following the page overwrote the
+published 0.1.0 installer used as the upgrade proof's old artifact. The recipe now states the
+version and records the hash.

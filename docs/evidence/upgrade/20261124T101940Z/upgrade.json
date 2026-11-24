@@ -1,0 +1,55 @@
+{
+  "no real install is registered on this machine": {
+    "pass": true,
+    "detail": ""
+  },
+  "v0.1.0 installs into the test directory": {
+    "pass": true,
+    "detail": "(sha256: 69282e7ada2e84ceaa407ed44d392bf8ceed6a9a551525bda665bb53c47f70ad)"
+  },
+  "the workspace holds a project and its runs": {
+    "pass": true,
+    "detail": "(project_count: 1)"
+  },
+  "the installed v0.1.0 starts on existing data": {
+    "pass": true,
+    "detail": ""
+  },
+  "the upgrade replaces the binary": {
+    "pass": true,
+    "detail": "(sha256: 4035a248e844120718d277afb977eaf9ebe55f86ebdae2da869d6ddb4ae01a33)"
+  },
+  "the workspace inventory survives the upgrade": {
+    "pass": true,
+    "detail": "(signature unchanged)"
+  },
+  "the upgraded build starts on the existing data": {
+    "pass": true,
+    "detail": ""
+  },
+  "the rollback restores the older binary": {
+    "pass": true,
+    "detail": "(sha256: 69282e7ada2e84ceaa407ed44d392bf8ceed6a9a551525bda665bb53c47f70ad)"
+  },
+  "the workspace inventory survives the rollback": {
+    "pass": true,
+    "detail": "(signature unchanged)"
+  },
+  "the rolled-back build starts on the existing data": {
+    "pass": true,
+    "detail": ""
+  },
+  "the test install is removed afterwards": {
+    "pass": true,
+    "detail": ""
+  },
+  "hashes": {
+    "pass": true,
+    "detail": {
+      "old": "69282e7ada2e84ceaa407ed44d392bf8ceed6a9a551525bda665bb53c47f70ad",
+      "new": "4035a248e844120718d277afb977eaf9ebe55f86ebdae2da869d6ddb4ae01a33",
+      "rolled_back": "69282e7ada2e84ceaa407ed44d392bf8ceed6a9a551525bda665bb53c47f70ad",
+      "inventory": "{\"database\":\"C:\\\\Users\\\\scott\\\\AppData\\\\Local\\\\Temp\\\\pfl-upgrade-34f952\\\\localappdata\\\\patent-forge-lite\\\\projects.sqlite3\",\"project_count\":1,\"projects\":[{\"project_id\":\"11d5b6ec-5a0d-42fc-aea9-6571a1de5697\",\"runs\":[{\"checkpoints\":6,\"expected_stages\":6,\"model\":\"synthetic-feasibility-v1\",\"outcome\":\"completed\",\"provider\":\"replay\",\"report_chars\":79,\"run_id\":\"7ea2963a-becf-4cb6-86a9-7c1b53e2796e\",\"version\":1,\"workflow\":\"feasibility\"},{\"checkpoints\":4,\"expected_stages\":4,\"model\":\"synthetic-feasibility-v1\",\"outcome\":\"completed\",\"provider\":\"replay\",\"report_chars\":82,\"run_id\":\"8562748a-5e15-4e6b-9617-6026bf2ff611\",\"version\":2,\"workflow\":\"claims\"},{\"checkpoints\":4,\"expected_stages\":4,\"model\":\"synthetic-feasibility-v1\",\"outcome\":\"completed\",\"provider\":\"replay\",\"report_chars\":598,\"run_id\":\"58bf11c1-dffc-4c37-8fc7-a4082c265c6d\",\"version\":3,\"workflow\":\"compliance\"},{\"checkpoints\":5,\"expected_stages\":5,\"model\":\"synthetic-feasibility-v1\",\"outcome\":\"completed\",\"provider\":\"replay\",\"report_chars\":906,\"run_id\":\"0baeceee-b163-4d50-ae40-b8fd76d496ee\",\"version\":4,\"workflow\":\"application\"}],\"title\":\"SYNTHETIC FIXTURE: café sensor α\"}]}"
+    }
+  }
+}
