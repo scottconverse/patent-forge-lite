@@ -35,7 +35,8 @@ DefaultDirName={localappdata}\Programs\PatentForge Lite
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
+; No override: an all-users install would write outside the per-user profile this product uses,
+; so the choice is not offered in the dialog.
 OutputDir=..\..\dist
 OutputBaseFilename=patent-forge-lite-{#AppVersion}-x64
 Compression=lzma2

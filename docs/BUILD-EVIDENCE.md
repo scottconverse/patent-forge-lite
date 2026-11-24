@@ -1479,3 +1479,18 @@ version placeholder that `bundle.sh` fills from `PFL_VERSION`; the release workf
 
 F-074: `cloud_consent.rs` collected snapshots that only appeared in debug output. Removed, along
 with the binding that produced them.
+## Audit Minor F-068, F-070 and Nit F-077 fixed (2026-11-24)
+
+F-068: both Word builders now share `push_docx_lines`, so a fix such as the XML-illegal-character
+strip cannot be made in one and missed in the other; the byte-stability tests still pass on the
+shared path. The package HTML gained the report's language and CSP (`default-src 'none'`), so a
+package page cannot fetch anything either.
+
+F-070: the accessibility gaps that excluded users. The icon rail is now a vertical tab list
+(`aria_orientation`), the page area is a `TabPanel` rather than an anonymous group, the workflow
+tabs answer Enter and Space as well as a click, and **Quit is a labelled, focusable button** with
+its own key handler — it was previously reachable only by knowing Ctrl+Q. The harness that
+measures the window reports these controls by name.
+
+F-077: the installer's `PrivilegesRequiredOverridesAllowed=dialog` offered an all-users install for
+a per-user product; it is removed. The empty table the audit cited no longer exists in the matrix.

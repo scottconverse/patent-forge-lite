@@ -925,6 +925,15 @@ impl Desktop {
                 this.start_key = None;
                 cx.notify();
             }))
+            // A tab must be reachable without a pointer, like every other control here.
+            .on_key_down(cx.listener(move |this, event: &gpui::KeyDownEvent, _, cx| {
+                if event.keystroke.key == "enter" || event.keystroke.key == "space" {
+                    this.workflow = kind;
+                    this.start_key = None;
+                    cx.notify();
+                    cx.stop_propagation();
+                }
+            }))
     }
 
     /// Icon-rail navigation entry.
@@ -2693,6 +2702,8 @@ impl Render for Desktop {
             .id("page-rail")
             .accessibility_id("page-rail")
             .role(Role::TabList)
+            // A vertical tab list says so; assistive technology otherwise assumes horizontal.
+            .aria_orientation(gpui::Orientation::Vertical)
             .w(px(84.))
             .h_full()
             .flex_shrink_0()
@@ -2790,6 +2801,10 @@ impl Render for Desktop {
             .child(
                 div()
                     .id("quit")
+                    .role(Role::Button)
+                    .aria_label("Quit Patent Forge Lite")
+                    .focusable()
+                    .tab_stop(true)
                     .cursor_pointer()
                     .w(px(60.))
                     .py_3()
@@ -2802,7 +2817,13 @@ impl Render for Desktop {
                     .hover(|s| s.bg(rgb(0x2b1a1f)))
                     .child(theme::icon(theme::Icon::Quit, theme::MUTED))
                     .child(div().text_xs().text_color(rgb(theme::MUTED)).child("Quit"))
-                    .on_click(cx.listener(|this, _, _, cx| this.quit(cx))),
+                    .on_click(cx.listener(|this, _, _, cx| this.quit(cx)))
+                    .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, _, cx| {
+                        if event.keystroke.key == "enter" || event.keystroke.key == "space" {
+                            this.quit(cx);
+                            cx.stop_propagation();
+                        }
+                    })),
             );
 
         // Top bar: identity + live mode + provider.
@@ -2909,7 +2930,8 @@ impl Render for Desktop {
         let main = div()
             .id("main-content")
             .accessibility_id("main-content")
-            .role(Role::Group)
+            // The page area is the panel the rail selects, not an anonymous group.
+            .role(Role::TabPanel)
             .aria_label("Page content")
             .track_focus(&self.content_focus)
             .focusable()

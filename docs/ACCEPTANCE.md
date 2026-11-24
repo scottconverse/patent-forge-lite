@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 119 |
+| pass | 122 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -51,6 +51,9 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Masked key field: the mask preserves byte offsets, never paints the secret, and neither copies nor cuts | unit (`masking_tests`, compiled and run in CI with `--features native`) | pass — F-014 |
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
+| Both Word builders share one paragraph builder, and the package HTML carries the report's CSP and `lang` | unit + code | pass — F-068 |
+| The rail is a vertical tab list, the page area is a TabPanel, workflow tabs answer Enter/Space, and Quit is a labelled focusable button | installed harness (window measure) + code | pass — F-070 |
+| The installer offers no all-users override, and the matrix has no empty table | review | pass — F-077 |
 | No package carries `docs/evidence`, and the proof scripts write placeholder paths instead of the operator profile | run + code | pass — F-072 |
 | The release workflow is read-only by default, grants write only to the publish job, and pins every action to a commit SHA | review (`release.yml`) | pass — F-073 |
 | The macOS plist is a template filled from the release version, not a hard-coded 0.1.0 | code (`bundle.sh`) | pass — F-071 |

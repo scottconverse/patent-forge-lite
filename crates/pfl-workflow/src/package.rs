@@ -206,8 +206,10 @@ fn escape_html(text: &str) -> String {
 }
 
 fn revision_html(revision: &DocumentRevision) -> String {
+    // Same treatment as the report HTML: a language, and a CSP that allows no scripts, no
+    // network and no frames. A package is evidence, not a page that can fetch anything.
     format!(
-        "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>{kind} revision {version}</title></head><body>\n<p class=\"meta\">{kind} revision {version} · {id}</p>\n<pre>{body}</pre>\n</body></html>\n",
+        "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\"><title>{kind} revision {version}</title><style>body{{font:16px system-ui;max-width:80ch;margin:2rem auto;padding:1rem}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}}</style></head><body>\n<p class=\"meta\">{kind} revision {version} · {id}</p>\n<pre>{body}</pre>\n</body></html>\n",
         kind = revision.kind.slug(),
         version = revision.version,
         id = revision.id.0,
@@ -239,24 +241,7 @@ fn revision_docx(revision: &DocumentRevision) -> Result<Vec<u8>> {
                 .add_run(Run::new().add_text(xml_safe(&format!("Edit note: {}", revision.note)))),
         );
     }
-    for line in revision.text.lines() {
-        let trimmed = line.trim_end();
-        let heading_level = trimmed
-            .strip_prefix("# ")
-            .map(|_| 2)
-            .or_else(|| trimmed.strip_prefix("## ").map(|_| 3));
-        let body = match heading_level {
-            Some(_) => trimmed.trim_start_matches('#').trim().to_string(),
-            None => trimmed.to_string(),
-        };
-        let run = Run::new().add_text(xml_safe(&body));
-        let paragraph = match heading_level {
-            Some(2) => Paragraph::new().add_run(run.bold()).style("Heading2"),
-            Some(_) => Paragraph::new().add_run(run.bold()).style("Heading3"),
-            None => Paragraph::new().add_run(run),
-        };
-        document = document.add_paragraph(paragraph);
-    }
+    document = crate::export::push_docx_lines(document, &revision.text);
     let mut buffer = Vec::new();
     document
         .build()

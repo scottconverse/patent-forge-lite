@@ -75,20 +75,14 @@ pub fn export_html(run: &RunSnapshot) -> Result<String> {
     ))
 }
 
-/// Word export for the same saved run identity. Headings are kept as real
-/// paragraphs; everything else is reproduced verbatim so no text is lost.
-pub fn export_docx(run: &RunSnapshot) -> Result<Vec<u8>> {
+/// Appends the lines of `text` to a Word document, one paragraph per line.
+///
+/// Both Word builders use this: headings become real Heading2/Heading3 paragraphs and every
+/// other line is reproduced verbatim, so a fix to one export cannot miss the other.
+pub fn push_docx_lines(document: docx_rs::Docx, text: &str) -> docx_rs::Docx {
     use docx_rs::*;
-
-    let text = export_markdown(run)?;
-    let title = format!("Patent Forge Lite · saved analysis v{}", run.version);
-    let mut document = Docx::new();
-    document = document.add_paragraph(
-        Paragraph::new()
-            .add_run(Run::new().add_text(&title).bold())
-            .style("Heading1"),
-    );
-    for line in text.lines().skip(2) {
+    let mut document = document;
+    for line in text.lines() {
         let trimmed = line.trim_end();
         let heading_level = trimmed
             .strip_prefix("# ")
@@ -106,6 +100,27 @@ pub fn export_docx(run: &RunSnapshot) -> Result<Vec<u8>> {
         };
         document = document.add_paragraph(paragraph);
     }
+    document
+}
+
+/// Word export for the same saved run identity. Headings are kept as real
+/// paragraphs; everything else is reproduced verbatim so no text is lost.
+pub fn export_docx(run: &RunSnapshot) -> Result<Vec<u8>> {
+    use docx_rs::*;
+
+    let text = export_markdown(run)?;
+    let title = format!("Patent Forge Lite · saved analysis v{}", run.version);
+    let mut document = Docx::new();
+    document = document.add_paragraph(
+        Paragraph::new()
+            .add_run(Run::new().add_text(&title).bold())
+            .style("Heading1"),
+    );
+    // The metadata appendix (the first two lines) is part of the report text.
+    document = push_docx_lines(
+        document,
+        &text.lines().skip(2).collect::<Vec<_>>().join("\n"),
+    );
     let mut buffer = Vec::new();
     document
         .build()
