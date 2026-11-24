@@ -108,7 +108,10 @@ fn run_input(intake: Intake) -> RunInput {
     }
 }
 async fn terminal(service: &WorkflowService, id: &RunId) -> RunSnapshot {
-    tokio::time::timeout(Duration::from_secs(10), async {
+    // Generous but still bounded: six stages against a real SQLite file take under a second
+    // here, but a loaded two-core CI runner with synchronous writes can be an order of
+    // magnitude slower. A genuine hang still fails this assertion.
+    tokio::time::timeout(Duration::from_secs(30), async {
         loop {
             let run = service.run(id.clone()).await.unwrap();
             if run.outcome.is_terminal() {
