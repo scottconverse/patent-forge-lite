@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 69 |
+| pass | 70 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -48,7 +48,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Loopback-only verification hook; a non-loopback Cloud endpoint is refused | unit | pass |
 | Lean refuses a local runtime with a clear message | unit, `consent.rs` | pass |
 | Lean permits Cloud past the profile gate (fails at the provider, not the gate) | unit, loopback 503 | pass |
-| Masked key field; the mask preserves byte offsets | unit | pass |
+| Masked key field; the mask preserves byte offsets and never paints the secret | unit (`masking_tests`, compiled and run in CI with `--features native`) | pass — F-014 |
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
@@ -81,6 +81,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Word export byte-stability | two separate processes | pass — identical `claims.docx` and every other file |
 | Regeneration semantics and plan validation | doc + unit, 5 tests | pass — `docs/REGENERATION.md` |
 | Execute "regenerate from here onward"; earlier stages byte-identical | unit + session (`regenerate_session`) + installed, 12/12 twice | pass — v5 regenerated as v6, Completed |
+| An interrupted regeneration resumes without re-committing its carried prefix | integration (`regenerate_resume`) | pass — F-010 |
 | `pfl-cli revisions list` (id, kind, version, base run, note) | run | pass |
 
 ## Phase C — research

@@ -1112,3 +1112,17 @@ F-008/F-009: one `ensure_idle` guard now covers Start, StartSelected, Resume, Re
 and every service-replacing configuration, including research. Before this, two runs could be
 active at once and configuring research during a run orphaned a job that could not be
 cancelled.
+## Audit Majors F-010 and F-014 fixed (2026-11-24)
+
+F-014 was a process failure as much as a code one: the only automated proof that the masked
+key field never paints the secret had not compiled since `mask_bytes` was inlined, and CI
+never compiled the native target, so nothing noticed. `mask_bytes` is now one function used
+by both the painter and the test, and CI runs `cargo test -p pfl-desktop --features native
+--lib` and native clippy on all three platforms.
+
+F-010: `drive` rebuilt and re-committed the carried checkpoints on every attempt with the new
+attempt id, and the store refuses to change a completed stage, so an interrupted regeneration
+could never be resumed although the documentation promised it could. The prefix is now carried
+only while the run has no checkpoints. `regenerate_resume.rs` interrupts a regeneration at its
+first new stage and proves the resume completes with the carried stages byte-identical and no
+stage duplicated.

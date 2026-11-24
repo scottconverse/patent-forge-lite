@@ -772,39 +772,44 @@ impl WorkflowService {
                     "the restart stage is not part of this workflow".into(),
                 ));
             };
-            let base = self.run(plan.base_run.clone()).await?;
-            let mut carried: Vec<Checkpoint> = base
-                .checkpoints
-                .iter()
-                .filter(|checkpoint| {
-                    stages
-                        .iter()
-                        .position(|stage| *stage == checkpoint.stage)
-                        .map(|index| index < restart)
-                        .unwrap_or(false)
-                })
-                .cloned()
-                .collect();
-            carried.sort_by_key(|checkpoint| checkpoint.stage);
-            if carried.len() != restart {
-                return Err(Error::Conflict(
-                    "the base run did not complete every stage before the restart point".into(),
-                ));
-            }
-            for original in carried {
-                let checkpoint = Checkpoint {
-                    stage: original.stage,
-                    attempt_id: attempt.id.clone(),
-                    text: original.text,
-                    usage: original.usage,
-                    completed_at_ms: original.completed_at_ms,
-                };
-                let id = run.id.clone();
-                let aid = attempt.id.clone();
-                let cp = checkpoint.clone();
-                self.db(move |s| s.commit_checkpoint(&id, &aid, &cp))
-                    .await?;
-                checkpoints.push(checkpoint);
+            // Carry the base prefix only on the first attempt. A resumed regeneration already
+            // holds those checkpoints, and committing them again would break the store's
+            // rule that a completed stage is immutable.
+            if run.checkpoints.is_empty() {
+                let base = self.run(plan.base_run.clone()).await?;
+                let mut carried: Vec<Checkpoint> = base
+                    .checkpoints
+                    .iter()
+                    .filter(|checkpoint| {
+                        stages
+                            .iter()
+                            .position(|stage| *stage == checkpoint.stage)
+                            .map(|index| index < restart)
+                            .unwrap_or(false)
+                    })
+                    .cloned()
+                    .collect();
+                carried.sort_by_key(|checkpoint| checkpoint.stage);
+                if carried.len() != restart {
+                    return Err(Error::Conflict(
+                        "the base run did not complete every stage before the restart point".into(),
+                    ));
+                }
+                for original in carried {
+                    let checkpoint = Checkpoint {
+                        stage: original.stage,
+                        attempt_id: attempt.id.clone(),
+                        text: original.text,
+                        usage: original.usage,
+                        completed_at_ms: original.completed_at_ms,
+                    };
+                    let id = run.id.clone();
+                    let aid = attempt.id.clone();
+                    let cp = checkpoint.clone();
+                    self.db(move |s| s.commit_checkpoint(&id, &aid, &cp))
+                        .await?;
+                    checkpoints.push(checkpoint);
+                }
             }
         }
         for stage in stages.iter().copied().skip(checkpoints.len()) {

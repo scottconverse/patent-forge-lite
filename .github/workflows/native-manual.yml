@@ -37,6 +37,12 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo test --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # The native target is a different crate configuration: without these the desktop's
+      # own unit tests were never compiled, and one of them had not built for some time.
+      - name: Native unit tests
+        run: cargo test -p pfl-desktop --features native --lib --locked
+      - name: Native clippy
+        run: cargo clippy -p pfl-desktop --features native --all-targets --locked -- -D warnings
       - run: cargo build -p pfl-desktop --features native --locked --target ${{ matrix.target }}
       # The acceptance matrix is a document, so it can drift. This makes drift a build
       # failure: counts must match rows, evidence paths must exist, no stale claims.

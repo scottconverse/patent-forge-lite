@@ -561,10 +561,7 @@ impl Element for InputElement {
                     .text_system()
                     .shape_text(
                         SharedString::from(if masked {
-                            // One mask byte per input byte keeps every offset identical.
-                            text.bytes()
-                                .map(|byte| if byte == b'\n' { '\n' } else { '*' })
-                                .collect::<String>()
+                            mask_bytes(&text)
                         } else {
                             text.clone()
                         }),
@@ -669,6 +666,16 @@ impl Element for InputElement {
             input.last_bounds = Some(bounds);
         });
     }
+}
+
+/// One mask character per input byte, so a masked field keeps every offset identical.
+///
+/// Newlines are preserved so a multi-line secret keeps its shape; everything else,
+/// including non-ASCII bytes, becomes `*`. The plaintext never reaches the shaped text.
+pub fn mask_bytes(text: &str) -> String {
+    text.bytes()
+        .map(|byte| if byte == b'\n' { '\n' } else { '*' })
+        .collect()
 }
 
 #[cfg(test)]
