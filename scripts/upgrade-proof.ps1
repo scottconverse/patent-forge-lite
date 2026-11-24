@@ -27,6 +27,22 @@ $script:launchCount = 0
 $script:installDir = Join-Path $OutDir 'app'
 $script:results = [ordered]@{}
 
+# Replaces machine-specific absolute paths with placeholders.
+#
+# Evidence is compiled into the package documentation, so a recorded user-profile path is a
+# path leak in every shipped copy. Details stay readable; the operator's name does not travel.
+function Sanitise([string]$text) {
+    $text = $text.Replace($env:USERPROFILE, '<profile>')
+    $text = $text.Replace($env:LOCALAPPDATA, '<localappdata>')
+    if ($OutDir) { $text = $text.Replace($OutDir, '<workdir>') }
+    $text
+}
+
+function Record([string]$name, [bool]$ok, [string]$detail = '') {
+    $script:results[$name] = [ordered]@{ pass = $ok; detail = $detail }
+    Write-Host ("  {0}  {1} {2}" -f $(if ($ok) { 'PASS' } else { 'FAIL' }), $name, $detail) -ForegroundColor $(if ($ok) { 'Green' } else { 'Red' })
+}
+
 function Clear-Harness {
     if ($script:appPid) { Stop-Process -Id $script:appPid -Force -ErrorAction SilentlyContinue }
     if ($script:savedLocalAppData) { $env:LOCALAPPDATA = $script:savedLocalAppData }

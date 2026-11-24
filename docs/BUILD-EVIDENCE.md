@@ -1517,3 +1517,16 @@ matrix's documentation-agreement row is now pass (F-040 to F-048 are closed), th
 count is 0, and the empty Open-defects table is gone. The acceptance check gained two guards so it
 catches these itself: an empty table is a failure, and an "in progress" note is a failure, with
 word boundaries so "still opens the workspace" is not mistaken for one.
+## Candidate rebuilt from the fixed revision, proof re-run (2026-11-24)
+
+The external re-check also found the candidate installer twelve commits behind HEAD, so rows
+claiming accessibility, the shared Word builder, the CSV vocabulary, the evidence exclusion and
+the release hardening described code that was not in the artifact. The installer is rebuilt from
+`d373e1d` (SHA-256 `d7fa794d…`, 12,053,762 bytes), the manifest and the matrix header cite that
+revision together, and the upgrade proof passes 12/12 against it. The proof's evidence records no
+absolute paths: `Sanitise` replaces them with placeholders, checked in the JSON.
+
+The proof still only launches the rolled-back build; the write-compatibility claim rests on the
+storage test that issues v0.1.0's exact positional insert and asserts `runs` has five columns.
+That test is the precise statement the old binary makes, which is why it catches what a launch
+cannot.
