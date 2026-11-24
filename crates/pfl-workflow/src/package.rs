@@ -77,6 +77,29 @@ pub struct PackageManifest {
     pub findings_run_id: Option<String>,
 }
 
+/// Writes a package into `dir`, refusing a directory that already holds anything.
+///
+/// Re-exporting into the same place used to overwrite a file the operator may have edited and
+/// leave older files beside a new manifest. A package is a unit: either it is written into an
+/// empty directory, or the caller names a different one.
+pub fn write_package(dir: &std::path::Path, files: &[PackageFile]) -> Result<()> {
+    std::fs::create_dir_all(dir)
+        .map_err(|e| Error::Io(format!("cannot create {}: {e}", dir.display())))?;
+    let mut entries = std::fs::read_dir(dir)
+        .map_err(|e| Error::Io(format!("cannot read {}: {e}", dir.display())))?;
+    if entries.next().is_some() {
+        return Err(Error::Conflict(format!(
+            "{} already contains files; choose an empty directory so an existing package is not overwritten",
+            dir.display()
+        )));
+    }
+    for file in files {
+        let path = dir.join(&file.name);
+        std::fs::write(&path, &file.bytes)
+            .map_err(|e| Error::Io(format!("cannot write {}: {e}", path.display())))?;
+    }
+    Ok(())
+}
 fn hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
@@ -84,6 +107,13 @@ fn hex(bytes: &[u8]) -> String {
 
 /// Escapes one CSV field: quote when needed, double embedded quotes.
 fn csv_field(value: &str) -> String {
+    // A cell beginning with one of these is a formula to a spreadsheet. Research records come
+    // from third parties, so the leading quote is what stops a title from executing.
+    let value = if value.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+        format!("'{value}")
+    } else {
+        value.to_string()
+    };
     let needs_quotes = value.contains([',', '"', '\n', '\r']);
     let escaped = value.replace('"', "\"\"");
     if needs_quotes {
@@ -483,6 +513,24 @@ mod tests {
             "the same revision must export to identical Word bytes"
         );
     }
+
+    #[test]
+    fn a_package_is_refused_into_a_non_empty_directory() {
+        let dir = std::env::temp_dir().join(format!("pfl-package-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("existing.txt"), b"kept").unwrap();
+        let claims = revision(DocumentKind::Claims, 1, "1. A thing.");
+        let files = build_package("Fixture", Some(&claims), None, &[], None).unwrap();
+        let refused = write_package(&dir, &files).unwrap_err();
+        assert!(refused.to_string().contains("already contains files"));
+        assert_eq!(
+            std::fs::read(dir.join("existing.txt")).unwrap(),
+            b"kept",
+            "an existing file is never overwritten"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
     #[test]
     fn an_empty_selection_is_refused() {
         let error = build_package("Fixture", None, None, &[], None).unwrap_err();
@@ -494,5 +542,23 @@ mod tests {
         let claims = revision(DocumentKind::Claims, 1, "1. A thing.");
         let error = build_package("Fixture", None, Some(&claims), &[], None).unwrap_err();
         assert!(error.to_string().contains("application revision"));
+    }
+
+    #[test]
+    fn csv_cells_never_start_with_a_formula_character() {
+        for trigger in ["=HYPERLINK(1)", "+1", "-1", "@cmd", "\tvalue", "\rvalue"] {
+            let neutralised = csv_field(trigger);
+            let first = neutralised.trim_start_matches('"').chars().next().unwrap();
+            assert!(
+                !matches!(first, '=' | '+' | '-' | '@'),
+                "{trigger:?} must be prefixed, got {neutralised:?}"
+            );
+            assert!(
+                neutralised.trim_start_matches('"').starts_with('\''),
+                "{trigger:?} must carry the guard quote, got {neutralised:?}"
+            );
+        }
+        // Ordinary text is untouched, including a negative-looking reference number.
+        assert_eq!(csv_field("US10123456"), "US10123456");
     }
 }

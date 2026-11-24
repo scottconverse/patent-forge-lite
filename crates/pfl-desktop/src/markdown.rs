@@ -55,11 +55,16 @@ pub fn runs(text: &str) -> Vec<Run> {
                 bold = !bold;
                 continue;
             }
-            // A lone marker is italic emphasis; display it as plain text rather
-            // than showing the asterisk. Models emit this often ("*The need...").
-            if !current.is_empty() || text[index..].chars().count() > 1 {
+            // A lone marker is emphasis only at the start of a line, which is how models
+            // write it ("*The need..."), and even then it is display-only. Anywhere else it is
+            // content: stripping it turned `snake_case` into `snakecase` and `2 * 3` into
+            // `2  3`, silently changing identifiers and formulas.
+            let at_line_start = current.is_empty() || current.ends_with('\n');
+            if at_line_start && text[index..].chars().count() > 1 {
                 continue;
             }
+            current.push(ch);
+            continue;
         }
         current.push(ch);
     }
@@ -318,5 +323,29 @@ mod tests {
         let blocks = parse("> a quote\n\nplain");
         assert_eq!(text(&blocks[0]), "> a quote");
         assert_eq!(text(&blocks[1]), "plain");
+    }
+}
+
+#[cfg(test)]
+mod marker_tests {
+    use super::*;
+
+    fn plain(text: &str) -> String {
+        runs(text).iter().map(|run| run.text.as_str()).collect()
+    }
+
+    #[test]
+    fn identifiers_and_formulas_keep_their_markers() {
+        assert_eq!(
+            plain("snake_case and SCREAMING_SNAKE"),
+            "snake_case and SCREAMING_SNAKE"
+        );
+        assert_eq!(plain("2 * 3 = 6"), "2 * 3 = 6");
+        assert_eq!(plain("a*b"), "a*b");
+    }
+
+    #[test]
+    fn a_line_start_marker_is_still_emphasis() {
+        assert_eq!(plain("*The need is clear."), "The need is clear.");
     }
 }

@@ -508,12 +508,7 @@ impl Actor {
                     &references,
                     findings,
                 )?;
-                std::fs::create_dir_all(&dir)
-                    .map_err(|e| Error::Io(format!("cannot create {}: {e}", dir.display())))?;
-                for file in &files {
-                    std::fs::write(dir.join(&file.name), &file.bytes)
-                        .map_err(|e| Error::Io(e.to_string()))?;
-                }
+                pfl_workflow::package::write_package(&dir, &files)?;
                 self.reply(Reply::PackageExported(dir));
             }
             Request::StartSelected {

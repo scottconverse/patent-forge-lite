@@ -691,3 +691,32 @@ fn importing_never_carries_a_credential_into_the_archive() {
         "a credential survived into the activated database"
     );
 }
+
+/// `inspect` is documented as read-only, so a missing path is an error rather than a newly
+/// created empty database that reports zero projects.
+#[test]
+fn a_read_only_open_refuses_a_missing_database_and_never_creates_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("typo.sqlite3");
+    let refused = match SqliteStore::open_read_only(&missing) {
+        Ok(_) => panic!("a read-only open must refuse a missing database"),
+        Err(error) => error,
+    };
+    assert!(
+        refused.to_string().contains("does not exist"),
+        "the refusal should name the missing file, got: {refused}"
+    );
+    assert!(
+        !missing.exists(),
+        "a read-only open must not create the file"
+    );
+
+    // An existing database opens read-only and reads.
+    let existing = dir.path().join("real.sqlite3");
+    {
+        let store = SqliteStore::open(&existing).unwrap();
+        store.list_projects().unwrap();
+    }
+    let read_only = SqliteStore::open_read_only(&existing).unwrap();
+    assert!(read_only.list_projects().unwrap().is_empty());
+}

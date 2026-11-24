@@ -771,7 +771,8 @@ async fn live(
 /// opens. Never creates a project, starts a run or touches another profile.
 async fn inspect(database: PathBuf) -> Result<()> {
     let path = database.clone();
-    let store = tokio::task::spawn_blocking(move || SqliteStore::open(path))
+    // Read-only: an inventory must not create a database or write to one.
+    let store = tokio::task::spawn_blocking(move || SqliteStore::open_read_only(path))
         .await
         .map_err(|e| Error::Storage(e.to_string()))??;
     let projects = store.list_projects()?;
@@ -920,6 +921,9 @@ async fn main() {
         }
         if command == "settings" {
             let database = database.ok_or_else(|| invalid("settings requires --database <path>"))?;
+            // Same lock the desktop takes, so a profile change cannot happen underneath a
+            // running window.
+            let _profile_lock = take_profile_lock(Path::new(&database))?;
             let store = SqliteStore::open(Path::new(&database))?;
             let mut settings = store.settings()?;
             let profile_requested = setup_profile.is_some();
@@ -1218,13 +1222,11 @@ async fn write_package(
         &references,
         findings,
     )?;
-    std::fs::create_dir_all(&out).map_err(|e| Error::Io(e.to_string()))?;
-    let mut written = Vec::new();
-    for file in &files {
-        let path = out.join(&file.name);
-        std::fs::write(&path, &file.bytes).map_err(|e| Error::Io(e.to_string()))?;
-        written.push(serde_json::json!({ "file": file.name, "bytes": file.bytes.len() }));
-    }
+    pfl_workflow::package::write_package(&out, &files)?;
+    let written: Vec<serde_json::Value> = files
+        .iter()
+        .map(|file| serde_json::json!({ "file": file.name, "bytes": file.bytes.len() }))
+        .collect();
     service.shutdown().await?;
     println!(
         "{}",

@@ -115,6 +115,33 @@ impl SqliteStore {
         Self::initialize(connection)
     }
 
+    /// Opens an existing database without the ability to write.
+    ///
+    /// `inspect` is documented as a read-only inventory, and `open` runs WAL, DDL and
+    /// `application_id` writes -- which also creates a database when the path is a typo. This
+    /// refuses a missing file instead.
+    pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        if !path.exists() {
+            return Err(Error::Io(format!(
+                "{} does not exist; inspect reads an existing database and never creates one",
+                path.display()
+            )));
+        }
+        let connection =
+            Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(db)?;
+        connection
+            .busy_timeout(Duration::from_secs(5))
+            .map_err(db)?;
+        // Reading the id proves this is one of our databases without writing anything.
+        connection
+            .query_row("PRAGMA application_id", [], |r| r.get::<_, i64>(0))
+            .map_err(db)?;
+        Ok(Self {
+            connection: Mutex::new(connection),
+        })
+    }
+
     pub fn in_memory() -> Result<Self> {
         Self::initialize(Connection::open_in_memory().map_err(db)?)
     }

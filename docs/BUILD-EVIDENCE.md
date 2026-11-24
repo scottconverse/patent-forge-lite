@@ -1142,3 +1142,21 @@ token authenticated every route. Tokens are now random UUIDs, and a one-time tok
 on the export route only, so a leaked download link cannot start runs. The long-lived
 configured token keeps its legacy meaning, and the API test that encoded the old behaviour now
 asserts the new rule.
+## Audit Majors F-018..F-021 fixed (2026-11-24)
+
+F-018: `inspect` opened the database read-write with create, so a mistyped path produced an
+empty database reporting zero projects, and the write pass ran WAL and DDL. It now uses
+`open_read_only`, which refuses a missing file. `settings` takes the same profile lock as the
+desktop, so it cannot change a profile underneath a running window.
+
+F-019: the viewer dropped every single `*` or `_` that was not the last character, turning
+`snake_case` into `snakecase` and `2 * 3` into `2  3`. A lone marker is display-only emphasis
+at a line start; anywhere else it is content. Tests cover identifiers, formulas and the
+line-start case.
+
+F-020: both exporters wrote into a target directory with `std::fs::write`, overwriting a file
+the operator may have edited and leaving stale files beside a new manifest. `write_package`
+refuses a non-empty directory, and both callers use it.
+
+F-021: CSV cells beginning with `=`, `+`, `-`, `@`, tab or carriage return are prefixed with a
+quote, so a third-party title cannot run as a spreadsheet formula.

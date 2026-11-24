@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 72 |
+| pass | 76 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -52,6 +52,10 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Configuring Cloud answers without contacting a provider; an empty key is refused | unit (`cloud_probe`) | pass |
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
+| `inspect` opens read-only and refuses a missing database; `settings` takes the window's profile lock | unit + code | pass — F-018 |
+| A package is written only into an empty directory, so an existing package is never overwritten or left stale | unit (`write_package`) | pass — F-020 |
+| CSV cells cannot start a spreadsheet formula | unit | pass — F-021 |
+| The viewer keeps `snake_case` and `2 * 3`, stripping emphasis only at a line start | unit (`marker_tests`) | pass — F-019 |
 | API download tokens are random and single-use, accepted on the export route only; a token-less server answers a loopback Host only | integration (`api`) | pass — F-016, F-017 |
 | `serve` refuses a routable bind without `PFL_API_TOKEN` | unit + code | pass — F-016 |
 | The PatentsView client follows no redirects, uses no proxy, validates its endpoint, and sends the key only to the configured host | unit + code | pass — F-007 |
