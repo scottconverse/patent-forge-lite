@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 125 |
+| pass | 126 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -184,6 +184,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | macOS and Linux artifacts from this revision | — | **blocked — hardware**; runbook delivered |
 | Whole test suite on Apple silicon hardware (M4, macOS 26.5.2, arm64) | run over SSH on a real Mac mini: `cargo test --workspace --locked` | pass — 246 passed, 0 failed, exit 0 |
 | macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded | run on the same Mac: `bundle.sh` with a stub binary | pass — plist read `0.2.0`, then `9.9.9`; `Resources/docs` present, `docs/evidence` absent |
+| The non-GUI product on macOS arm64: pipeline, revisions, package (md/html/docx/csv/manifest), manifest hashes, re-export refusal, inspect, validate-claims | run on the Mac mini (M4) | pass — 4 workflows/19 stages; 8 package files with 7 manifest hashes all matching; CSV starts with the UTF-8 BOM; `inspect` refuses a missing database |
 | macOS installed acceptance | — | **blocked — hardware** — the test host has only Command Line Tools; the GPUI build needs the Metal compiler from full Xcode. `docs/PLATFORM-RUNBOOK.md` |
 | Documentation agreement at this revision | review | pass — the manual, README, STATUS, site, release notes and packaging describe this build; F-040 to F-048 are closed |
 | This matrix checks itself, in CI: counts match rows, evidence paths exist, no stale claims, no single-stage promise | run (`scripts/acceptance-check.ps1`) + CI step | pass — verified to fail on an injected bad count, a missing evidence path and a stale claim |

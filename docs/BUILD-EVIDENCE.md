@@ -1549,3 +1549,25 @@ Installed acceptance on macOS remains blocked, and the reason is now specific ra
 "hardware": the host has only Command Line Tools, and GPUI's build needs the Metal compiler that
 ships with full Xcode. GitHub's macOS runner compiles the native target in CI, so the code is
 known to build on arm64; what is still unproven is packaging a real `.app` and driving it.
+## The non-GUI product exercised on macOS arm64 (2026-11-24)
+
+Beyond the suite and the bundler, the Mac mini ran the whole command-line surface, which had
+only ever been exercised on Windows and Linux:
+
+- `pfl-cli pipeline`: four workflows, 19 stages, `completed`, history reopened without generating
+  (`provider_calls_this_process: 19`).
+- `save-revision` for claims and application, then `revisions` listed both with their notes.
+- `package`: eight files (Markdown, HTML, Word and CSV for both revisions, plus `manifest.json`).
+  `claims.docx` is a real OOXML zip with the `word/` tree. `references.csv` begins with bytes
+  `357 273 277` — the UTF-8 BOM — then `reference,publication_number,…`, so F-067 holds on macOS.
+- A second `package` into the same directory was refused: "already contains files; choose an
+  empty directory" (F-020).
+- Every file's SHA-256 in `manifest.json` was recomputed in Python and compared: **7 of 7 match**,
+  sizes included.
+- `inspect` refused a mistyped path instead of creating a database ("reads an existing database
+  and never creates one", F-018), and read the real one as one project with four runs.
+- `validate-claims` returned its report.
+
+This is not installed acceptance: the GUI still cannot be built on that host, because assembling
+it needs GPUI and therefore the Metal compiler from full Xcode, which is not installed. That row
+stays blocked, and the reason is recorded rather than implied.
