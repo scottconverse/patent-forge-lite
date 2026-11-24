@@ -613,3 +613,77 @@ async fn a_selection_from_another_project_is_refused() {
         "the refusal should name the reason, got: {refused}"
     );
 }
+
+/// Findings belong to the revisions they reviewed. Editing the claims after a review must
+/// not leave that review attached to the newer version.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn findings_are_matched_to_the_revision_they_reviewed() {
+    let store: Arc<dyn Store> = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ReplayProvider::all_workflows());
+    let service = WorkflowService::new(store, provider, tokio::runtime::Handle::current());
+
+    let project = service.create_project(intake()).await.unwrap();
+    for kind in [WorkflowKind::Feasibility, WorkflowKind::Claims] {
+        let run = service
+            .start_workflow(
+                project.id.clone(),
+                kind,
+                format!("r-{}", kind.slug()),
+                auth(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(wait(&service, &run.id).await.outcome, RunOutcome::Completed);
+    }
+    let first = service
+        .save_revision(
+            project.id.clone(),
+            DocumentKind::Claims,
+            None,
+            "1. The reviewed claim.".into(),
+            "v1".into(),
+        )
+        .await
+        .unwrap();
+    let review = service
+        .start_workflow_with_selection(
+            project.id.clone(),
+            WorkflowKind::Compliance,
+            "review-v1".into(),
+            auth(),
+            Vec::new(),
+            Some(first.id.clone()),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        wait(&service, &review.id).await.outcome,
+        RunOutcome::Completed
+    );
+
+    // The edit that comes after the review.
+    let second = service
+        .save_revision(
+            project.id.clone(),
+            DocumentKind::Claims,
+            None,
+            "1. The claim, edited after review.".into(),
+            "v2".into(),
+        )
+        .await
+        .unwrap();
+
+    let history = service.history(project.id.clone()).await.unwrap();
+    let matched = pfl_workflow::package::matching_findings(&history, Some(&second), None);
+    assert!(
+        matched.is_none(),
+        "a review of v1 must not travel with a package of v2"
+    );
+    let matched_original = pfl_workflow::package::matching_findings(&history, Some(&first), None);
+    assert_eq!(
+        matched_original.map(|(run_id, _)| run_id),
+        Some(review.id.0.as_str()),
+        "the review still belongs to the revision it examined"
+    );
+}

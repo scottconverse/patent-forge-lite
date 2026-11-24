@@ -1182,21 +1182,19 @@ async fn write_package(
         .max_by_key(|run| run.version)
         .map(|run| run.input.upstream.prior_art.clone())
         .unwrap_or_default();
-    let findings = history
-        .iter()
-        .filter(|run| {
-            run.input.kind == WorkflowKind::Compliance && run.outcome == RunOutcome::Completed
-        })
-        .max_by_key(|run| run.version)
-        .and_then(|run| run.report.as_ref())
-        .map(|report| report.markdown.clone());
+    // Only a review of these exact revisions is evidence about them.
+    let findings = pfl_workflow::package::matching_findings(
+        &history,
+        claims_revision.as_ref(),
+        application_revision.as_ref(),
+    );
 
     let files = pfl_workflow::package::build_package(
         &project.intake.title,
         claims_revision.as_ref(),
         application_revision.as_ref(),
         &references,
-        findings.as_deref(),
+        findings,
     )?;
     std::fs::create_dir_all(&out).map_err(|e| Error::Io(e.to_string()))?;
     let mut written = Vec::new();

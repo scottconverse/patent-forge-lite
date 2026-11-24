@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 61 |
+| pass | 64 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -38,6 +38,9 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Malformed or mid-frame stream is an error | unit | pass |
 | Cloud mode at the session layer; key held in memory for the session only | unit, session tests | pass |
 | Cloud start refused without explicit paid approval | unit, session tests | pass |
+| The Cloud output cap clears the largest prompt target, and a limit stop names the limit | unit (`providers`) | pass — cap 16,000 vs 5,000-word target |
+| Research survives a mode change: an opted-in run still queries after the service is rebuilt | integration (`research_consent`) | pass — 2 queries across a mode change |
+| Findings in a package are those of the exported revisions; the manifest records their run | integration (`revisions`) + unit (`matching_findings`) | pass |
 | Regenerate and resume carry a fresh authorization: a Cloud regeneration without current paid approval is refused and sends nothing; with it, it runs | integration (`cloud_consent`) | pass — 0 requests refused, then reaching the provider |
 | Paid approval control present in the window; run refused without it | installed | pass |
 | Declining sends zero requests; approval reaches the provider | installed + mock | **blocked — harness** — the scripted decline cannot be demonstrated: pressing Start through this script never reaches the handler, while the same control starts runs in `installed-local-proof` (5/5 at this revision). Its three run-path assertions were removed rather than left passing vacuously; the gate itself is proven by the session tests, and the earlier 7/7 evidence remains in `docs/evidence/cloud-consent/`. |

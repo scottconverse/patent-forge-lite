@@ -174,6 +174,64 @@ fn the_research_key_never_reaches_the_database_and_opt_in_makes_one_query() {
         "an opted-in run makes exactly one query"
     );
     assert_eq!(run.input.upstream.prior_art.len(), 1);
+
+    // Changing the execution mode replaces the service. Research must survive that: it used
+    // to be dropped silently while the window still showed it as configured.
+    session.request(Request::Configure(Mode::Replay)).unwrap();
+    match drain_until(
+        &session,
+        |reply| matches!(reply, Reply::Configured(_) | Reply::Error(_)),
+        "reconfigure",
+    ) {
+        Reply::Configured(_) => {}
+        other => panic!("reconfiguring replay failed: {other:?}"),
+    }
+    session
+        .request(Request::Start {
+            project: project.id.clone(),
+            kind: WorkflowKind::Feasibility,
+            idempotency_key: "research-after-mode-change".into(),
+            authorization: Authorization {
+                synthetic_data: true,
+                research: true,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    let second = match drain_until(
+        &session,
+        |reply| matches!(reply, Reply::Run(_) | Reply::Error(_)),
+        "second start",
+    ) {
+        Reply::Run(run) => run,
+        other => panic!("the run after a mode change did not start: {other:?}"),
+    };
+    let second_id = second.id.clone();
+    let mut second = second;
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while !second.outcome.is_terminal() && Instant::now() < deadline {
+        session
+            .request(Request::SelectRun(second_id.clone()))
+            .unwrap();
+        match drain_until(
+            &session,
+            |reply| matches!(reply, Reply::Run(_) | Reply::Error(_)),
+            "select second run",
+        ) {
+            Reply::Run(snapshot) => second = snapshot,
+            other => panic!("selecting the second run failed: {other:?}"),
+        }
+        if !second.outcome.is_terminal() {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+    assert_eq!(second.outcome, RunOutcome::Completed);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        2,
+        "research must still be on after a mode change"
+    );
+    assert_eq!(second.input.upstream.prior_art.len(), 1);
     assert_eq!(
         run.input.upstream.prior_art[0].publication_number,
         "10123456"

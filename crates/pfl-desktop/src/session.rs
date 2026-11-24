@@ -232,6 +232,7 @@ impl ApplicationSession {
                 stopped: stopped.clone(),
                 active_jobs: active_jobs.clone(),
                 replay,
+                research: None,
                 cloud_key: None,
                 research_configured: false,
             }
@@ -287,6 +288,10 @@ struct Actor {
     stopped: Arc<AtomicBool>,
     active_jobs: Arc<AtomicUsize>,
     replay: Arc<dyn Provider>,
+    /// Configured prior-art source. It is kept here rather than only inside the service,
+    /// because changing the execution mode replaces the service and used to drop research
+    /// while the window still believed it was on.
+    research: Option<Arc<dyn ResearchSource>>,
     /// In-memory only, for this session. Never persisted, never logged.
     cloud_key: Option<String>,
     /// True once a research source has been configured for this session.
@@ -353,6 +358,16 @@ impl Actor {
     /// Builds the provider for a mode. Cloud accepts only a loopback verification
     /// endpoint from the environment; anything else is refused, so a real key can
     /// never be redirected off this machine.
+    /// Rebinds the service to a provider while keeping the configured research source.
+    fn rebuild_service(&mut self, provider: Arc<dyn Provider>) {
+        self.service = WorkflowService::new_with_research(
+            self.store.clone(),
+            provider,
+            tokio::runtime::Handle::current(),
+            self.research.clone(),
+        );
+    }
+
     fn build_provider(&self, mode: &Mode) -> Result<Arc<dyn Provider>> {
         Ok(match mode {
             Mode::Replay => self.replay.clone(),
@@ -420,11 +435,7 @@ impl Actor {
                 }
                 let mode = Mode::Cloud { model };
                 let provider = self.build_provider(&mode)?;
-                self.service = WorkflowService::new(
-                    self.store.clone(),
-                    provider,
-                    tokio::runtime::Handle::current(),
-                );
+                self.rebuild_service(provider);
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));
             }
@@ -480,22 +491,18 @@ impl Actor {
                     .max_by_key(|run| run.version)
                     .map(|run| run.input.upstream.prior_art.clone())
                     .unwrap_or_default();
-                let findings = history
-                    .iter()
-                    .filter(|run| {
-                        run.input.kind == WorkflowKind::Compliance
-                            && run.outcome == RunOutcome::Completed
-                    })
-                    .max_by_key(|run| run.version)
-                    .and_then(|run| run.report.as_ref())
-                    .map(|report| report.markdown.clone());
+                let findings = pfl_workflow::package::matching_findings(
+                    &history,
+                    claims_revision.as_ref(),
+                    application_revision.as_ref(),
+                );
                 let project_record = self.service.project(project).await?;
                 let files = pfl_workflow::package::build_package(
                     &project_record.intake.title,
                     claims_revision.as_ref(),
                     application_revision.as_ref(),
                     &references,
-                    findings.as_deref(),
+                    findings,
                 )?;
                 std::fs::create_dir_all(&dir)
                     .map_err(|e| Error::Io(format!("cannot create {}: {e}", dir.display())))?;
@@ -592,12 +599,8 @@ impl Actor {
                     Some(mode) => self.build_provider(mode)?,
                     None => self.replay.clone(),
                 };
-                self.service = WorkflowService::new_with_research(
-                    self.store.clone(),
-                    provider,
-                    tokio::runtime::Handle::current(),
-                    Some(source),
-                );
+                self.research = Some(source);
+                self.rebuild_service(provider);
                 self.research_configured = true;
                 self.reply(Reply::ResearchConfigured);
             }
@@ -622,11 +625,7 @@ impl Actor {
                     }
                 }
                 let provider = self.build_provider(&mode)?;
-                self.service = WorkflowService::new(
-                    self.store.clone(),
-                    provider,
-                    tokio::runtime::Handle::current(),
-                );
+                self.rebuild_service(provider);
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));
             }

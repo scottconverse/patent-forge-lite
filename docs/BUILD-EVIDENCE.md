@@ -1056,3 +1056,23 @@ Both now take an explicit `Authorization` and apply it to the new attempt before
 with paid approval off is refused and sends zero requests, while the same action with
 approval on reaches the provider. `docs/REGENERATION.md` no longer claims authorization is
 copied.
+## Audit Criticals F-002, F-003, F-004 fixed (2026-11-24)
+
+F-002: the Cloud request cap was 4096 tokens while the largest prompt target is the
+feasibility report's 3000-5000 words, so a realistic paid run would stop at its final stage
+and be discarded. The cap is now `CLOUD_MAX_TOKENS = 16_000`, derived in a comment from that
+target rather than guessed, and a `max_tokens` stop says it hit the output limit instead of
+borrowing the generic wording. A unit test computes the requirement from the word target.
+
+F-003: changing the execution mode rebuilt the `WorkflowService`, which dropped the
+PatentsView source while the window still showed research as configured. The session now
+keeps the source and rebuilds through one helper, so a mode change preserves it. An
+integration test configures research, runs, changes mode, runs again, and asserts two
+queries reached the stand-in.
+
+F-004: the package attached the newest completed compliance report no matter which revisions
+it reviewed, so editing the claims after a review produced a package whose manifest named the
+new claims beside findings about the old ones. `matching_findings` now selects only a review
+that recorded the exported revision ids, the manifest records `findings_run_id`, and the
+session and CLI share that one rule. An integration test reviews v1, edits to v2, and asserts
+the v2 package carries no findings while v1 still matches its review.

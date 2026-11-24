@@ -237,7 +237,7 @@ impl Provider for CloudProvider {
             .header("anthropic-version", "2023-06-01")
             .json(&serde_json::json!({
                 "model": self.snapshot.model,
-                "max_tokens": 4096,
+                "max_tokens": CLOUD_MAX_TOKENS,
                 "stream": true,
                 "system": request.system_prompt,
                 "messages": [{ "role": "user", "content": request.user_prompt }]
@@ -385,6 +385,15 @@ fn take_ndjson_line(pending: &mut Vec<u8>) -> Option<Vec<u8>> {
 const OLLAMA_COMPLETE_STOPS: &[&str] = &["stop"];
 const CLOUD_COMPLETE_STOPS: &[&str] = &["end_turn", "stop_sequence"];
 
+/// Output ceiling for one Cloud turn.
+///
+/// Chosen from the prompts, not from a guess: the largest target is the feasibility report's
+/// "3000-5000 words TOTAL" (`prompts/feasibility/stage-6.md`), which is roughly 6,700 tokens
+/// of prose before tables and headings. 16,000 leaves room above that while staying far
+/// inside the model's own output limit. A cap below the prompt target is not a saving: the
+/// stage stops at the cap, is correctly treated as incomplete, and the paid run is wasted.
+pub const CLOUD_MAX_TOKENS: u32 = 16_000;
+
 fn require_terminal_frame(
     complete: bool,
     text: &str,
@@ -405,6 +414,13 @@ fn require_terminal_frame(
         )));
     };
     if !accepted_stops.contains(&reason) {
+        // An output-limit stop is the one refusal the operator can act on, so it says so
+        // rather than borrowing the generic wording.
+        if reason == "max_tokens" {
+            return Err(Error::Incomplete(format!(
+                "{provider} stopped at its output limit (max_tokens); the stage is not complete and nothing was saved"
+            )));
+        }
         return Err(Error::Incomplete(format!(
             "{provider} stopped with unsupported reason '{reason}'; the stage is not complete"
         )));
@@ -805,6 +821,29 @@ mod tests {
         )
         .unwrap_err();
         assert!(limit.to_string().contains("unsupported reason 'length'"));
+        // A Cloud output-limit stop names the limit, because raising the cap is the fix.
+        let cloud_limit = require_terminal_frame(
+            true,
+            "text",
+            "cloud",
+            Some("max_tokens"),
+            CLOUD_COMPLETE_STOPS,
+        )
+        .unwrap_err();
+        assert!(
+            cloud_limit.to_string().contains("output limit"),
+            "a max_tokens stop should name the limit, got {cloud_limit}"
+        );
+        assert!(matches!(cloud_limit, Error::Incomplete(_)));
+        // The cap must clear the largest prompt target: stage-6 asks for up to 5000 words,
+        // which is about 6670 tokens of prose before headings and tables.
+        let largest_target_words: usize = 5_000;
+        let words_to_tokens: usize = (largest_target_words * 4) / 3;
+        let required = words_to_tokens + 2_000;
+        assert!(
+            CLOUD_MAX_TOKENS as usize >= required,
+            "the Cloud cap ({CLOUD_MAX_TOKENS}) must clear the largest prompt target ({required} tokens)"
+        );
         // No reason at all cannot prove the stage finished.
         let missing =
             require_terminal_frame(true, "text", "cloud", None, CLOUD_COMPLETE_STOPS).unwrap_err();

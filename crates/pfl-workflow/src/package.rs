@@ -14,6 +14,41 @@ pub struct PackageFile {
     pub bytes: Vec<u8>,
 }
 
+/// The compliance run whose findings describe these exact revisions, if one exists.
+///
+/// A review of an older claims version is not evidence about a newer one, so a package
+/// includes findings only when the run recorded the revision ids being exported. Returning
+/// `None` is the honest answer, not a missing file to be filled with something newer.
+pub fn matching_findings<'a>(
+    history: &'a [RunSnapshot],
+    claims: Option<&DocumentRevision>,
+    specification: Option<&DocumentRevision>,
+) -> Option<(&'a str, &'a str)> {
+    history
+        .iter()
+        .filter(|run| {
+            run.input.kind == WorkflowKind::Compliance && run.outcome == RunOutcome::Completed
+        })
+        .filter(|run| {
+            let claims_match = claims.map_or(
+                run.input.upstream.claims_revision_id.is_none(),
+                |revision| run.input.upstream.claims_revision_id.as_ref() == Some(&revision.id),
+            );
+            let specification_match = specification.map_or(
+                run.input.upstream.specification_revision_id.is_none(),
+                |revision| {
+                    run.input.upstream.specification_revision_id.as_ref() == Some(&revision.id)
+                },
+            );
+            claims_match && specification_match
+        })
+        .max_by_key(|run| run.version)
+        .and_then(|run| {
+            run.report
+                .as_ref()
+                .map(|report| (run.id.0.as_str(), report.markdown.as_str()))
+        })
+}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ManifestEntry {
     pub name: String,
@@ -36,6 +71,10 @@ pub struct PackageManifest {
     pub revisions: Vec<ManifestRevision>,
     pub references: usize,
     pub files: Vec<ManifestEntry>,
+    /// The compliance run whose findings are in this package. Absent when no review matched
+    /// the exported revisions, which is a fact the reader needs rather than a blank.
+    #[serde(default)]
+    pub findings_run_id: Option<String>,
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -182,14 +221,16 @@ fn revision_docx(revision: &DocumentRevision) -> Result<Vec<u8>> {
 
 /// Builds the package for the selected revisions.
 ///
-/// `compliance` is the saved findings text, when a review was run against these
+/// `compliance` is the saved findings text and the run that produced them, included only
+/// when that review actually examined the revisions being exported. A review of an older
+/// claims version is not evidence about this one, so it is left out rather than attached.
 /// revisions. Nothing here contacts a provider or regenerates text.
 pub fn build_package(
     project_title: &str,
     claims: Option<&DocumentRevision>,
     application: Option<&DocumentRevision>,
     references: &[PriorArtItem],
-    compliance: Option<&str>,
+    compliance: Option<(&str, &str)>,
 ) -> Result<Vec<PackageFile>> {
     if claims.is_none() && application.is_none() {
         return Err(Error::Invalid(
@@ -253,7 +294,7 @@ pub fn build_package(
         name: "references.csv".into(),
         bytes: references_csv(references).into_bytes(),
     });
-    if let Some(findings) = compliance {
+    if let Some((_, findings)) = compliance {
         files.push(PackageFile {
             name: "compliance-findings.md".into(),
             bytes: findings.as_bytes().to_vec(),
@@ -264,6 +305,7 @@ pub fn build_package(
         project_title: project_title.to_string(),
         revisions,
         references: references.len(),
+        findings_run_id: compliance.map(|(run_id, _)| run_id.to_string()),
         files: files
             .iter()
             .map(|file| ManifestEntry {
@@ -365,8 +407,14 @@ mod tests {
         let claims = revision(DocumentKind::Claims, 1, "1. A thing.");
         let without = build_package("Fixture", Some(&claims), None, &[], None).unwrap();
         assert!(!without.iter().any(|f| f.name == "compliance-findings.md"));
-        let with =
-            build_package("Fixture", Some(&claims), None, &[], Some("## Findings\n")).unwrap();
+        let with = build_package(
+            "Fixture",
+            Some(&claims),
+            None,
+            &[],
+            Some(("run-1", "## Findings\n")),
+        )
+        .unwrap();
         assert!(with.iter().any(|f| f.name == "compliance-findings.md"));
     }
 
