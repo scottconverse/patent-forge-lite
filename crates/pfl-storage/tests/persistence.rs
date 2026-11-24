@@ -786,9 +786,11 @@ fn a_streamed_delta_does_not_rewrite_the_run_payload() {
         })
         .unwrap();
     let sequence: i64 = connection
-        .query_row("SELECT last_sequence FROM runs WHERE id=?1", [&id.0], |r| {
-            r.get(0)
-        })
+        .query_row(
+            "SELECT last_sequence FROM run_sequences WHERE run_id=?1",
+            [&id.0],
+            |r| r.get(0),
+        )
         .unwrap();
     assert_eq!(
         payload_before, payload_after,
@@ -883,4 +885,46 @@ fn an_unknown_schema_version_is_refused() {
             .contains("unsupported Lite schema version"),
         "the refusal should name the version, got: {error}"
     );
+}
+
+/// The compatibility promise of the rollback path: a released v0.1.0 build inserts a run
+/// positionally with five values. That statement must keep working against a database written by
+/// the current build, or upgrade-then-rollback leaves an app that can read but not start a run.
+#[test]
+fn a_v0_1_0_positional_run_insert_still_works() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("lite.sqlite3");
+    {
+        let store = SqliteStore::open(&path).unwrap();
+        store.create_project(&project()).unwrap();
+    }
+    let connection = Connection::open(&path).unwrap();
+    let columns: usize = connection
+        .query_row("SELECT count(*) FROM pragma_table_info('runs')", [], |r| {
+            r.get::<_, i64>(0).map(|n| n as usize)
+        })
+        .unwrap();
+    assert_eq!(
+        columns, 5,
+        "the runs table must stay five columns wide for a released build's positional insert"
+    );
+    let payload = serde_json::to_string(&{
+        let mut run = request();
+        run.id = RunId("legacy-positional".into());
+        run.idempotency_key = "positional".into();
+        run
+    })
+    .unwrap();
+    connection
+        .execute(
+            "INSERT INTO runs VALUES(?1,?2,?3,?4,?5)",
+            rusqlite::params![
+                "legacy-positional",
+                "synthetic-project",
+                99i64,
+                "positional",
+                payload
+            ],
+        )
+        .expect("a v0.1.0 positional insert must succeed on this schema");
 }

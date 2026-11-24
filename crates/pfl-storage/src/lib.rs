@@ -50,18 +50,41 @@ fn read_json<T: DeserializeOwned>(
         .map_err(db)?;
     value.map(|s| decode(&s)).transpose()
 }
+/// Reads a run's newest event sequence from its own table.
+///
+/// The counter lives here, not in `runs`, so the `runs` table stays exactly five columns: a
+/// released v0.1.0 build inserts runs positionally (`INSERT INTO runs VALUES(?1..?5)`), and a
+/// sixth column would make that statement fail after an upgrade-and-rollback.
+fn sequence_of(connection: &Connection, id: &RunId) -> Result<u64> {
+    let stored: Option<i64> = connection
+        .query_row(
+            "SELECT last_sequence FROM run_sequences WHERE run_id=?1",
+            [&id.0],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(db)?;
+    Ok(stored.unwrap_or(0).max(0) as u64)
+}
+
+fn write_sequence(connection: &Connection, id: &RunId, sequence: u64) -> Result<()> {
+    connection
+        .execute(
+            "INSERT INTO run_sequences(run_id,last_sequence) VALUES(?1,?2)
+             ON CONFLICT(run_id) DO UPDATE SET last_sequence=excluded.last_sequence",
+            params![id.0, integer(sequence)?],
+        )
+        .map_err(db)?;
+    Ok(())
+}
 fn load_run(connection: &Connection, id: &RunId) -> Result<RunSnapshot> {
     let mut run: RunSnapshot =
         read_json(connection, "SELECT payload FROM runs WHERE id=?1", &id.0)?
             .ok_or_else(|| Error::NotFound(format!("run {id}")))?;
     // A delta advances the column without touching the payload, so the column is the newer of
     // the two until the next full save.
-    let stored: i64 = connection
-        .query_row("SELECT last_sequence FROM runs WHERE id=?1", [&id.0], |r| {
-            r.get(0)
-        })
-        .map_err(db)?;
-    run.last_sequence = run.last_sequence.max(stored.max(0) as u64);
+    let stored = sequence_of(connection, id)?;
+    run.last_sequence = run.last_sequence.max(stored);
     Ok(run)
 }
 fn load_project(connection: &Connection, id: &ProjectId) -> Result<Project> {
@@ -75,10 +98,11 @@ fn load_project(connection: &Connection, id: &ProjectId) -> Result<Project> {
 fn save_run(transaction: &Transaction<'_>, run: &RunSnapshot) -> Result<()> {
     transaction
         .execute(
-            "UPDATE runs SET payload=?2, last_sequence=?3 WHERE id=?1",
-            params![run.id.0, encode(run)?, integer(run.last_sequence)?],
+            "UPDATE runs SET payload=?2 WHERE id=?1",
+            params![run.id.0, encode(run)?],
         )
         .map_err(db)?;
+    write_sequence(transaction, &run.id, run.last_sequence)?;
     Ok(())
 }
 
@@ -90,7 +114,8 @@ fn save_run(transaction: &Transaction<'_>, run: &RunSnapshot) -> Result<()> {
 fn bump_sequence(transaction: &Transaction<'_>, run_id: &RunId, sequence: u64) -> Result<()> {
     transaction
         .execute(
-            "UPDATE runs SET last_sequence=?2 WHERE id=?1",
+            "INSERT INTO run_sequences(run_id,last_sequence) VALUES(?1,?2)
+             ON CONFLICT(run_id) DO UPDATE SET last_sequence=excluded.last_sequence",
             params![run_id.0, integer(sequence)?],
         )
         .map_err(db)?;
@@ -219,8 +244,10 @@ impl SqliteStore {
              CREATE TABLE IF NOT EXISTS runs(
                id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES projects(id),
                version INTEGER NOT NULL CHECK(version>0),idempotency_key TEXT NOT NULL,payload TEXT NOT NULL,
-               last_sequence INTEGER NOT NULL DEFAULT 0,
                UNIQUE(project_id,version),UNIQUE(project_id,idempotency_key));
+             CREATE TABLE IF NOT EXISTS run_sequences(
+               run_id TEXT PRIMARY KEY REFERENCES runs(id),
+               last_sequence INTEGER NOT NULL DEFAULT 0);
              CREATE TABLE IF NOT EXISTS events(
                run_id TEXT NOT NULL REFERENCES runs(id),sequence INTEGER NOT NULL CHECK(sequence>0),
                payload TEXT NOT NULL,PRIMARY KEY(run_id,sequence));
@@ -237,7 +264,9 @@ impl SqliteStore {
                UNIQUE(project_id,kind,version));
              INSERT OR IGNORE INTO schema_migrations(version) VALUES(1);"
         ).map_err(db)?;
-        // v2: a streamed delta updates one column instead of rewriting the run payload.
+        // A database written by the interim v2 build carries `runs.last_sequence`. Move it into
+        // `run_sequences` and drop the column: `runs` must stay five columns wide, because a
+        // released v0.1.0 build inserts runs positionally and would fail on a wider table.
         let has_sequence = {
             let mut statement = transaction.prepare("PRAGMA table_info(runs)").map_err(db)?;
             let names = statement
@@ -249,16 +278,17 @@ impl SqliteStore {
                 .iter()
                 .any(|name| name == "last_sequence")
         };
-        if !has_sequence {
+        if has_sequence {
             transaction
                 .execute_batch(
-                    "ALTER TABLE runs ADD COLUMN last_sequence INTEGER NOT NULL DEFAULT 0;",
+                    "INSERT OR REPLACE INTO run_sequences(run_id,last_sequence)
+                     SELECT id,last_sequence FROM runs;
+                     ALTER TABLE runs DROP COLUMN last_sequence;",
                 )
                 .map_err(db)?;
         }
-        // The v2 change is additive: the column has a default and an older build simply
-        // ignores it, so the version row stays at 1. Bumping it would make a v1 build
-        // refuse the workspace after a rollback -- which the upgrade proof observed.
+        // The schema version stays at 1: the counter lives beside `runs`, so an older build can
+        // still read and write this database after a rollback.
         transaction
             .pragma_update(None, "application_id", APPLICATION_ID)
             .map_err(db)?;
@@ -623,7 +653,9 @@ impl Store for SqliteStore {
             load_project(tx, project_id)?;
             let mut statement = tx
                 .prepare(
-                    "SELECT payload, last_sequence FROM runs WHERE project_id=?1 ORDER BY version",
+                    "SELECT runs.payload, COALESCE(run_sequences.last_sequence,0)
+                     FROM runs LEFT JOIN run_sequences ON run_sequences.run_id = runs.id
+                     WHERE runs.project_id=?1 ORDER BY runs.version",
                 )
                 .map_err(db)?;
             let rows = statement
@@ -863,7 +895,11 @@ impl Store for SqliteStore {
     fn recover_interrupted(&self, at_ms: u64) -> Result<Vec<RunId>> {
         self.transaction(|tx| {
             let mut statement = tx
-                .prepare("SELECT payload, last_sequence FROM runs ORDER BY id")
+                .prepare(
+                    "SELECT runs.payload, COALESCE(run_sequences.last_sequence,0)
+                     FROM runs LEFT JOIN run_sequences ON run_sequences.run_id = runs.id
+                     ORDER BY runs.id",
+                )
                 .map_err(db)?;
             let rows = statement
                 .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))

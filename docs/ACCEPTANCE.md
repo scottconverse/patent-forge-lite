@@ -19,13 +19,13 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 122 |
+| pass | 123 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
 | blocked — authorization | 1 |
 | blocked — harness | 1 |
-| open defect | 1 |
+| open defect | 0 |
 
 ## Phase A — Cloud correctness and consent
 
@@ -78,7 +78,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Every HTTP write path has a test: create, intake save, start, download-token, resume and cancel | integration (`api`) | pass — F-048 |
 | `inspect` opens read-only and refuses a missing database; `settings` takes the window's profile lock | unit + code | pass — F-018 |
 | The upgrade proof refuses to run where Patent Forge Lite is really installed, installs without shortcuts, and removes its test install on failure as well as success | run (`upgrade-proof`) | pass — F-051 |
-| The schema change is additive and keeps version 1, so a rolled-back build still opens the workspace | run (`upgrade-proof`, rollback launch) | pass — F-050 |
+| The schema change keeps `runs` at five columns and the counter in `run_sequences`, so a rolled-back v0.1.0 build both opens the workspace and can still insert a run | unit (`persistence`, positional insert) + installed rollback launch | pass — F-050, rollback-write regression |
 | Revisions are versioned per kind, listed in order and readable by id; an empty revision is refused | unit (`persistence`) | pass — F-035 |
 | The import preview reports counts and is read-only; a missing source is refused | unit (`migration`) | pass — F-035 |
 | A database with an unknown schema version is refused; a fresh import into a non-empty store is refused | unit (`persistence`, `migration`) | pass — F-035 |
@@ -183,17 +183,14 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Licence metadata agrees with the committed licence | run, `cargo metadata` reports MIT for every crate (`license` field, not only a metadata key) | pass — F-045 |
 | macOS and Linux artifacts from this revision | — | **blocked — hardware**; runbook delivered |
 | macOS and Linux installed acceptance | — | **blocked — hardware** — `docs/PLATFORM-RUNBOOK.md` |
-| Documentation agreement at this revision | review | **open** — F-040 to F-048 are being worked; this row flips to pass when that block closes |
+| Documentation agreement at this revision | review | pass — the manual, README, STATUS, site, release notes and packaging describe this build; F-040 to F-048 are closed |
 | This matrix checks itself, in CI: counts match rows, evidence paths exist, no stale claims, no single-stage promise | run (`scripts/acceptance-check.ps1`) + CI step | pass — verified to fail on an injected bad count, a missing evidence path and a stale claim |
 
 ## Open defects
 
-| Defect | Measurement | Status |
-| --- | --- | --- |
-**No open defects at this revision.** The navigation defect is closed: the rail is a tab
-list and each item is a tab, measured in the window as `TabItem` with
-`SelectionItemPattern`, and the UI harness asserts it (38/38).
-
+None. F-001 to F-077 are closed; each is cited in `docs/BUILD-EVIDENCE.md`.
+The navigation defect is closed: the rail is a tab list, each item is a tab, and the UI
+harness measures it as `TabItem` with `SelectionItemPattern` (38/38).
 ## Decisions that remain Scott's
 
 1. **Next release version.** The installer says 0.2.0 by compile-time override while the

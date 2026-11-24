@@ -124,6 +124,29 @@ if (Test-Path $handoffPath) {
     Record 'HANDOFF does not restate the pass count' (-not $restated.Success) $handoffDetail
 }
 
+
+# --- Empty tables and stale "being worked" notes -----------------------------------------
+$matrixLines = Get-Content (Join-Path $root 'docs\ACCEPTANCE.md')
+$emptyTables = @()
+for ($i = 0; $i -lt $matrixLines.Count - 1; $i++) {
+    if ($matrixLines[$i] -match '^\|' -and $matrixLines[$i + 1] -match '^\|\s*---') {
+        $next = if ($i + 2 -lt $matrixLines.Count) { $matrixLines[$i + 2] } else { '' }
+        if ($next -notmatch '^\|') {
+            $emptyTables += "line $($i + 1): $($matrixLines[$i].Trim())"
+        }
+    }
+}
+Record 'no table is a header with no rows' ($emptyTables.Count -eq 0) "(empty: $($emptyTables -join '; '))"
+
+# A note that work is ongoing is stale the moment that work closes; the evidence file is the
+# record, so an "open"/"being worked" phrase must not survive a closed finding.
+# Word boundaries matter here: "still opens the workspace" is a true statement about rollback,
+# not a claim that work is unfinished.
+$ongoing = @()
+foreach ($phrase in @('\bbeing worked\b', '\bstill open\b', '\bpending fix\b', '\bin progress\b')) {
+    if ($text -match $phrase) { $ongoing += $phrase }
+}
+Record 'no note says work is still in progress' ($ongoing.Count -eq 0) "(found: $($ongoing -join ', '))"
 # --- Stale claims are scanned in every document a reader meets ----------------------------
 $scan = @('docs\ACCEPTANCE.md', 'docs\HANDOFF.md', 'docs\USER-MANUAL.md', 'docs\STATUS.md', 'docs\RELEASE-NOTES.md', 'README.md')
 $staleHits = @()

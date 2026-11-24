@@ -1494,3 +1494,26 @@ measures the window reports these controls by name.
 
 F-077: the installer's `PrivilegesRequiredOverridesAllowed=dialog` offered an all-users install for
 a per-user product; it is removed. The empty table the audit cited no longer exists in the matrix.
+## Auditor follow-up: rollback write regression, and the record corrected (2026-11-24)
+
+The external re-check found one real regression and three record defects. All four are fixed, and
+the fixes were made against the artifact rather than the summary.
+
+**Rollback could read but not write.** Keeping `runs.last_sequence` with the schema version at 1
+made a rolled-back v0.1.0 build able to open the database, but its released binary inserts runs
+positionally (`INSERT INTO runs VALUES(?1..?5)`) and the table had six columns:
+
+    table runs has 6 columns but 5 values were supplied
+
+The upgrade proof only launched and quit the older build, so it never noticed. The counter now
+lives in its own table, `run_sequences`, and `runs` is five columns wide again; an interim
+database that carries the column is migrated into the side table and the column is dropped. A
+test issues v0.1.0's exact positional insert against a current database and asserts the table has
+five columns, so this specific statement cannot break again silently.
+
+**Record corrections.** The commit count in the completion report was wrong: it is 33 commits
+(`git rev-list --count 1b27da7..HEAD`), not the 54 I reported from a date-filtered count. The
+matrix's documentation-agreement row is now pass (F-040 to F-048 are closed), the summary's open
+count is 0, and the empty Open-defects table is gone. The acceptance check gained two guards so it
+catches these itself: an empty table is a failure, and an "in progress" note is a failure, with
+word boundaries so "still opens the workspace" is not mistaken for one.
