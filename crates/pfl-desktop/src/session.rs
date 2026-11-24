@@ -70,7 +70,11 @@ pub enum Request {
         idempotency_key: String,
         authorization: Authorization,
     },
-    Resume(RunId),
+    /// Resuming spends again, so it needs the authorization for the retry.
+    Resume {
+        run: RunId,
+        authorization: Authorization,
+    },
     Cancel(RunId),
     Export {
         run: RunId,
@@ -87,6 +91,7 @@ pub enum Request {
     RegenerateFrom {
         run: RunId,
         stage: Stage,
+        authorization: Authorization,
     },
     /// Writes the package for the chosen revisions (md, html, docx, csv, manifest) into
     /// a directory and reports it.
@@ -427,7 +432,11 @@ impl Actor {
                 let models = pfl_workflow::list_local_models(&endpoint).await?;
                 self.reply(Reply::LocalModels(models));
             }
-            Request::RegenerateFrom { run, stage } => {
+            Request::RegenerateFrom {
+                run,
+                stage,
+                authorization,
+            } => {
                 for id in &self.started_runs {
                     if !self.service.run(id.clone()).await?.outcome.is_terminal() {
                         return Err(Error::Conflict(
@@ -435,7 +444,10 @@ impl Actor {
                         ));
                     }
                 }
-                let regenerated = self.service.regenerate_from(run, stage).await?;
+                let regenerated = self
+                    .service
+                    .regenerate_from(run, stage, authorization)
+                    .await?;
                 self.started_runs.insert(regenerated.id.clone());
                 self.selected(regenerated).await;
             }
@@ -654,9 +666,12 @@ impl Actor {
                 self.started_runs.insert(snapshot.id.clone());
                 self.selected(snapshot).await;
             }
-            Request::Resume(id) => {
+            Request::Resume {
+                run: id,
+                authorization,
+            } => {
                 let snapshot = self.service.run(id.clone()).await?;
-                // Resume never changes the snapshotted provider or authorizations.
+                // Resume never changes the snapshotted provider, but the authorization for
                 if self.mode.is_none() {
                     return Err(Error::Invalid(
                         "Select the matching execution mode before resume".into(),
@@ -675,7 +690,7 @@ impl Actor {
                         ));
                     }
                 }
-                let snapshot = self.service.resume(id.clone()).await?;
+                let snapshot = self.service.resume(id.clone(), authorization).await?;
                 self.started_runs.insert(id);
                 self.selected(snapshot).await;
             }

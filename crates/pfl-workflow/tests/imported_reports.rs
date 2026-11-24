@@ -46,7 +46,13 @@ async fn imported_edited_report_remains_readable_exportable_and_not_regenerated(
     // Historical reconstructed input is not authorization to regenerate.
     assert!(
         service
-            .resume(RunId("synthetic-run-v2".into()))
+            .resume(
+                RunId("synthetic-run-v2".into()),
+                Authorization {
+                    synthetic_data: true,
+                    ..Default::default()
+                }
+            )
             .await
             .is_err()
     );

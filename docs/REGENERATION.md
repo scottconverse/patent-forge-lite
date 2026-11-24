@@ -10,9 +10,12 @@ contract for the suffix version.
 A regeneration produces a **new run** whose input is derived from a completed
 **base run**:
 
-1. The new run copies the base run's `intake`, `upstream`, `prompts`, `provider`
-   snapshot and `authorization` — it re-derives nothing from the project's
-   current state, so a later claims or feasibility version cannot leak in.
+1. The new run copies the base run's `intake`, `upstream`, `prompts` and `provider`
+   snapshot — it re-derives nothing from the project's current state, so a later
+   claims or feasibility version cannot leak in.
+   It does **not** copy `authorization`: consent belongs to the run that was approved, so
+   a regeneration takes the caller's authorization at the moment it is requested. Without
+   a fresh paid approval a Cloud regeneration is refused and sends nothing.
 2. The new run gets a fresh `RunId` and the project's next version number.
 3. `rerun_of` records the base run id, so lineage is visible in history and in
    exports.

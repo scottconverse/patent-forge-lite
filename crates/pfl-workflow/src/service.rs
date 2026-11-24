@@ -404,7 +404,7 @@ impl WorkflowService {
     pub async fn execute(self: &Arc<Self>, command: Command) -> Result<RunSnapshot> {
         match command {
             Command::Start(request) => self.start(request).await,
-            Command::Resume(id) => self.resume(id).await,
+            Command::Resume { id, authorization } => self.resume(id, authorization).await,
             Command::Rerun { source, request } => self.rerun(source, request).await,
             Command::Cancel(id) => self.cancel(id).await,
         }
@@ -560,7 +560,11 @@ impl WorkflowService {
         .await
     }
 
-    pub async fn resume(self: &Arc<Self>, id: RunId) -> Result<RunSnapshot> {
+    pub async fn resume(
+        self: &Arc<Self>,
+        id: RunId,
+        authorization: Authorization,
+    ) -> Result<RunSnapshot> {
         let _commands = self.commands.lock().await;
         if self.stopping.load(Ordering::Acquire) {
             return Err(Error::Conflict("application is shutting down".into()));
@@ -579,6 +583,10 @@ impl WorkflowService {
         if run.outcome == RunOutcome::Completed {
             return Ok(run);
         }
+        // Resuming spends again, so the approval for the original attempt is not reused:
+        // the caller's authorization is what the retry is judged on.
+        let mut run = run;
+        run.input.authorization = authorization;
         self.authorize(&run.input)?;
         if self
             .jobs
@@ -851,6 +859,7 @@ impl WorkflowService {
         self: &Arc<Self>,
         source: RunId,
         from_stage: Stage,
+        authorization: Authorization,
     ) -> Result<RunSnapshot> {
         let _commands = self.commands.lock().await;
         let base = self.run(source.clone()).await?;
@@ -874,6 +883,10 @@ impl WorkflowService {
             ));
         }
         let mut input = base.input.clone();
+        // Consent belongs to the run that was approved, not to the workflow. A new paid run
+        // therefore takes the caller's authorization instead of inheriting the base run's,
+        // and `authorize` below refuses it if paid approval is not present now.
+        input.authorization = authorization;
         input.regeneration = Some(RegenerationPlan {
             base_run: source.clone(),
             from_stage,

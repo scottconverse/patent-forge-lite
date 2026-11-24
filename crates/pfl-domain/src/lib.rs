@@ -678,8 +678,16 @@ pub struct Subscribe {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Command {
     Start(NewRun),
-    Resume(RunId),
-    Rerun { source: RunId, request: NewRun },
+    /// Resuming spends again, so it carries the authorization for the retry rather than
+    /// reusing whatever the original attempt was approved with.
+    Resume {
+        id: RunId,
+        authorization: Authorization,
+    },
+    Rerun {
+        source: RunId,
+        request: NewRun,
+    },
     Cancel(RunId),
 }
 

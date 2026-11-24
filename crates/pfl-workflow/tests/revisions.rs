@@ -460,7 +460,14 @@ async fn regenerating_from_a_stage_carries_the_earlier_stages() {
         .unwrap();
 
     let regenerated = service
-        .regenerate_from(base.id.clone(), restart)
+        .regenerate_from(
+            base.id.clone(),
+            restart,
+            Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        )
         .await
         .expect("a completed run can be regenerated");
     assert_ne!(regenerated.id, base.id);

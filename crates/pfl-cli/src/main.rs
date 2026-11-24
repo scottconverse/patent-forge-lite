@@ -279,7 +279,15 @@ async fn journey(command: &str, workspace: PathBuf, pause_stage: Option<usize>) 
         }
         let remaining = Stage::ALL.len().saturating_sub(before.checkpoints.len());
         service.recover_interrupted().await?;
-        service.resume(id.clone()).await?;
+        service
+            .resume(
+                id.clone(),
+                Authorization {
+                    synthetic_data: true,
+                    ..Default::default()
+                },
+            )
+            .await?;
         (id, remaining)
     } else {
         let project = if command == "import-replay" {

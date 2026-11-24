@@ -167,7 +167,16 @@ async fn resumed_compliance_reviews_the_claims_it_recorded() {
     );
 
     prompts.lock().unwrap().clear();
-    let resumed = service.resume(compliance.id.clone()).await.unwrap();
+    let resumed = service
+        .resume(
+            compliance.id.clone(),
+            Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
     assert_eq!(resumed.input.upstream.claims_text, recorded_claims);
     let finished = wait(&service, &resumed.id).await;
     assert_eq!(finished.outcome, RunOutcome::Completed);

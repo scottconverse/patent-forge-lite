@@ -223,6 +223,66 @@ fn a_declined_cloud_run_sends_nothing_and_an_approved_one_completes() {
         "one request per stage, no retries and no fallback"
     );
 
+    // Regenerating spends again, so it must not inherit the earlier approval: one click on
+    // a run approved half an hour ago must send nothing without a fresh decision.
+    let before_regen = calls.load(Ordering::SeqCst);
+    let stages = run.input.kind.stages();
+    session
+        .request(Request::RegenerateFrom {
+            run: approved_id.clone(),
+            stage: stages[3],
+            authorization: Authorization {
+                synthetic_data: true,
+                paid_provider: false,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    match wait_for(
+        &session,
+        "regenerate without approval",
+        &mut seen,
+        |reply| matches!(reply, Reply::Error(_) | Reply::Run(_)),
+    ) {
+        Reply::Error(error) => assert!(
+            error.to_lowercase().contains("paid"),
+            "the refusal should name the paid approval, got: {error}"
+        ),
+        other => panic!("regenerating without a fresh approval must be refused, got {other:?}"),
+    }
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        before_regen,
+        "a refused regeneration must not reach the provider"
+    );
+
+    // With a fresh approval the same action does run, so the refusal is about consent and
+    // not a blanket block.
+    session
+        .request(Request::RegenerateFrom {
+            run: approved_id.clone(),
+            stage: stages[3],
+            authorization: Authorization {
+                synthetic_data: true,
+                paid_provider: true,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    match wait_for(&session, "regenerate with approval", &mut seen, |reply| {
+        matches!(reply, Reply::Run(_) | Reply::Error(_))
+    }) {
+        Reply::Run(_) => {}
+        other => panic!("an approved regeneration should start: {other:?}"),
+    }
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline && calls.load(Ordering::SeqCst) == before_regen {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(
+        calls.load(Ordering::SeqCst) > before_regen,
+        "an approved regeneration should reach the provider"
+    );
     // The key lives in the session only. Nothing persisted may contain it.
     drop(session);
     let bytes = std::fs::read(&database).unwrap();

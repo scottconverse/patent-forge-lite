@@ -201,7 +201,15 @@ fn serialized_duplicate_start_navigation_cancel_and_resume_keep_one_owned_run() 
     assert_eq!(store.history(&project.id).unwrap().len(), 1);
     session.request(Request::Cancel(run.id.clone())).unwrap();
     wait_store(|| store.run(&run.id).unwrap().outcome == RunOutcome::Cancelled);
-    session.request(Request::Resume(run.id.clone())).unwrap();
+    session
+        .request(Request::Resume {
+            run: run.id.clone(),
+            authorization: Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        })
+        .unwrap();
     wait_store(|| store.run(&run.id).unwrap().outcome == RunOutcome::Completed);
     let finished = store.run(&run.id).unwrap();
     assert_eq!(finished.checkpoints.len(), 6);

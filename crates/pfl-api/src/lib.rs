@@ -340,8 +340,11 @@ async fn report(
 async fn resume(
     State(state): State<Arc<ApiState>>,
     Path(id): Path<String>,
+    Json(authorization): Json<Authorization>,
 ) -> ApiResult<RunSnapshot> {
-    Ok(Json(state.service.resume(RunId(id)).await?))
+    // Resuming can spend again, so the caller states its authorization for the retry rather
+    // than inheriting the approval given to the original attempt.
+    Ok(Json(state.service.resume(RunId(id), authorization).await?))
 }
 
 async fn cancel(

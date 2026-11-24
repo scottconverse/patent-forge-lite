@@ -148,7 +148,17 @@ async fn shutdown_serializes_inflight_start_resume_rerun_registration() {
         let source = original.id.clone();
         let starting = tokio::spawn(async move {
             match route {
-                "resume" => starter.resume(source).await,
+                "resume" => {
+                    starter
+                        .resume(
+                            source,
+                            Authorization {
+                                synthetic_data: true,
+                                ..Default::default()
+                            },
+                        )
+                        .await
+                }
                 "rerun" => starter.rerun(source, pending_request).await,
                 _ => starter.start(pending_request).await,
             }
@@ -189,7 +199,18 @@ async fn shutdown_serializes_inflight_start_resume_rerun_registration() {
                 .await
                 .is_err()
         );
-        assert!(service.resume(expected_run_id.clone()).await.is_err());
+        assert!(
+            service
+                .resume(
+                    expected_run_id.clone(),
+                    Authorization {
+                        synthetic_data: true,
+                        ..Default::default()
+                    }
+                )
+                .await
+                .is_err()
+        );
         assert!(
             service
                 .rerun(

@@ -292,7 +292,16 @@ async fn recovery_before_stage_one_and_after_prefix_uses_original_snapshot() {
             )
             .await
             .unwrap();
-        service.resume(id.clone()).await.unwrap();
+        service
+            .resume(
+                id.clone(),
+                Authorization {
+                    synthetic_data: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
         let resumed = terminal(&service, &id).await;
         assert_eq!(resumed.outcome, RunOutcome::Completed);
         assert_eq!(resumed.id, id);
@@ -402,13 +411,33 @@ async fn cancel_acknowledges_dropped_late_provider_before_replacement() {
     tokio::time::timeout(Duration::from_secs(3), provider.blocked.notified())
         .await
         .unwrap();
-    assert!(service.resume(started.id.clone()).await.is_err());
+    assert!(
+        service
+            .resume(
+                started.id.clone(),
+                Authorization {
+                    synthetic_data: true,
+                    ..Default::default()
+                }
+            )
+            .await
+            .is_err()
+    );
     let cancelled = service.cancel(started.id.clone()).await.unwrap();
     assert_eq!(cancelled.outcome, RunOutcome::Cancelled);
     assert_eq!(cancelled.checkpoints.len(), 1);
     assert_eq!(provider.active.load(Ordering::SeqCst), 0);
     provider.release.notify_one();
-    service.resume(started.id.clone()).await.unwrap();
+    service
+        .resume(
+            started.id.clone(),
+            Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
     let complete = terminal(&service, &started.id).await;
     assert_eq!(complete.outcome, RunOutcome::Completed);
     assert_eq!(complete.attempts.len(), 2);
@@ -447,7 +476,13 @@ async fn paid_paths_declined_or_approved_are_blocked_before_any_provider_request
         store.create_run(&req).unwrap();
         assert!(
             service
-                .execute(Command::Resume(req.id.clone()))
+                .execute(Command::Resume {
+                    id: req.id.clone(),
+                    authorization: Authorization {
+                        synthetic_data: true,
+                        ..Default::default()
+                    }
+                })
                 .await
                 .is_err()
         );
@@ -486,7 +521,18 @@ async fn no_fallback_and_snapshot_mismatch_block_without_calls() {
         }
         store.create_run(&req).unwrap();
         assert!(service.start(req.clone()).await.is_err());
-        assert!(service.resume(req.id).await.is_err());
+        assert!(
+            service
+                .resume(
+                    req.id,
+                    Authorization {
+                        synthetic_data: true,
+                        ..Default::default()
+                    }
+                )
+                .await
+                .is_err()
+        );
     }
     assert!(provider.requests().is_empty());
 }

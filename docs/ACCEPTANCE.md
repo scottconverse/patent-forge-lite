@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 60 |
+| pass | 61 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -38,6 +38,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Malformed or mid-frame stream is an error | unit | pass |
 | Cloud mode at the session layer; key held in memory for the session only | unit, session tests | pass |
 | Cloud start refused without explicit paid approval | unit, session tests | pass |
+| Regenerate and resume carry a fresh authorization: a Cloud regeneration without current paid approval is refused and sends nothing; with it, it runs | integration (`cloud_consent`) | pass — 0 requests refused, then reaching the provider |
 | Paid approval control present in the window; run refused without it | installed | pass |
 | Declining sends zero requests; approval reaches the provider | installed + mock | **blocked — harness** — the scripted decline cannot be demonstrated: pressing Start through this script never reaches the handler, while the same control starts runs in `installed-local-proof` (5/5 at this revision). Its three run-path assertions were removed rather than left passing vacuously; the gate itself is proven by the session tests, and the earlier 7/7 evidence remains in `docs/evidence/cloud-consent/`. |
 | No fallback: a failed Cloud call makes exactly one request and leaves no checkpoint | unit, `consent.rs` | pass |

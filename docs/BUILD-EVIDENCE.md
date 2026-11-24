@@ -1037,3 +1037,22 @@ Working tree clean; CI green on Windows, macOS and Linux.
 Nothing in this repository claims more than that. The four blocked items stand, each with its
 owner: A5's window presentation (harness), the live PatentsView query (key), a real database
 import (authorization), and installed acceptance on macOS and Linux (hardware).
+## Audit findings, first pass: F-001 fixed (2026-11-24)
+
+The whole-repository audit found a consent bypass: "regenerate from here onward" copied the
+base run's input, approval included, so one click could spend money on an approval given for
+a different run. Resume had the same shape.
+
+Both now take an explicit `Authorization` and apply it to the new attempt before
+`authorize` runs, so consent is judged at the moment the work is requested:
+
+- `regenerate_from(source, from_stage, authorization)` replaces the copied authorization;
+- `resume(id, authorization)` does the same for a retry;
+- the window routes both through the same `start_block` gate as Start, so a Cloud
+  regeneration without current approval explains itself instead of doing nothing;
+- the session request carries the authorization, and the API requires it in the body.
+
+`tests/cloud_consent.rs` proves the behavioural half: regenerating an approved Cloud run
+with paid approval off is refused and sends zero requests, while the same action with
+approval on reaches the provider. `docs/REGENERATION.md` no longer claims authorization is
+copied.

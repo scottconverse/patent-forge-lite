@@ -633,9 +633,10 @@ impl Desktop {
         self.send(request, cx);
     }
 
-    fn start(&mut self, cx: &mut Context<Self>) {
-        // One pure decision, so the order of the refusals is tested rather than implied.
-        let gate = crate::state::StartGate {
+    /// Everything the start guard needs, in one place, so start, regenerate and resume all
+    /// judge the same conditions.
+    fn start_gate(&self, cx: &App) -> crate::state::StartGate {
+        crate::state::StartGate {
             pending: self.pending,
             dirty: self.dirty(cx),
             has_project: self.state.selected_project.is_some(),
@@ -650,9 +651,35 @@ impl Desktop {
             local_authorized: self.authorized_local,
             mode_is_cloud: matches!(self.mode, Some(Mode::Cloud { .. })),
             cloud_approved: self.cloud_approved,
-        };
-        if let Some(reason) = crate::state::start_block(&gate) {
-            self.state.notice = Some(reason.to_string());
+        }
+    }
+
+    /// True when the action was refused, in which case the reason is now the notice.
+    fn gate_blocks(&mut self, cx: &mut Context<Self>) -> bool {
+        let gate = self.start_gate(cx);
+        match crate::state::start_block(&gate) {
+            Some(reason) => {
+                self.state.notice = Some(reason.to_string());
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// The authorization the operator has granted in this window, right now.
+    fn authorization(&self) -> Authorization {
+        Authorization {
+            synthetic_data: self.synthetic,
+            real_data: self.real_data,
+            local_inference: self.authorized_local,
+            paid_provider: self.cloud_approved,
+            research: self.research_authorized,
+        }
+    }
+
+    fn start(&mut self, cx: &mut Context<Self>) {
+        // One pure decision, shared with regenerate and resume.
+        if self.gate_blocks(cx) {
             return;
         }
         // The gate guarantees a project is selected; bind it for the request.
@@ -667,13 +694,7 @@ impl Desktop {
             project: project.id.clone(),
             kind: self.workflow,
             idempotency_key: key,
-            authorization: Authorization {
-                synthetic_data: self.synthetic,
-                real_data: self.real_data,
-                local_inference: self.authorized_local,
-                paid_provider: self.cloud_approved,
-                research: self.research_authorized,
-            },
+            authorization: self.authorization(),
         };
         self.pending = true;
         self.state.page = Page::Workflow;
@@ -1768,10 +1789,17 @@ impl Render for Desktop {
                                 format!("regen-{}", stage.number()),
                                 format!("Regenerate from {} onward", stage.label()),
                                 move |this, _, cx| {
+                                    // Regenerating spends again, so it passes the same gate as
+                                    // starting: without a fresh approval the click does nothing
+                                    // but explain itself.
+                                    if this.gate_blocks(cx) {
+                                        return;
+                                    }
                                     this.send(
                                         Request::RegenerateFrom {
                                             run: run.clone(),
                                             stage,
+                                            authorization: this.authorization(),
                                         },
                                         cx,
                                     );
@@ -1993,7 +2021,16 @@ impl Render for Desktop {
                                     cx.notify();
                                     return;
                                 }
-                                this.send(Request::Resume(id.clone()), cx);
+                                if this.gate_blocks(cx) {
+                                    return;
+                                }
+                                this.send(
+                                    Request::Resume {
+                                        run: id.clone(),
+                                        authorization: this.authorization(),
+                                    },
+                                    cx,
+                                );
                             },
                             cx,
                         ));

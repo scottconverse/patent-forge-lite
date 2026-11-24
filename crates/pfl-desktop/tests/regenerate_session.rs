@@ -111,6 +111,10 @@ fn regenerating_from_a_stage_through_the_session_carries_the_earlier_stages() {
         .request(Request::RegenerateFrom {
             run: base.id.clone(),
             stage: restart,
+            authorization: Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
         })
         .unwrap();
     let regenerated = match wait_for(&session, "regenerate", |reply| {
