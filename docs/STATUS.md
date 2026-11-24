@@ -1,11 +1,20 @@
 # Product status
 
-Last updated: 2026-11-21. Windows x86_64.
+Last updated: 2026-11-24. Windows x86_64 installed acceptance; macOS and Linux artifacts only.
 
-Patent Forge Lite is a stand-alone Rust core with a GPUI desktop, a CLI harness
-and a compatibility HTTP API. It is **not** a finished shipping product. This page
-is the honest inventory.
+This page is a pointer, not a second inventory. **`docs/ACCEPTANCE.md` is the record**: one row
+per requirement with its evidence class, the blocked items and their owners, and the decisions
+that remain open. A restated summary here would drift from it, which is exactly what happened
+before: this file claimed a dated test count and said research was a fixture long after the
+adapter, the consent gate and the live-query path existed.
 
+What this page still answers:
+
+- **The product's shape**: a stand-alone Rust core with a GPUI desktop, a CLI harness and a
+  compatibility HTTP API, covering four analyses over one invention with immutable runs.
+- **What a release decision rests on**: the matrix and the release manifest, not this page.
+- **Where the detail lives**: `docs/HANDOFF.md` for a fresh session, `docs/BUILD-EVIDENCE.md`
+  for the chronological trail, `docs/RELEASE-MANIFEST.md` for artifacts and hashes.
 ## Implemented and verified
 
 | Area | State |
@@ -25,7 +34,7 @@ is the honest inventory.
 | API | Compatibility auth (Bearer, legacy 401 messages, tokenless mode, single-use 5-minute download tokens, long-lived query tokens), health shape, project/run/event/report/export routes. |
 | Providers | Recorded replay, Ollama over NDJSON (loopback only), Anthropic Messages over SSE. Each fails closed without its exact snapshot and explicit authorization; a stream missing its terminal frame is recorded as **Truncated**, never Completed. |
 | Live local inference | Verified 2026-11-21 with `phi4-mini:latest` on the running local Ollama: **all four workflows, 19 stages, 19 real calls, 715.5 s**, then reopened with zero regeneration. |
-| Research | Injectable `ResearchSource` seam with an offline fixture implementation; supplied references are snapshotted and reach the prior-art prompt. |
+| Research | Opt-in USPTO PatentsView source with a session-only key, a per-run consent gate and an offline fixture; supplied references are snapshotted into the run input. No live query has been verified. |
 | Setup profiles | Lean is Cloud-only and refuses a local runtime; Full permits both. |
 
 Test suite: **96 passing tests** across the workspace, plus `cargo fmt --check`

@@ -1,6 +1,6 @@
 # PatentForge Lite — User Manual
 
-Version 0.1.0 · Windows, macOS, Linux
+Version 0.2.0 candidate · Windows, macOS, Linux (the crates still declare 0.1.0; see `docs/RELEASE-MANIFEST.md`)
 
 This manual covers everything from installing the application to exporting a finished draft. If
 you only read one section, read [Your first analysis](#your-first-analysis).
@@ -16,13 +16,14 @@ you only read one section, read [Your first analysis](#your-first-analysis).
 5. [Choosing how analysis runs](#5-choosing-how-analysis-runs)
 6. [Running an analysis](#6-running-an-analysis)
 7. [Reading, keeping and exporting reports](#7-reading-keeping-and-exporting-reports)
-8. [History and versions](#8-history-and-versions)
-9. [Keyboard shortcuts](#9-keyboard-shortcuts)
-10. [Your data: backup, reset, uninstall](#10-your-data-backup-reset-uninstall)
-11. [Troubleshooting](#11-troubleshooting)
-12. [Command line and API](#12-command-line-and-api)
-13. [Privacy and safety](#13-privacy-and-safety)
-14. [Known limits](#14-known-limits)
+8. [Editing, revisions and regeneration](#8-editing-revisions-and-regeneration)
+9. [History and versions](#9-history-and-versions)
+10. [Keyboard shortcuts](#10-keyboard-shortcuts)
+11. [Your data: backup, reset, uninstall](#11-your-data-backup-reset-uninstall)
+12. [Troubleshooting](#12-troubleshooting)
+13. [Command line and API](#13-command-line-and-api)
+14. [Privacy and safety](#14-privacy-and-safety)
+15. [Known limits](#15-known-limits)
 
 ---
 
@@ -71,9 +72,10 @@ when it starts, so a later edit never quietly changes a saved result.
    `%LOCALAPPDATA%\Programs\PatentForge Lite`.
 3. Launch from the Start menu or the desktop shortcut.
 
-Windows SmartScreen may show "Windows protected your PC" on a freshly published installer. Click
-**More info → Run anyway** if the publisher reads **Scott Converse**. That prompt is reputation,
-not a bad signature.
+Windows SmartScreen will show "Windows protected your PC" for this candidate, because nothing in
+it is signed or notarised. Click **More info → Run anyway**. Do not expect a publisher name: an
+unsigned file has no verified publisher, so the prompt reports an unknown publisher. The signed
+v0.1.0 release is the only Windows build with a verified publisher.
 
 ### macOS and Linux
 
@@ -323,7 +325,55 @@ repair prompt would be a bug.
 
 ---
 
-## 8. History and versions
+## 8. Editing, revisions and regeneration
+
+A completed run is immutable. What you edit is a **document revision**: a numbered, stored
+copy derived from a completed run of that document kind.
+
+### Edit and save a revision
+
+1. Open **Analysis** and select the stage whose text you want to change.
+2. The editing field holds the run's text; use **Load run text** to reload it.
+3. Edit, write a short note, and choose **Save revision**. The new revision is numbered in
+   that document's series and anchored to the run it came from.
+4. **List revisions** shows the series in order, each row naming its version and base run.
+
+An empty revision is refused: a stored revision always has text.
+
+### Compare revisions
+
+Every revision row offers **Compare vN with v(N-1)**. The comparison is a deterministic line
+diff — the same two texts always produce the same output — and the notice reports how many
+lines were added and removed. A comparison too large for an exact diff says so rather than
+stalling.
+
+### Choose what compliance reviews
+
+On the compliance panel, pick a specific claims or application revision. The run records the
+revision it examined, and the report names it. A package only carries compliance findings that
+match the revisions it exports, so a review of an older draft never travels with a newer one.
+
+### Regenerate from here onward
+
+**Regenerate from vN** re-runs the chosen stage and every later stage of that workflow, carrying
+the earlier stages unchanged from the base run. It is **suffix only**: the interface never
+offers a single-stage regenerate. The new run is the next version, and the base run is never
+modified. On Cloud, a regeneration asks for paid approval again rather than reusing the
+approval given to the original run.
+
+### Export a package
+
+**Export package** writes Markdown, HTML, Word and CSV files plus `manifest.json` into the
+directory you name. The manifest records each revision's identity, the reference count, a
+SHA-256 for every file, and the compliance run whose findings are included. The directory must
+be empty: an export never overwrites an existing package.
+
+### Pick a local model
+
+**List installed models** asks the configured runtime what it actually has and fills the model
+field from that list. It reports the count, says plainly when the runtime holds no models, and
+says when the runtime cannot be reached — an unreachable runtime is never shown as an empty one.
+## 9. History and versions
 
 **History** lists every saved run for the selected project, newest first: version, analysis,
 checkpoints, provider, timestamp and outcome.
@@ -337,7 +387,7 @@ are stored with it.
 
 ---
 
-## 9. Keyboard shortcuts
+## 10. Keyboard shortcuts
 
 | Keys | Action |
 | --- | --- |
@@ -352,7 +402,7 @@ alone. On macOS substitute `Cmd` for `Ctrl` where your platform expects it.
 
 ---
 
-## 10. Your data: backup, reset, uninstall
+## 11. Your data: backup, reset, uninstall
 
 **Back up:** close the application, then copy the whole `patent-forge-lite` directory (database,
 lock file, and any WAL sidecars). That directory is the entirety of your workspace.
@@ -369,7 +419,7 @@ you also want the data gone.
 
 ---
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
@@ -395,7 +445,7 @@ you can report.
 
 ---
 
-## 12. Command line and API
+## 13. Command line and API
 
 `pfl-cli` **is not included in the Windows installer** — build it from source:
 
@@ -446,7 +496,7 @@ JSON array. A failed search is an error, never an empty result.
 
 ---
 
-## 13. Privacy and safety
+## 14. Privacy and safety
 
 - **Nothing leaves the machine in replay mode.** No network calls at all.
 - **Local mode** talks only to the endpoint you configure. Keep it on loopback unless you have a
@@ -463,7 +513,7 @@ JSON array. A failed search is an error, never an empty result.
 
 ---
 
-## 14. Known limits
+## 15. Known limits
 
 - Windows, macOS and Linux candidate builds are **unsigned**. The accepted v0.1.0 Windows release was signed with Azure Trusted Signing; a new revision is not signed without approval.
 - macOS and Linux are offered as **artifacts**, not verified support: no installed or interactive
@@ -471,12 +521,15 @@ JSON array. A failed search is an error, never an empty result.
 - Cloud execution is **available in the desktop** with a session-only key and per-run paid approval; `pfl-cli serve` remains **replay-only**.
 - `pfl-cli` is **not bundled** in the installer.
 - No installed/interactive acceptance has been performed on macOS or Linux yet.
-- Real-invention runs are **Local-only**: replay is synthetic by construction and Cloud is not
-  selectable, so on-machine inference is the only path for a real invention.
+- Real-invention runs are **Local-only**: replay is synthetic by construction, Cloud refuses real
+  data, and prior-art search refuses it too, so on-machine inference is the only path for a real
+  invention.
 - A provider stream that ends before its terminal frame is recorded as **Truncated**, never as
   Completed; the partial text is not committed as a result.
 - Cloud inference is fail-closed and has only been verified against a mock, not a live endpoint.
-- Live research is USPTO PatentsView with a session-only key and per-run opt-in; the generic HTTP\n  contract and the fixture source remain for local use. No live query has been verified from this\n  build yet, so treat retrieval as unproven until one is.
+- Live research is USPTO PatentsView with a session-only key and per-run opt-in; the generic HTTP
+  contract and the fixture source remain for local use. No live query has been verified from this
+  build yet, so treat retrieval as unproven until one is.
 - There is no tray-resident background mode: closing the window closes the application, and a second launch is refused (exit code 3) because only one instance may write to the workspace.
-- Real PatentForge data migration is intentionally not in this version.
+- Real PatentForge data migration is **not enabled**: the importer is proven on a synthetic fixture only, and importing a real database needs explicit authorization. The preview, credential redaction and re-runnability are implemented and tested.
 - A single user profile per machine; there is no multi-user or team mode.

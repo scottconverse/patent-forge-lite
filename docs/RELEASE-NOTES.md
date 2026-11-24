@@ -1,7 +1,9 @@
 # Candidate 0.2.0 — built, not released
 
-Built from revision `27dbd52`. Nothing here is published, tagged or signed; the artifact
-and its SHA-256 are recorded in `docs/RELEASE-MANIFEST.md`.
+Built from revision `9e5d168`. Nothing here is published, tagged or signed; the artifact
+and its SHA-256 are recorded in `docs/RELEASE-MANIFEST.md`. The release workflow publishes
+`docs/RELEASE-NOTES-<version>.md` and refuses when it is missing, so this file is the draft
+record rather than a fallback.
 
 ## New since 0.1.0
 
@@ -37,8 +39,8 @@ and its SHA-256 are recorded in `docs/RELEASE-MANIFEST.md`.
 - A migration of a real legacy database (needs authorization and a copy).
 - Installed acceptance on macOS and Linux (no hardware); see `docs/PLATFORM-RUNBOOK.md`.
 - HTTP write endpoints; only the read surface is verified (`docs/API-CONTRACTS.md`).
-- Nav items are announced as buttons that assistive technology cannot press — a known,
-  tracked defect.
+- Nav items are announced as tabs with a selectable action, measured in the window; the
+  defect this file used to list here is closed.
 # PatentForge Lite 0.1.0
 
 The first public release: a standalone, native patent research and drafting workspace.

@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 95 |
+| pass | 96 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -67,6 +67,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | A save refused because a request is in flight says so, and every button action repaints so the notice is visible | unit (`gate_tests`) + code | pass — F-029 |
 | CI runs the gate on every push and pull request, and a release tag cannot publish untested code | workflow config (`native-manual.yml`, `release.yml` verify job) | pass — F-036 |
 | The acceptance check compares the matrix revision and hashes with the release manifest, refuses a restated HANDOFF count, and scans the reader-facing documents | run (`acceptance-check`, 10 checks) | pass — F-038 |
+| The user manual, README, STATUS and the published page describe this build: Cloud selectable, migration implemented-but-not-enabled, unsigned candidate, revisions and regeneration documented | review | pass — F-040, F-041, F-042, F-044 |
 | The revision diff trims the common prefix and suffix and caps the table, reporting an approximate comparison instead of allocating | unit (`bounds_tests`) | pass — F-022 |
 | References reach the model with title, assignee and dates, under the heading the prompt acts on; the prompt version records the change | unit (`reference_tests`) + `providers` | pass — F-027 |
 | The claim validator is bounded: a huge range cannot hang it and a claim number beyond the maximum is reported | unit (`parser_tests`) | pass — F-023 |
@@ -153,7 +154,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | The release workflow builds the requested tag, versions the installer from it, requires versioned notes, and refuses to overwrite a published release without `replace: true` (never rewriting notes) | review + YAML parse | pass — F-005, F-006 |
 | Windows install, upgrade, rollback, uninstall, data retained | run, 11/11 twice | pass — `docs/evidence/upgrade/` |
 | Signature status recorded truthfully | review + `Get-AuthenticodeSignature` | pass — v0.1.0 signed; candidate unsigned |
-| Licence metadata agrees with the committed licence | run, `cargo metadata` reports MIT | pass |
+| Licence metadata agrees with the committed licence | run, `cargo metadata` reports MIT for every crate (`license` field, not only a metadata key) | pass — F-045 |
 | macOS and Linux artifacts from this revision | — | **blocked — hardware**; runbook delivered |
 | macOS and Linux installed acceptance | — | **blocked — hardware** — `docs/PLATFORM-RUNBOOK.md` |
 | Documentation agreement at this revision | review | **open** — F-040 to F-048 are being worked; this row flips to pass when that block closes |

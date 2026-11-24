@@ -50,15 +50,17 @@ Barlow type. Reports open as a document — not raw markdown.
 [Releases](https://github.com/scottconverse/patent-forge-lite/releases), run it, done. Per-user
 install, no administrator rights. Uninstalling does **not** delete your projects.
 
-The Windows installer is Authenticode-signed with Azure Trusted Signing (publisher **Scott
-Converse**). The pipeline fails closed if the signature does not verify, and the installer embeds
-the signed application binary.
+The published v0.1.0 installer is Authenticode-signed with Azure Trusted Signing (publisher
+**Scott Converse**), and the pipeline fails closed if the signature does not verify. The 0.2.0
+candidate in this repository is **unsigned**: its hash is recorded in
+[`docs/RELEASE-MANIFEST.md`](docs/RELEASE-MANIFEST.md), and SmartScreen will report an unknown
+publisher for it.
 
 **macOS / Linux** — download the archive for your platform from Releases and see
 [the user manual](docs/USER-MANUAL.md#macos-and-linux) for the two commands it takes. These
 builds are **unsigned**, so macOS Gatekeeper needs a right-click → Open the first time.
 
-> **Platform support is not equal.** Windows has installed, interactive, signed acceptance.
+> **Platform support is not equal.** Windows has installed, interactive acceptance (signed for v0.1.0).
 > macOS and Linux have published, compiled artifacts and a passing test suite — but **no installed
 > or interactive acceptance has been performed on either**, so they are offered as artifacts, not
 > as verified support.
@@ -70,7 +72,7 @@ open "Patent Forge Lite.app"
 
 # Linux (x86_64)
 tar xzf patent-forge-lite-<version>-linux-x64.tar.gz
-./patent-forge-lite/pfl-desktop
+./patent-forge-lite-v<version>-linux-x64/pfl-desktop
 ```
 
 ## First five minutes
@@ -120,14 +122,14 @@ Real-data migration is a later, opt-in, copy-first operation.
 ## Development
 
 ```bash
-cargo test --workspace            # 104 tests
+cargo test --workspace            # the suite; the count is in docs/ACCEPTANCE.md
 cargo clippy --workspace --all-targets -- -D warnings
 cargo build -p pfl-desktop --features native
 cargo run   -p pfl-cli -- pipeline --workspace ./synthetic
 ```
 
 Crates: `pfl-domain` (contracts), `pfl-storage` (SQLite), `pfl-workflow` (four workflows, providers,
-research seam), `pfl-api` (compatibility HTTP surface), `pfl-desktop` (GPUI), `pfl-cli` (harness:
+research with per-run opt-in), `pfl-api` (compatibility HTTP surface), `pfl-desktop` (GPUI), `pfl-cli` (harness:
 `replay`, `import-replay`, `pause-fixture`, `resume`, `pipeline`, `serve`, `live`, `inspect`).
 
 `pfl-cli` is **not included in the Windows installer**. Build it from source with
@@ -155,7 +157,7 @@ report rendering and shortcuts. `scripts/preflight.ps1` verifies a build before 
 | macOS / Linux packages | Built and published **unsigned** |
 | Live local inference | Verified on one model (`phi4-mini`), all four workflows |
 | Live Cloud inference | Fail-closed; verified against a mock only |
-| Live prior-art research | Seam and fixture source only — no external provider |
+| Live prior-art research | USPTO PatentsView with a per-run opt-in; verified against a loopback stand-in, no live query yet |
 
 The full inventory is [docs/STATUS.md](docs/STATUS.md); every check and its evidence is
 [docs/BUILD-EVIDENCE.md](docs/BUILD-EVIDENCE.md).

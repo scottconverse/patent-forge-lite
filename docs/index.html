@@ -285,7 +285,7 @@ open "Patent Forge Lite.app"</pre>
         <div class="state">Unsigned · artifacts only</div>
         <p class="small">Extract and run. Needs a working GPU and the usual desktop libraries.</p>
         <pre>tar xzf patent-forge-lite-0.1.0-linux-x64.tar.gz
-./patent-forge-lite/pfl-desktop</pre>
+./patent-forge-lite-v0.1.0-linux-x64/pfl-desktop</pre>
       </div>
     </div>
     <p class="small muted" style="margin-top:22px">
@@ -299,7 +299,7 @@ open "Patent Forge Lite.app"</pre>
   <div class="wrap">
     <div class="section-head">
       <h2>Status, honestly</h2>
-      <p>This is a 0.1.0 release. Here is exactly what has been proven and what has not.</p>
+      <p>v0.1.0 is the published release. The repository also carries a 0.2.0 candidate whose installer is unsigned; its hash is in the release manifest. This page separates what has been proven from what has not.</p>
     </div>
     <table>
       <thead><tr><th>Area</th><th>State</th></tr></thead>
@@ -310,8 +310,8 @@ open "Patent Forge Lite.app"</pre>
         <tr><td>macOS &amp; Linux desktop</td><td><span class="part">Compiles and passes tests in CI; no interactive acceptance yet</span></td></tr>
         <tr><td>macOS &amp; Linux packages</td><td><span class="part">Published unsigned; no installed or interactive acceptance yet</span></td></tr>
         <tr><td>Local inference</td><td><span class="ok">Verified against Ollama on one model</span></td></tr>
-        <tr><td>Cloud inference</td><td><span class="part">Adapter fail-closed, mock-verified; <strong>not selectable in the desktop</strong></span></td></tr>
-        <tr><td>Live prior-art research</td><td><span class="part">Seam only — no external provider yet</span></td></tr>
+        <tr><td>Cloud inference</td><td><span class="part">Selectable in the desktop with a session-only key and per-run paid approval; verified against a loopback stand-in, not a live endpoint</span></td></tr>
+        <tr><td>Live prior-art research</td><td><span class="part">USPTO PatentsView with a session-only key and per-run opt-in; no live query verified yet</span></td></tr>
       </tbody>
     </table>
     <div class="notice" style="margin-top:26px">

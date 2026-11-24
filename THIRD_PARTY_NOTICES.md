@@ -11,10 +11,11 @@ notice is intentionally retained, not an application identity or installation
 instruction. The same research-only, no-legal-advice limitations apply to
 Patent Forge Lite and its generated output.
 
-`LICENSE` preserves the upstream source grant; it does not silently select a
-new application-wide license for independently written Patent Forge Lite code.
-No Cargo package currently declares a new source license. Prompt licensing is
-separate from source licensing and cannot be replaced with MIT.
+`LICENSE` is the application licence: **MIT**, declared as `license = "MIT"` in
+`Cargo.toml` and inherited by every crate, so `cargo metadata` reports it for the
+workspace. Prompt templates are licensed separately under CC BY-SA 4.0
+(`LICENSE-PROMPTS`); that licence governs the prompt files only and is not
+replaceable with MIT, but it does not change the source licence of the application.
 
 The workflow prompt directory records exact source paths, hashes, retained
 disclaimers and any changes. Original stage and common-rule text must not be

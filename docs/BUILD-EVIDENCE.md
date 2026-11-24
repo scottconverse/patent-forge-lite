@@ -1292,3 +1292,27 @@ which are now corrected.
 
 F-039: HANDOFF restated the pass count and had fallen behind. It now points at the summary table,
 and the check refuses a restated count.
+## Audit Majors F-040, F-041, F-042, F-044, F-045 fixed (2026-11-24)
+
+F-040: the user manual claimed version 0.1.0, said Cloud was not selectable, that migration was
+"not in this version", and that SmartScreen would show a publisher — for an unsigned candidate.
+It also had a literal `\n` and no section on the work added since Phase B. The version and claims
+are corrected, the literal newline removed, and a new section 8 covers editing, revisions,
+comparison, compliance selection, regeneration, package export and the model picker. Sections
+after it are renumbered consistently.
+
+F-041: README said 104 tests, called research a "seam only", and described the installer as
+signed without mentioning the unsigned candidate; the install command assumed a directory name
+the archive does not use. STATUS restated a dated count and a fixture-only research row. STATUS is
+now a pointer to the matrix, and the site's "not selectable" and "Seam only" rows are corrected.
+
+F-042: the release notes cited `27dbd52` and still listed the navigation defect as open. Both
+corrected, and the notes say the versioned file is what the workflow publishes.
+
+F-044: the archive extracts to `patent-forge-lite-v<version>-linux-x64/`; the README, manual and
+site now show that path instead of `patent-forge-lite/`.
+
+F-045: no crate declared a licence, so "cargo metadata reports MIT" reflected only a metadata key,
+and THIRD_PARTY_NOTICES said no source licence was declared. `license = "MIT"` is in
+`[workspace.package]` and inherited by all six crates; the notices, LICENSE-PROMPTS scope and the
+prompt provenance sentence are corrected.

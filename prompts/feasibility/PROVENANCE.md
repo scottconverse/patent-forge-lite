@@ -22,6 +22,7 @@ common/stage1..6 order; it is intentionally not an individual file checksum.
 The first-slice intake preserves title, description and all nine original
 optional invention fields in their original narrative labels/order, omitting
 blank values and trimming nonblank values. Technical field is appended as a
-separate additional label, not substituted for legacy context. Research is disabled
-for this slice, so no live prior-art section is inserted. Recorded responses
+separate additional label, not substituted for legacy context. Research is opt-in per run:
+without an explicit opt-in no prior-art section is inserted; with one, the recorded
+references are rendered under "USPTO Prior Art Results". Recorded responses
 are newly authored synthetic acceptance fixtures, not copied model outputs.
