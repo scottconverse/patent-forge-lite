@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 88 |
+| pass | 89 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -53,6 +53,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
 | `inspect` opens read-only and refuses a missing database; `settings` takes the window's profile lock | unit + code | pass — F-018 |
+| Storage refuses a checkpoint whose stage belongs to another workflow | unit (`persistence`) | pass — F-033 |
 | A legacy row storing null for an optional context field imports instead of rolling back | integration (`migration`) | pass — F-030 |
 | Credential redaction covers provider-named keys, private keys, credentials, auth headers and URL userinfo; a bare key column is not redacted | unit (`credential_tests`) | pass — F-031 |
 | A gapped legacy run is refused with a named reason and nothing partial is imported | integration (`migration`) | pass — F-034 |

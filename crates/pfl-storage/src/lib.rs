@@ -618,6 +618,14 @@ impl Store for SqliteStore {
                 }
                 return Err(db("checkpoint has no durable event"));
             }
+            // Stage numbers repeat across workflows, so the number alone does not say this
+            // checkpoint belongs to this run: a Claims run could otherwise be completed with
+            // Feasibility checkpoints by a caller other than the driver.
+            if checkpoint.stage.kind() != run.input.kind {
+                return Err(Error::Conflict(
+                    "checkpoint does not belong to this run's workflow".into(),
+                ));
+            }
             if checkpoint.stage.number() != run.checkpoints.len() + 1 {
                 return Err(Error::Conflict("checkpoints must commit in stage order".into()));
             }

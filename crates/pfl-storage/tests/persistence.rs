@@ -720,3 +720,31 @@ fn a_read_only_open_refuses_a_missing_database_and_never_creates_one() {
     let read_only = SqliteStore::open_read_only(&existing).unwrap();
     assert!(read_only.list_projects().unwrap().is_empty());
 }
+
+/// A checkpoint from another workflow must not be committed into a run: stage numbers repeat
+/// across workflows, so the number alone does not identify the claim set.
+#[test]
+fn a_checkpoint_from_another_workflow_is_refused() {
+    let store = SqliteStore::in_memory().unwrap();
+    store.create_project(&project()).unwrap();
+    let mut run_request = request();
+    run_request.input.kind = WorkflowKind::Claims;
+    let run = store.create_run(&run_request).unwrap();
+    let attempt = store.begin_attempt(&run.id, 3).unwrap();
+    // Stage 1 of feasibility has the same number as stage 1 of claims.
+    let foreign = Checkpoint {
+        stage: Stage::TechnicalRestatement,
+        attempt_id: attempt.id.clone(),
+        text: "feasibility text".into(),
+        usage: Usage::default(),
+        completed_at_ms: 1_100,
+    };
+    let error = store
+        .commit_checkpoint(&run.id, &attempt.id, &foreign)
+        .expect_err("a checkpoint from another workflow must be refused");
+    assert!(
+        error.to_string().contains("does not belong"),
+        "the refusal should name the workflow mismatch, got: {error}"
+    );
+    assert!(store.run(&run.id).unwrap().checkpoints.is_empty());
+}

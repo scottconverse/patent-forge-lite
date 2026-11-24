@@ -1235,3 +1235,10 @@ F-034: a comment claimed gapped legacy checkpoints are "preserved in the archive
 refuses the import and rolls the archive back with it. The comment now says what happens, and a
 test deletes a stage, asserts the refusal names the gap, and asserts nothing partial was
 imported.
+## Audit Major F-033 fixed (2026-11-24)
+
+`commit_checkpoint` checked only that the stage number was the next one, and stage numbers
+repeat across workflows, so a caller other than the driver could complete a Claims run with
+Feasibility checkpoints. The storage boundary now refuses a checkpoint whose
+`stage.kind()` is not the run's workflow kind. The test creates a claims run and commits a
+feasibility stage 1 into it: refused, with no checkpoint left behind.
