@@ -1187,3 +1187,20 @@ starts only at `N. `, continuation lines fold into the claim above, matching is 
 boundaries, `or` / `to` / en-dash ranges parse, and a dependent claim naming several parents
 without the alternative is flagged. Seven tests cover those cases, including that a huge range
 returns in well under a second.
+## Audit Majors F-022 and F-027 fixed (2026-11-24)
+
+F-022: `diff_text` allocated a full (a+1)x(b+1) LCS table, so two 5,000-line revisions needed
+about 200 MB per pair, and the revisions panel built one for every adjacent pair while
+rendering. The common prefix and suffix are now trimmed first, the table is capped at four
+million cells, and beyond the cap the middle is reported coarsely with `oversized` set. The
+panel's notice says the comparison is approximate. Tests cover a one-line edit inside 5,000
+lines, an identical 10,000-line text, and a 3,000-against-3,000 change that must return in
+under two seconds.
+
+F-027: references reached the model as "- **10123456**: " under a heading the prompt did not
+recognise, so opted-in research added almost nothing. Each reference now renders with its
+number, title, assignee and grant/filing dates under "USPTO Prior Art Results", the heading
+`prompts/feasibility/stage-2.md` acts on, and the prompt versions are bumped to v2 to record
+the change. Resume compares the whole prompt snapshot, so a run interrupted under different
+instructions is not silently continued under new ones; the test that pinned v1 now pins v2 and
+says why.

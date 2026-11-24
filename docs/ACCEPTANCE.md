@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 80 |
+| pass | 82 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -53,6 +53,8 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Whether a run may start is one pure decision with text for every refusal, tested in order | unit (`gate_tests`, 5 tests) | pass |
 | The Cloud key never reaches the persisted database | integration (`cloud_consent`, byte scan proven against a known value) | pass |
 | `inspect` opens read-only and refuses a missing database; `settings` takes the window's profile lock | unit + code | pass — F-018 |
+| The revision diff trims the common prefix and suffix and caps the table, reporting an approximate comparison instead of allocating | unit (`bounds_tests`) | pass — F-022 |
+| References reach the model with title, assignee and dates, under the heading the prompt acts on; the prompt version records the change | unit (`reference_tests`) + `providers` | pass — F-027 |
 | The claim validator is bounded: a huge range cannot hang it and a claim number beyond the maximum is reported | unit (`parser_tests`) | pass — F-023 |
 | The claim parser treats only `N. ` as a claim heading, folds wrapped lines, uses word boundaries, and parses `or`/`to`/dash ranges plus multiple dependencies | unit (`parser_tests`) | pass — F-024 |
 | Word parts contain no XML-illegal control characters; parsed from `word/document.xml` after an export with an escape and a form feed | unit (`package`) | pass — F-025 |

@@ -11,7 +11,7 @@ struct PromptSet {
 }
 
 const FEASIBILITY: PromptSet = PromptSet {
-    version: "patentforge-7a3200c-feasibility-v1",
+    version: "patentforge-7a3200c-feasibility-v2",
     common: include_str!("../../../prompts/feasibility/common-rules.md"),
     stages: &[
         include_str!("../../../prompts/feasibility/stage-1.md"),
@@ -32,7 +32,7 @@ const FEASIBILITY: PromptSet = PromptSet {
 };
 
 const CLAIMS: PromptSet = PromptSet {
-    version: "patentforge-7a3200c-claims-v1",
+    version: "patentforge-7a3200c-claims-v2",
     common: include_str!("../../../prompts/claims/common-rules.md"),
     stages: &[
         include_str!("../../../prompts/claims/planner.md"),
@@ -49,7 +49,7 @@ const CLAIMS: PromptSet = PromptSet {
 };
 
 const COMPLIANCE: PromptSet = PromptSet {
-    version: "patentforge-7a3200c-compliance-v1",
+    version: "patentforge-7a3200c-compliance-v2",
     common: include_str!("../../../prompts/compliance/common-rules.md"),
     stages: &[
         include_str!("../../../prompts/compliance/written-description.md"),
@@ -66,7 +66,7 @@ const COMPLIANCE: PromptSet = PromptSet {
 };
 
 const APPLICATION: PromptSet = PromptSet {
-    version: "patentforge-7a3200c-application-v1",
+    version: "patentforge-7a3200c-application-v2",
     common: include_str!("../../../prompts/application/common-rules.md"),
     stages: &[
         include_str!("../../../prompts/application/background.md"),
@@ -178,7 +178,32 @@ fn prior_art_context(upstream: &Upstream) -> String {
         .prior_art
         .iter()
         .filter(|item| !item.reference.trim().is_empty() || !item.relevance.trim().is_empty())
-        .map(|item| format!("- **{}**: {}", item.reference.trim(), item.relevance.trim()))
+        .map(|item| {
+            // A bare number is not evidence the model can weigh: name the record, who holds
+            // it and when it published, and describe it when a description was recorded.
+            let mut parts = vec![format!("- **{}**", item.reference.trim())];
+            if !item.title.trim().is_empty() {
+                parts.push(item.title.trim().to_string());
+            }
+            let mut details: Vec<String> = Vec::new();
+            if !item.assignee.trim().is_empty() {
+                details.push(item.assignee.trim().to_string());
+            }
+            // Grant date first, then filing date: the two dates a searcher actually uses.
+            for date in [&item.grant_date, &item.filing_date] {
+                if !date.trim().is_empty() {
+                    details.push(date.trim().to_string());
+                }
+            }
+            if !details.is_empty() {
+                parts.push(format!("({})", details.join(", ")));
+            }
+            let mut line = parts.join(" — ");
+            if !item.relevance.trim().is_empty() {
+                line.push_str(&format!(": {}", item.relevance.trim()));
+            }
+            line
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -207,7 +232,7 @@ pub fn user(stage: Stage, input: &RunInput, outputs: &BTreeMap<Stage, String>) -
                     // given verbatim, and no invented sources are ever added.
                     if !upstream.prior_art.is_empty() {
                         text.push_str(&format!(
-                            "\n\n## Supplied prior-art references\n\n{prior_art}"
+                            "\n\n## USPTO Prior Art Results\n\nVerified USPTO patent records retrieved for this invention.\n\n{prior_art}"
                         ));
                     }
                     text
@@ -314,5 +339,57 @@ pub fn user(stage: Stage, input: &RunInput, outputs: &BTreeMap<Stage, String>) -
                 _ => unreachable!("application stage expected"),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod reference_tests {
+    use super::prior_art_context;
+    use pfl_domain::{PriorArtItem, Upstream};
+
+    fn item() -> PriorArtItem {
+        PriorArtItem {
+            reference: "10123456".into(),
+            title: "Container with temperature indicator".into(),
+            assignee: "Acme Sensors".into(),
+            grant_date: "2022-05-17".into(),
+            source: "USPTO PatentsView".into(),
+            publication_number: "10123456".into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_reference_reaches_the_model_with_its_record_not_just_a_number() {
+        let upstream = Upstream {
+            prior_art: vec![item()],
+            ..Default::default()
+        };
+        let rendered = prior_art_context(&upstream);
+        assert!(rendered.contains("10123456"));
+        assert!(rendered.contains("Container with temperature indicator"));
+        assert!(rendered.contains("Acme Sensors"));
+        assert!(rendered.contains("2022-05-17"));
+    }
+
+    #[test]
+    fn a_reference_without_a_title_still_renders() {
+        let upstream = Upstream {
+            prior_art: vec![PriorArtItem {
+                reference: "US10234567B2".into(),
+                relevance: "same container".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let rendered = prior_art_context(&upstream);
+        assert!(rendered.contains("US10234567B2"));
+        assert!(rendered.contains("same container"));
+    }
+
+    #[test]
+    fn no_references_says_so_rather_than_printing_a_heading() {
+        let rendered = prior_art_context(&Upstream::default());
+        assert_eq!(rendered, "No prior art search results available.");
     }
 }

@@ -368,9 +368,11 @@ async fn every_workflow_prompt_carries_the_upstream_legal_disclaimers() {
         assert_eq!(prompts::snapshot(kind).sha256.len(), 64);
         assert!(!prompts::snapshot(kind).version.is_empty());
     }
-    // Feasibility keeps its original aggregate hash, so persisted runs still authorize.
+    // The version moves when the user-message composition changes, and resume compares the
+    // whole snapshot: a run interrupted under one set of instructions is never silently
+    // continued under another. v2 records the prior-art section change.
     assert_eq!(
         prompts::snapshot(WorkflowKind::Feasibility).version,
-        "patentforge-7a3200c-feasibility-v1"
+        "patentforge-7a3200c-feasibility-v2"
     );
 }

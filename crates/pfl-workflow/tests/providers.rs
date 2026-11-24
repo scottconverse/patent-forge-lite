@@ -256,10 +256,12 @@ async fn supplied_research_reaches_the_prior_art_stage_and_is_snapshotted() {
         prior_art_request.user_prompt.contains("US 7654321 B2"),
         "supplied references must reach the prior-art stage"
     );
+    // The heading is the one the feasibility prompt acts on, and the record travels with it.
     assert!(
         prior_art_request
             .user_prompt
-            .contains("Supplied prior-art references")
+            .contains("USPTO Prior Art Results"),
+        "the prior-art section must use the heading the prompt recognises"
     );
     // Unauthorized research never queries the source and yields no references.
     let quiet: Arc<dyn ResearchSource> = Arc::new(FixtureResearchSource::new(vec![PriorArtItem {

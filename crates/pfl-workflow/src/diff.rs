@@ -24,13 +24,88 @@ pub struct RevisionDiff {
     pub lines: Vec<DiffLine>,
     pub added: usize,
     pub removed: usize,
+    /// True when the changed region was too large for an exact comparison.
+    #[serde(default)]
+    pub oversized: bool,
 }
 
+/// Largest LCS table this diff will allocate. Two 5,000-line revisions would otherwise need
+/// roughly 200 MB per pair, which a long application draft can reach.
+const MAX_DIFF_CELLS: usize = 4_000_000;
+
 /// Diffs two texts line by line. A trailing newline does not create a phantom line.
+///
+/// The common prefix and suffix are trimmed first, so an edit to a long document costs a
+/// table over the changed region rather than the whole text. Beyond the cap the middle is
+/// reported coarsely (removed, then added) with `oversized` set, so the caller can say the
+/// comparison is approximate instead of allocating until it dies.
 pub fn diff_text(before: &str, after: &str) -> RevisionDiff {
     let a: Vec<&str> = split(before);
     let b: Vec<&str> = split(after);
 
+    let mut start = 0;
+    while start < a.len() && start < b.len() && a[start] == b[start] {
+        start += 1;
+    }
+    let mut end_a = a.len();
+    let mut end_b = b.len();
+    while end_a > start && end_b > start && a[end_a - 1] == b[end_b - 1] {
+        end_a -= 1;
+        end_b -= 1;
+    }
+    let mut lines = Vec::new();
+    let mut added = 0;
+    let mut removed = 0;
+    for line in &a[..start] {
+        lines.push(DiffLine {
+            kind: DiffKind::Same,
+            text: (*line).to_string(),
+        });
+    }
+    let middle_a = &a[start..end_a];
+    let middle_b = &b[start..end_b];
+    let oversized = middle_a
+        .len()
+        .saturating_add(1)
+        .saturating_mul(middle_b.len().saturating_add(1))
+        > MAX_DIFF_CELLS;
+    if !oversized {
+        let (middle, middle_added, middle_removed) = lcs_diff(middle_a, middle_b);
+        lines.extend(middle);
+        added += middle_added;
+        removed += middle_removed;
+    } else {
+        for line in middle_a {
+            lines.push(DiffLine {
+                kind: DiffKind::Removed,
+                text: (*line).to_string(),
+            });
+            removed += 1;
+        }
+        for line in middle_b {
+            lines.push(DiffLine {
+                kind: DiffKind::Added,
+                text: (*line).to_string(),
+            });
+            added += 1;
+        }
+    }
+    for line in &a[end_a..] {
+        lines.push(DiffLine {
+            kind: DiffKind::Same,
+            text: (*line).to_string(),
+        });
+    }
+    RevisionDiff {
+        lines,
+        added,
+        removed,
+        oversized,
+    }
+}
+
+/// The classic table diff, applied to the region that actually changed.
+fn lcs_diff(a: &[&str], b: &[&str]) -> (Vec<DiffLine>, usize, usize) {
     // lcs[i][j] = length of the LCS of a[i..] and b[j..]
     let mut lcs = vec![vec![0usize; b.len() + 1]; a.len() + 1];
     for i in (0..a.len()).rev() {
@@ -87,11 +162,7 @@ pub fn diff_text(before: &str, after: &str) -> RevisionDiff {
         added += 1;
         j += 1;
     }
-    RevisionDiff {
-        lines,
-        added,
-        removed,
-    }
+    (lines, added, removed)
 }
 
 fn split(text: &str) -> Vec<&str> {
@@ -189,5 +260,51 @@ mod tests {
         assert_eq!(added.added, 1);
         let removed = diff_text("line\n", "");
         assert_eq!(removed.removed, 1);
+    }
+}
+#[cfg(test)]
+mod bounds_tests {
+    use super::diff_text;
+
+    #[test]
+    fn a_small_edit_in_a_long_document_is_exact() {
+        let before: String = (1..=5_000).map(|n| format!("line {n}\n")).collect();
+        let after = before.replace("line 2500\n", "line 2500 changed\n");
+        let diff = diff_text(&before, &after);
+        assert!(!diff.oversized, "a one-line edit is inside the cap");
+        assert_eq!(diff.added, 1);
+        assert_eq!(diff.removed, 1);
+        assert_eq!(diff.lines.len(), 5_001);
+    }
+
+    #[test]
+    fn an_enormous_change_reports_coarsely_instead_of_allocating() {
+        // 3,000 lines against 3,000 different lines: the exact table alone would be 9M cells.
+        let before: String = (1..=3_000).map(|n| format!("before {n}\n")).collect();
+        let after: String = (1..=3_000).map(|n| format!("after {n}\n")).collect();
+        let started = std::time::Instant::now();
+        let diff = diff_text(&before, &after);
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(2),
+            "a huge comparison must not stall"
+        );
+        assert!(
+            diff.oversized,
+            "the caller must know the comparison is coarse"
+        );
+        assert_eq!(diff.added, 3_000);
+        assert_eq!(diff.removed, 3_000);
+    }
+
+    #[test]
+    fn identical_texts_produce_only_same_lines_without_a_table() {
+        let text: String = (1..=10_000).map(|n| format!("line {n}\n")).collect();
+        let started = std::time::Instant::now();
+        let diff = diff_text(&text, &text);
+        assert!(!diff.oversized);
+        assert_eq!(diff.added, 0);
+        assert_eq!(diff.removed, 0);
+        assert_eq!(diff.lines.len(), 10_000);
+        assert!(started.elapsed() < std::time::Duration::from_secs(2));
     }
 }

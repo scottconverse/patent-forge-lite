@@ -1674,18 +1674,27 @@ impl Render for Desktop {
                                 ));
                             }
                             if let Some(previous) = previous {
+                                // Bounded by the diff itself: the prefix and suffix are
+                                // trimmed, and an enormous change is reported coarsely rather
+                                // than allocating a table over the whole document.
                                 let comparison = pfl_workflow::diff::diff_text(&previous, &text);
                                 let added = comparison.added;
                                 let removed = comparison.removed;
+                                let coarse = comparison.oversized;
                                 row = row.child(self.button(
                                     format!("compare-v{version}"),
                                     format!("Compare v{version} with v{}", version - 1),
                                     move |this, _, cx| {
                                         this.revision_diff = Some(comparison.clone());
                                         this.state.notice = Some(format!(
-                                            "Diff v{} to v{}: {added} added, {removed} removed",
+                                            "Diff v{} to v{}: {added} added, {removed} removed{}",
                                             version - 1,
-                                            version
+                                            version,
+                                            if coarse {
+                                                ", approximate: these revisions are too large for an exact comparison"
+                                            } else {
+                                                ""
+                                            }
                                         ));
                                         cx.notify();
                                     },
