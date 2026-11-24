@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 123 |
+| pass | 125 |
 | not verified | 1 |
 | blocked — hardware | 2 |
 | blocked — key | 1 |
@@ -182,7 +182,9 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Signature status recorded truthfully | review + `Get-AuthenticodeSignature` | pass — v0.1.0 signed; candidate unsigned |
 | Licence metadata agrees with the committed licence | run, `cargo metadata` reports MIT for every crate (`license` field, not only a metadata key) | pass — F-045 |
 | macOS and Linux artifacts from this revision | — | **blocked — hardware**; runbook delivered |
-| macOS and Linux installed acceptance | — | **blocked — hardware** — `docs/PLATFORM-RUNBOOK.md` |
+| Whole test suite on Apple silicon hardware (M4, macOS 26.5.2, arm64) | run over SSH on a real Mac mini: `cargo test --workspace --locked` | pass — 246 passed, 0 failed, exit 0 |
+| macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded | run on the same Mac: `bundle.sh` with a stub binary | pass — plist read `0.2.0`, then `9.9.9`; `Resources/docs` present, `docs/evidence` absent |
+| macOS installed acceptance | — | **blocked — hardware** — the test host has only Command Line Tools; the GPUI build needs the Metal compiler from full Xcode. `docs/PLATFORM-RUNBOOK.md` |
 | Documentation agreement at this revision | review | pass — the manual, README, STATUS, site, release notes and packaging describe this build; F-040 to F-048 are closed |
 | This matrix checks itself, in CI: counts match rows, evidence paths exist, no stale claims, no single-stage promise | run (`scripts/acceptance-check.ps1`) + CI step | pass — verified to fail on an injected bad count, a missing evidence path and a stale claim |
 

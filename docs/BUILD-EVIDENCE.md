@@ -1530,3 +1530,22 @@ The proof still only launches the rolled-back build; the write-compatibility cla
 storage test that issues v0.1.0's exact positional insert and asserts `runs` has five columns.
 That test is the precise statement the old binary makes, which is why it catches what a launch
 cannot.
+## First run on real Apple silicon (2026-11-24)
+
+A Mac mini on the operator's Tailscale network (**Apple M4, macOS 26.5.2, arm64**) was offered
+for testing, and two claims that had no hardware evidence are now measured on it.
+
+`cargo test --workspace --locked` with a locally installed toolchain (1.100.0, since the pinned
+1.98.1 was not present): **246 passed, 0 failed, exit 0**.
+
+`packaging/macos/bundle.sh` had **never been executed** — it was changed for F-071 (version
+templating) and F-072 (evidence exclusion) and only ever reviewed. Run on the Mac with a stub
+binary so the script itself is what is under test: exit 0, `CFBundleShortVersionString` read
+`0.2.0` for `PFL_VERSION=0.2.0` and `9.9.9` for a second run, `Resources/docs` was present and
+`Resources/docs/evidence` absent. Stub artifacts were deleted afterwards; the scratch clone at
+`~/pfl-audit-20261124-114630` is left in place and is clean.
+
+Installed acceptance on macOS remains blocked, and the reason is now specific rather than
+"hardware": the host has only Command Line Tools, and GPUI's build needs the Metal compiler that
+ships with full Xcode. GitHub's macOS runner compiles the native target in CI, so the code is
+known to build on arm64; what is still unproven is packaging a real `.app` and driving it.
