@@ -1258,3 +1258,16 @@ already-used sequence and hit the events primary key.
 
 The test compares the stored payload bytes before and after 50 deltas: identical, while the
 sequence column advances by exactly 50.
+## Audit Major F-035 fixed (2026-11-24)
+
+Four contracts had no storage-level test, and three audit findings (F-030, F-033, F-034) lived in
+those gaps. Now covered:
+
+- revisions: sequential versions per kind, listed in order, readable by id, and an empty
+  revision refused;
+- the import preview: reports counts, is read-only (the source bytes are compared before and
+  after), and refuses a missing source;
+- an unknown schema version: a database carrying version 99 is refused rather than opened;
+- importing into a non-empty store: refused, with nothing merged. The migration workspace has
+  its own emptiness guard; the test uses a separate empty work directory so the store-level
+  rule is the one being exercised.

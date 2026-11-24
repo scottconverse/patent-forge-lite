@@ -1,7 +1,8 @@
 use pfl_domain::*;
 use pfl_storage::{
     ImportReceipt, MigrationOptions, MigrationPhase, SqliteStore, migrate_legacy_synthetic,
-    migrate_legacy_synthetic_with_options, write_legacy_synthetic_fixture,
+    migrate_legacy_synthetic_with_options, preview_legacy_synthetic,
+    write_legacy_synthetic_fixture,
 };
 use rusqlite::{Connection, OpenFlags, types::ValueRef};
 use serde_json::{Map, Value};
@@ -505,5 +506,63 @@ fn a_gapped_legacy_run_is_refused_and_nothing_is_imported() {
     assert_eq!(
         leftover, 0,
         "a refused import must not leave a partial project behind"
+    );
+}
+
+/// The preview lists what an import would move, and reading it changes nothing.
+#[test]
+fn the_preview_counts_and_leaves_the_source_untouched() {
+    let dir = tempdir().unwrap();
+    let source = dir.path().join("legacy.sqlite");
+    let _connection = fixture(&source);
+    let before = fs::read(&source).unwrap();
+    let preview = preview_legacy_synthetic(&source).unwrap();
+    assert_eq!(preview.projects, 1);
+    assert!(preview.runs >= 1);
+    // The fixture carries archived rows the importer preserves but does not interpret.
+    assert_eq!(fs::read(&source).unwrap(), before, "a preview is read-only");
+
+    let missing = dir.path().join("absent.sqlite");
+    let error = preview_legacy_synthetic(&missing).unwrap_err();
+    assert!(error.to_string().contains("no legacy database"));
+}
+
+/// Importing into a workspace that already holds projects is refused rather than merged.
+#[test]
+fn importing_into_a_non_empty_workspace_is_refused() {
+    let dir = tempdir().unwrap();
+    let source = dir.path().join("legacy.sqlite");
+    let _connection = fixture(&source);
+    // The store already holds data; the migration workspace itself is a fresh directory, so
+    // only the store-level rule can refuse here.
+    let store_dir = dir.path().join("store");
+    fs::create_dir_all(&store_dir).unwrap();
+    let store = SqliteStore::open(store_dir.join("patent-forge-lite.sqlite")).unwrap();
+    store
+        .create_project(&Project {
+            id: ProjectId("existing".into()),
+            intake: Intake {
+                title: "Existing project".into(),
+                description: "A project that already lives in this workspace.".into(),
+                ..Default::default()
+            },
+            created_at_ms: 1,
+            updated_at_ms: 1,
+        })
+        .unwrap();
+
+    let work = dir.path().join("work");
+    fs::create_dir_all(&work).unwrap();
+    let error = store
+        .import_legacy_synthetic(&source, &work)
+        .expect_err("a non-empty store must be refused");
+    assert!(
+        error.to_string().contains("already holds projects"),
+        "the refusal should name the workspace state, got: {error}"
+    );
+    assert_eq!(
+        store.list_projects().unwrap().len(),
+        1,
+        "nothing was merged"
     );
 }

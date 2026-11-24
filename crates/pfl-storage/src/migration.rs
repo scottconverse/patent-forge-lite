@@ -373,6 +373,17 @@ impl SqliteStore {
                 }
                 return Ok(receipt);
             }
+            // A fresh import must not merge into a workspace that already has projects: the two
+            // sets would share a history with no way to tell them apart. A repeat of the same
+            // source is handled by the ledger above.
+            let existing: i64 = tx
+                .query_row("SELECT count(*) FROM projects", [], |r| r.get(0))
+                .map_err(db)?;
+            if existing > 0 {
+                return Err(Error::Conflict(
+                    "this workspace already holds projects; import into a fresh workspace".into(),
+                ));
+            }
             let receipt = ImportReceipt {
                 source_identity: id.to_string(),
                 projects_imported: records(original, "Project").len(),

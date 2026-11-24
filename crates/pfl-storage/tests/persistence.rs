@@ -803,3 +803,84 @@ fn a_streamed_delta_does_not_rewrite_the_run_payload() {
     let run = store.run(&id).unwrap();
     assert_eq!(run.last_sequence, baseline + 50);
 }
+
+/// Revisions: sequential versions per kind, readable by id, and an empty one refused.
+#[test]
+fn document_revisions_are_versioned_listed_and_readable_by_id() {
+    let store = SqliteStore::in_memory().unwrap();
+    store.create_project(&project()).unwrap();
+    let first = store
+        .save_revision(&DocumentRevision {
+            id: RevisionId("rev-1".into()),
+            project_id: project().id,
+            kind: DocumentKind::Claims,
+            version: 0,
+            text: "1. A container.".into(),
+            note: "first".into(),
+            base_run_id: None,
+            created_at_ms: 1,
+        })
+        .unwrap();
+    assert_eq!(first.version, 1);
+    let second = store
+        .save_revision(&DocumentRevision {
+            id: RevisionId("rev-2".into()),
+            project_id: project().id,
+            kind: DocumentKind::Claims,
+            version: 0,
+            text: "1. A container, edited.".into(),
+            note: "second".into(),
+            base_run_id: None,
+            created_at_ms: 2,
+        })
+        .unwrap();
+    assert_eq!(second.version, 2, "the store assigns the next version");
+
+    let listed = store
+        .revisions(&project().id, DocumentKind::Claims)
+        .unwrap();
+    assert_eq!(listed.len(), 2);
+    assert_eq!(listed[0].id.0, "rev-1");
+    assert_eq!(listed[1].id.0, "rev-2");
+    assert_eq!(
+        store.revision(&second.id).unwrap().text,
+        "1. A container, edited."
+    );
+
+    let refused = store.save_revision(&DocumentRevision {
+        id: RevisionId("rev-3".into()),
+        project_id: project().id,
+        kind: DocumentKind::Claims,
+        version: 0,
+        text: "   ".into(),
+        note: "empty".into(),
+        base_run_id: None,
+        created_at_ms: 3,
+    });
+    assert!(refused.is_err(), "a revision with no text must be refused");
+}
+
+/// A database from a newer Lite build is refused rather than opened and possibly damaged.
+#[test]
+fn an_unknown_schema_version_is_refused() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("future.sqlite3");
+    {
+        let store = SqliteStore::open(&path).unwrap();
+        drop(store);
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute("INSERT INTO schema_migrations(version) VALUES(99)", [])
+            .unwrap();
+    }
+    let error = match SqliteStore::open(&path) {
+        Ok(_) => panic!("a future schema version must be refused"),
+        Err(error) => error,
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("unsupported Lite schema version"),
+        "the refusal should name the version, got: {error}"
+    );
+}
