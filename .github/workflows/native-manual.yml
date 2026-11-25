@@ -60,6 +60,8 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get install -y xvfb mesa-vulkan-drivers libvulkan1 x11-utils
+          # The earlier build is a debug binary for the tests; package a release one.
+          cargo build -p pfl-desktop --features native --release --locked --target ${{ matrix.target }}
           version="$(awk -F'"' '/^version = /{print $2; exit}' Cargo.toml)"
           name="patent-forge-lite-v${version}-linux-x64"
           stage="dist/$name"
