@@ -133,16 +133,28 @@ if (Test-Path $handoffPath) {
 $baseline = if ($env:PFL_FRESHNESS_BASELINE) { $env:PFL_FRESHNESS_BASELINE } else { $manifestRev }
 $shipped = @('crates', 'Cargo.toml', 'Cargo.lock', 'packaging', 'assets', 'prompts')
 $changed = @()
+$known = $false
+$previous = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 if ($baseline -and $head) {
-    $previous = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
+    & git -C $root cat-file -e "$baseline^{commit}" 2>$null
+    $known = ($LASTEXITCODE -eq 0)
+}
+if ($known) {
     $changed = @(& git -C $root diff --name-only "$baseline..$head" -- $shipped 2>$null)
-    $ErrorActionPreference = $previous
-    Record 'the installer is not behind shipped code' ($changed.Count -eq 0) (
-        "(manifest: $baseline, head: $head, changed: $($changed.Count)) " + ($changed | Select-Object -First 5) -join ', '
+}
+$ErrorActionPreference = $previous
+$LASTEXITCODE = 0
+if (-not $known) {
+    # A shallow clone cannot see the manifest's commit. Say so rather than passing: a check that
+    # cannot run must not read as a check that passed.
+    Record 'the installer is not behind shipped code' $false (
+        "(baseline '$baseline' is not in this clone; fetch full history)"
     )
 } else {
-    Record 'the installer is not behind shipped code' $false "(cannot compare: manifest '$manifestRev', head '$head')"
+    Record 'the installer is not behind shipped code' ($changed.Count -eq 0) (
+        "(manifest: $baseline, head: $head, changed: $($changed.Count)) " + (($changed | Select-Object -First 5) -join ', ')
+    )
 }
 # --- Empty tables and stale "being worked" notes -----------------------------------------
 $matrixLines = Get-Content (Join-Path $root 'docs\ACCEPTANCE.md')
@@ -173,14 +185,14 @@ foreach ($relative in $scan) {
     $path = Join-Path $root $relative
     if (-not (Test-Path $path)) { continue }
     $body = Get-Content $path -Raw
-    foreach ($phrase in @('not implemented', 'not selectable', 'not tested yet')) {
+    foreach ($phrase in @('not implemented', 'not selectable', 'not tested yet', 'which is not installed', 'cannot be built on that host')) {
         if ($body -match [regex]::Escape($phrase)) { $staleHits += "$relative : $phrase" }
     }
 }
 Record 'no document says a proven feature is unimplemented' ($staleHits.Count -eq 0) "(found: $($staleHits -join '; '))"
 # Stale language: a row may not call something unimplemented if a pass row proves it.
 $stale = @()
-foreach ($phrase in @('not implemented', 'not tested', 'not selectable')) {
+foreach ($phrase in @('not implemented', 'not tested', 'not selectable', 'which is not installed', 'cannot be built on that host')) {
     if ($text -match [regex]::Escape($phrase)) { $stale += $phrase }
 }
 Record 'no row still says a proven feature is unimplemented' ($stale.Count -eq 0) "(found: $($stale -join ', '))"
@@ -192,4 +204,4 @@ Record 'the document never promises single-stage regeneration' (-not $singleStag
 Write-Host ''
 $failed = @($results.Values | Where-Object { -not $_.pass }).Count
 Write-Host ("RESULT: {0} passed, {1} failed" -f ($results.Count - $failed), $failed)
-if ($failed -gt 0) { exit 1 }
+if ($failed -gt 0) { exit 1 } else { exit 0 }

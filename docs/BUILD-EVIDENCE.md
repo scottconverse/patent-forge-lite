@@ -1649,3 +1649,22 @@ Self-test, run both ways:
 The failing run used `PFL_FRESHNESS_BASELINE`, a variable the check consults only so it can be
 tested; CI never sets it. This is the same shape as the injected bad count and the injected stale
 claim that prove the other checks can fail.
+## The stale sentence cannot come back, and CI can see the baseline (2026-11-25)
+
+The macOS contradiction that persisted until now — a paragraph saying the GUI could not be built,
+directly above the section that built it — is now a checked phrase. `acceptance-check.ps1` scans
+the reader-facing documents for `which is not installed` and `cannot be built on that host`, and
+the self-test proved it fires:
+
+    STATUS.md with the sentence injected  ->  FAIL  (found: docs\STATUS.md : which is not installed;
+                                                       docs\STATUS.md : cannot be built on that host)
+    sentence removed                      ->  13 passed, 0 failed
+
+Running the freshness check in CI exposed a second defect in the check itself. Actions checks out
+a shallow clone, so `git diff <manifest>..HEAD` could not see the manifest's commit: the check
+reported "changed: 0" and passed without comparing anything, while `git diff`'s failure status
+leaked out as the step's exit code, failing all three platforms while printing "13 passed". Both
+halves are fixed: the check now verifies the baseline commit exists and fails loudly when it does
+not ("baseline '…' is not in this clone; fetch full history"), the script exits explicitly, and
+both workflows that run it check out with `fetch-depth: 0`. The absent-baseline path was tested
+with a bogus baseline and returns exit 1 rather than a silent pass.

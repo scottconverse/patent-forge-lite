@@ -63,3 +63,23 @@ automated UI checks against the real native window.
    keeping replay and live results separate.
 3. Decide the packaging/signing policy, then build installers per platform.
 4. Only after that, consider real-data migration and any API cutover.
+
+## Watch items carried forward
+
+These are real and unresolved. None is a defect in a shipped path; each is a decision or a
+measurement that has not been made.
+
+- **Model rates in `cost.rs`** (Claude Opus 15/75, Sonnet 3/15, Haiku 0.8/4 per million tokens) were
+  entered some time ago and not re-checked against current published prices. The approval screen
+  presents them as "Rates applied", so confirm them before any paid release.
+- **Every read runs in an `IMMEDIATE` transaction** with a five-second busy timeout
+  (`crates/pfl-storage/src/lib.rs`). Several pollers on one workspace could contend and hit
+  "database is locked". Not observed under the harness; not measured under load.
+- **Each keystroke clones the document** into a 200-entry undo stack and shifts with
+  `Vec::remove(0)` (`crates/pfl-desktop/src/editor.rs`). Long application drafts will be slower
+  and heavier than they need to be.
+- **The audit's escalation step was never taken**: it recommended an audit-team pass, and that
+  skill is not installed on this machine. The second full review was done by an external reviewer
+  instead.
+- **Version strings disagree**: the crates declare 0.1.0 while the candidate is published as
+  0.2.0 in the manifest and installer. Choosing one is Scott's call.
