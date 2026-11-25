@@ -1571,3 +1571,27 @@ only ever been exercised on Windows and Linux:
 This is not installed acceptance: the GUI still cannot be built on that host, because assembling
 it needs GPUI and therefore the Metal compiler from full Xcode, which is not installed. That row
 stays blocked, and the reason is recorded rather than implied.
+## macOS installed acceptance, finally measured (2026-11-24)
+
+The blocker was never hardware: it was the Metal compiler, which ships only with full Xcode. With
+Xcode 27.2 and Metal Toolchain 27B47 installed on the Mac mini (macOS 27.2.1, Apple M4), the native
+target built here for the first time: a 20 MB Mach-O arm64 binary, then a 21 MB `.app` from
+`bundle.sh` with `CFBundleShortVersionString` 0.2.0 and `docs/evidence` absent.
+
+Installed checks, all on the real bundle:
+
+- `open -n` the `.app`: the process stayed up, wrote its profile at
+  `~/Library/Application Support/patent-forge-lite` (schema v1, `run_sequences` present, zero
+  projects and runs), and quit cleanly through AppleScript.
+- Seeded an existing workspace (1 project, 4 runs) into that profile and launched again: the
+  process stayed up and the counts were unchanged afterwards, which is the macOS counterpart of
+  the Windows proof's "starts on existing data".
+- The profile and every temporary file were removed afterwards; the assembled `.app` is left in
+  the scratch clone at `~/pfl-audit-20261124-114630`.
+
+Still not done, and now for a stated reason rather than "hardware": **interactive UI acceptance**.
+The harness in this repository is PowerShell with UIAutomation and `SendKeys`, which does not
+exist on macOS; driving the window with AppleScript needs an Accessibility grant on that machine,
+which is the operator's to give. So no run was created through the macOS window, and the rollback
+write path remains proven by the storage test that issues v0.1.0's exact statement rather than by
+clicking Start on an old build.
