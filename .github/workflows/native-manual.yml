@@ -54,11 +54,6 @@ jobs:
       - run: cargo build -p pfl-desktop --features native --locked --target ${{ matrix.target }}
       # The acceptance matrix is a document, so it can drift. This makes drift a build
       # failure: counts must match rows, evidence paths must exist, no stale claims.
-      - name: Acceptance matrix consistency
-        shell: pwsh
-        run: ./scripts/acceptance-check.ps1      # Linux has no machine to test on, so the runner is the machine: build the tarball the
-      # release would ship, then start that binary under a virtual display and require it to
-      # stay up. A build that compiles but cannot open is not a usable artifact.
       - name: Linux artifact and headless launch
         if: runner.os == 'Linux'
         shell: bash
@@ -99,3 +94,8 @@ jobs:
           name: linux-tarball
           path: dist/*.tar.gz*
           if-no-files-found: error
+      - name: Acceptance matrix consistency
+        shell: pwsh
+        run: ./scripts/acceptance-check.ps1      # Linux has no machine to test on, so the runner is the machine: build the tarball the
+      # release would ship, then start that binary under a virtual display and require it to
+      # stay up. A build that compiles but cannot open is not a usable artifact.

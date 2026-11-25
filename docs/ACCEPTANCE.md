@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `d373e1d` |
+| Revision | `f1ebd76` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -176,7 +176,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Item | Evidence | Result |
 | --- | --- | --- |
-| One Windows installer from one revision, both profiles, SHA-256 recorded | run | pass — `docs/RELEASE-MANIFEST.md`, revision `d373e1d`, `d7fa794d…`, 12,053,762 bytes, unsigned |
+| One Windows installer from one revision, both profiles, SHA-256 recorded | run | pass — `docs/RELEASE-MANIFEST.md`, revision `f1ebd76`, `bb961ef5…`, 12,060,878 bytes, unsigned |
 | The release workflow builds the requested tag, versions the installer from it, requires versioned notes, and refuses to overwrite a published release without `replace: true` (never rewriting notes) | review + YAML parse | pass — F-005, F-006 |
 | Windows install, upgrade, rollback, uninstall, data retained | run, 11/11 twice | pass — `docs/evidence/upgrade/` |
 | Signature status recorded truthfully | review + `Get-AuthenticodeSignature` | pass — v0.1.0 signed; candidate unsigned |
@@ -200,19 +200,18 @@ The navigation defect is closed: the rail is a tab list, each item is a tab, and
 harness measures it as `TabItem` with `SelectionItemPattern` (38/38).
 ## Decisions that remain Scott's
 
-1. **Next release version.** The installer says 0.2.0 by compile-time override while the
-   crates say 0.1.0. Either bump the crates and re-issue, or keep 0.1.0 and accept that a
-   later revision would reuse a published file name.
-2. **Signing.** Nothing in this candidate is signed; signing a new revision needs approval
-   and a certificate.
-3. **Publication.** The candidate is unpublished. Publishing, tagging and release notes
-   for 0.2.0 are all still to be decided.
+1. **Version — decided: 0.2.1.** The crates, the installer's `AppVersion`, the manifest and
+   `docs/RELEASE-NOTES-0.2.1.md` all say 0.2.1, so the artifact name is no longer an override.
+2. **Signing.** The Windows candidate is unsigned: the signing step has not been run against it.
+   The macOS app cannot be signed at all — there is no Apple certificate — so macOS ships unsigned
+   by policy, not by omission.
+3. **Publication.** Nothing is tagged or published. Publishing and the release notes are a
+   separate decision.
 4. **PatentsView key.** One live query would close the last Phase C row.
 5. **Migration authorization and a real database copy.** That closes Phase E2.
-6. **macOS and Linux hardware.** Without it those rows stay blocked, however good the
-   runbook is.
+6. **Linux.** The artifact and a headless launch are now built and run in CI; a human has still
+   not used it on a desktop.
 7. **The `impl/*` branches.** Keep or prune; deciding is not reversible without their SHAs.
-
 ## What this document does not claim
 
 - That the candidate is installed acceptance on macOS or Linux.
