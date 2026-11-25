@@ -1545,10 +1545,10 @@ binary so the script itself is what is under test: exit 0, `CFBundleShortVersion
 `Resources/docs/evidence` absent. Stub artifacts were deleted afterwards; the scratch clone at
 `~/pfl-audit-20261124-114630` is left in place and is clean.
 
-Installed acceptance on macOS remains blocked, and the reason is now specific rather than
-"hardware": the host has only Command Line Tools, and GPUI's build needs the Metal compiler that
-ships with full Xcode. GitHub's macOS runner compiles the native target in CI, so the code is
-known to build on arm64; what is still unproven is packaging a real `.app` and driving it.
+At that time installed acceptance on macOS was blocked, and the reason was specific rather than
+"hardware": the host had only Command Line Tools, and GPUI's build needs the Metal compiler that
+ships with full Xcode. That block was lifted later the same day once Xcode was installed; the
+section below records the build, bundle and launch that followed.
 ## The non-GUI product exercised on macOS arm64 (2026-11-24)
 
 Beyond the suite and the bundler, the Mac mini ran the whole command-line surface, which had
@@ -1568,15 +1568,20 @@ only ever been exercised on Windows and Linux:
   and never creates one", F-018), and read the real one as one project with four runs.
 - `validate-claims` returned its report.
 
-This is not installed acceptance: the GUI still cannot be built on that host, because assembling
-it needs GPUI and therefore the Metal compiler from full Xcode, which is not installed. That row
-stays blocked, and the reason is recorded rather than implied.
+This was not installed acceptance: at that point the GUI could not be built on that host, because
+assembling it needs GPUI and therefore the Metal compiler from full Xcode, which was not installed.
+That row stayed blocked for the rest of that day, and the reason was recorded rather than implied.
 ## macOS installed acceptance, finally measured (2026-11-24)
 
 The blocker was never hardware: it was the Metal compiler, which ships only with full Xcode. With
-Xcode 27.2 and Metal Toolchain 27B47 installed on the Mac mini (macOS 27.2.1, Apple M4), the native
-target built here for the first time: a 20 MB Mach-O arm64 binary, then a 21 MB `.app` from
+Xcode 27.2 and Metal Toolchain 27B47 installed on the Mac mini, the native target built **locally
+on that machine** for the first time: a 20 MB Mach-O arm64 binary, then a 21 MB `.app` from
 `bundle.sh` with `CFBundleShortVersionString` 0.2.0 and `docs/evidence` absent.
+
+This was not the first time the macOS GUI target compiled anywhere: `native-manual.yml` runs
+`cargo build -p pfl-desktop --features native --locked --target aarch64-apple-darwin` on every
+push, and that job has been green since long before this session. What was new here is a build on
+a machine we control, and an installed `.app` to launch.
 
 Installed checks, all on the real bundle:
 
@@ -1595,3 +1600,52 @@ exist on macOS; driving the window with AppleScript needs an Accessibility grant
 which is the operator's to give. So no run was created through the macOS window, and the rollback
 write path remains proven by the storage test that issues v0.1.0's exact statement rather than by
 clicking Start on an old build.
+## What changed on the test host, and the artifact left behind (2026-11-25)
+
+**The host was upgraded, and that is not cleanup.** The Mac mini started this work on macOS
+26.5.2. Installing Xcode from the App Store required 26.6 or newer, so the machine was updated to
+**27.2.1 (build 26B131)** on 2026-11-24 and Xcode 27.2 was installed afterwards, along with Metal
+Toolchain 27B47 (839 MB). Scott authorised the Xcode install; he did **not** separately approve an
+operating-system upgrade, and this record should be read as reporting one that happened as a
+consequence rather than as a choice he made.
+
+Order of events, so rows can be read in sequence:
+
+| When | Host state | What was measured |
+| --- | --- | --- |
+| 2026-11-24, before the upgrade | macOS 26.5.2 | workspace suite (246 passed) and the stub-binary run of `bundle.sh` |
+| 2026-11-24, after the upgrade | macOS 27.2.1 | native build, real `.app`, fresh-profile launch, existing-workspace launch |
+| 2026-11-25, transcript | macOS 27.2.1 | the committed transcript: suite, build, bundle, both launches, cleanup |
+
+What remains on that machine: `/Applications/Xcode.app` plus the Metal toolchain, the scratch
+clone at `~/pfl-audit-20261124-114630`, and the `.app` described below. Nothing else was installed;
+no Homebrew, no PowerShell, no system-wide package. The application profile the launches created
+was removed, and the machine's real profile was never touched — it did not exist before this work.
+
+**The `.app` is a snapshot, not a release artifact.** Path
+`~/pfl-audit-20261124-114630/packaging/macos/Patent Forge Lite.app`, built from revision
+`bb68c0f` on 2026-11-25, zipped SHA-256
+`e852fc2292ea4e2aaab97f7dbc8062ba3af218dab9a87c671877c495587bc23c`, 21 MB. It is ad-hoc
+linker-signed (`codesign -dv` reports `flags=0x20002(adhoc,linker-signed)`), which is not a
+Developer ID signature and is not notarised, so Gatekeeper will refuse it on another Mac. It will
+not match later code and must be rebuilt for any release.
+
+**The committed transcript.** `docs/evidence/macos/20261125T023619Z/` holds `transcript.txt` (the
+captured session) and `macos.json` (the same facts, structured). It was captured on revision
+`bb68c0f`, and it is the evidence the macOS rows in the matrix cite.
+## The checker can now see a stale installer (2026-11-25)
+
+The matrix and the manifest agreeing proved only that they agreed; the candidate sitting twelve
+commits behind shipped code showed that. `acceptance-check.ps1` gained a thirteenth check: it
+diffs the manifest's revision against HEAD over the paths an installer carries — `crates/`,
+`Cargo.toml`, `Cargo.lock`, `packaging/`, `assets/`, `prompts/` — and fails when any of them
+moved. Docs-only later commits pass.
+
+Self-test, run both ways:
+
+    manifest d373e1d, head bb68c0f  ->  PASS  (changed: 0)
+    baseline 8c51ca1, head bb68c0f  ->  FAIL  (changed: 29, listing crates/pfl-api/src/lib.rs ...)
+
+The failing run used `PFL_FRESHNESS_BASELINE`, a variable the check consults only so it can be
+tested; CI never sets it. This is the same shape as the injected bad count and the injected stale
+claim that prove the other checks can fail.

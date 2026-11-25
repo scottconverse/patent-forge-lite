@@ -125,6 +125,25 @@ if (Test-Path $handoffPath) {
 }
 
 
+
+# --- The installer must not fall behind shipped code --------------------------------------
+# The matrix and the manifest agreeing is not enough: the candidate once sat twelve commits
+# behind code that changed after its build. Fail when anything the installer carries has moved
+# since the manifest's revision. Docs-only later commits are allowed.
+$baseline = if ($env:PFL_FRESHNESS_BASELINE) { $env:PFL_FRESHNESS_BASELINE } else { $manifestRev }
+$shipped = @('crates', 'Cargo.toml', 'Cargo.lock', 'packaging', 'assets', 'prompts')
+$changed = @()
+if ($baseline -and $head) {
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $changed = @(& git -C $root diff --name-only "$baseline..$head" -- $shipped 2>$null)
+    $ErrorActionPreference = $previous
+    Record 'the installer is not behind shipped code' ($changed.Count -eq 0) (
+        "(manifest: $baseline, head: $head, changed: $($changed.Count)) " + ($changed | Select-Object -First 5) -join ', '
+    )
+} else {
+    Record 'the installer is not behind shipped code' $false "(cannot compare: manifest '$manifestRev', head '$head')"
+}
 # --- Empty tables and stale "being worked" notes -----------------------------------------
 $matrixLines = Get-Content (Join-Path $root 'docs\ACCEPTANCE.md')
 $emptyTables = @()

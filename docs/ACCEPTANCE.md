@@ -23,7 +23,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | not verified | 1 |
 | blocked — hardware | 1 |
 | blocked — key | 1 |
-| blocked — authorization | 1 |
+| blocked — authorization | 2 |
 | blocked — harness | 2 |
 | open defect | 0 |
 
@@ -181,16 +181,17 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Windows install, upgrade, rollback, uninstall, data retained | run, 11/11 twice | pass — `docs/evidence/upgrade/` |
 | Signature status recorded truthfully | review + `Get-AuthenticodeSignature` | pass — v0.1.0 signed; candidate unsigned |
 | Licence metadata agrees with the committed licence | run, `cargo metadata` reports MIT for every crate (`license` field, not only a metadata key) | pass — F-045 |
-| macOS and Linux artifacts from this revision | — | **blocked — hardware**; runbook delivered |
-| Whole test suite on Apple silicon hardware (M4, macOS 26.5.2, arm64) | run over SSH on a real Mac mini: `cargo test --workspace --locked` | pass — 246 passed, 0 failed, exit 0 |
-| macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded | run on the same Mac: `bundle.sh` with a stub binary | pass — plist read `0.2.0`, then `9.9.9`; `Resources/docs` present, `docs/evidence` absent |
-| The non-GUI product on macOS arm64: pipeline, revisions, package (md/html/docx/csv/manifest), manifest hashes, re-export refusal, inspect, validate-claims | run on the Mac mini (M4) | pass — 4 workflows/19 stages; 8 package files with 7 manifest hashes all matching; CSV starts with the UTF-8 BOM; `inspect` refuses a missing database |
-| macOS native build and app bundle on real hardware | run on the Mac mini (M4, macOS 27.2.1, Xcode 27.2, Metal toolchain 27B47) | pass — 20 MB Mach-O arm64 binary; `.app` 21 MB, `CFBundleShortVersionString` 0.2.0, `docs/evidence` absent, unsigned |
-| The bundled macOS app launches, creates its profile and quits cleanly | installed on the Mac mini: `open -n` the `.app` | pass — profile written at `~/Library/Application Support/patent-forge-lite` (schema v1, `run_sequences` present, 0 projects), quit via AppleScript |
-| The bundled macOS app opens an existing workspace | installed: seeded 1 project / 4 runs copied into its profile, then launched | pass — process stayed up, counts unchanged after launch |
+| macOS artifact of this revision | — | **blocked — authorization** — an unsigned, unnotarised `.app` of `bb68c0f` exists locally (`e852fc22…`); publishing it is Scott's decision |
+| Linux artifact of this revision | — | **blocked — hardware** — no Linux machine available; runbook delivered |
+| Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24) | run over SSH on a real Mac mini | pass — 246 passed, 0 failed, exit 0; re-run on 27.2.1 in the transcript |
+| macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded — macOS 27.2.1 (2026-11-25) | run on the same Mac: `bundle.sh`, recorded in `docs/evidence/macos/20261125T023619Z/` | pass — plist `0.2.0`; `Resources/docs` present, `docs/evidence` absent |
+| The non-GUI product on macOS arm64 — macOS 27.2.1 (2026-11-25) | run on the Mac mini: pipeline, revisions, package, inspect, validate-claims | pass — 4 workflows/19 stages; 8 package files, 7 manifest hashes matched; CSV starts with the UTF-8 BOM |
+| macOS native build and app bundle on real hardware — macOS 27.2.1, Xcode 27.2 (2026-11-25) | run: transcript `docs/evidence/macos/20261125T023619Z/` | pass — Mach-O arm64 binary; 21 MB `.app`, version `0.2.0`, `docs/evidence` absent, ad-hoc linker-signed (not Developer ID, not notarised) |
+| The bundled macOS app launches, creates its profile and quits cleanly — macOS 27.2.1 (2026-11-25) | installed: `open -n`, recorded in the same transcript | pass — schema v1 with `run_sequences`, 0 projects/runs, quit via AppleScript |
+| The bundled macOS app opens an existing workspace — macOS 27.2.1 (2026-11-25) | installed: seeded 1 project / 4 runs, launched, recorded in the transcript | pass — process alive, counts unchanged; profile removed afterwards |
 | Interactive UI acceptance on macOS (driving the window) | — | **blocked — harness** — the UI harness is PowerShell/UIAutomation and does not run on macOS; AppleScript automation needs an Accessibility grant on that machine |
 | Documentation agreement at this revision | review | pass — the manual, README, STATUS, site, release notes and packaging describe this build; F-040 to F-048 are closed |
-| This matrix checks itself, in CI: counts match rows, evidence paths exist, no stale claims, no single-stage promise | run (`scripts/acceptance-check.ps1`) + CI step | pass — verified to fail on an injected bad count, a missing evidence path and a stale claim |
+| This matrix checks itself, in CI (13 checks): counts match rows, evidence paths exist, no stale claims, no single-stage promise, no empty table, no note claiming work is ongoing, and the installer is not behind shipped code | run (`scripts/acceptance-check.ps1`) + CI step | pass — the freshness rule was proven to fail by pointing it at an older baseline (29 shipped files reported), and the others were proven on injected bad counts, paths and claims |
 
 ## Open defects
 

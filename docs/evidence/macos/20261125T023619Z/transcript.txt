@@ -1,0 +1,84 @@
+# Patent Forge Lite - macOS acceptance transcript
+captured_utc: 2026-11-25T02:36:19Z
+revision: bb68c0f
+host: Scott’s Mac mini
+
+## 1. Host and toolchain
+$ sw_vers -productVersion
+27.2.1
+$ sw_vers -buildVersion
+26B131
+$ uname -m
+arm64
+$ sysctl -n machdep.cpu.brand_string
+Apple M4
+$ xcodebuild -version
+Xcode 27.2
+$ xcode-select -p
+/Applications/Xcode.app/Contents/Developer
+$ xcrun --find metal
+/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.2.47.0.VxYs9p/Metal.xctoolchain/usr/bin/metal
+$ xcrun metal --version
+Apple metal version 32023.922 (metalfe-32023.922.4)
+$ rustc -vV
+rustc 1.100.0 (0ef1bc386 2026-11-09)
+binary: rustc
+commit-hash: 0ef1bc386059596dada8fb65b50425aab2ea637a
+commit-date: 2026-11-09
+$ cargo --version
+cargo 1.100.0 (3acc79c0c 2026-11-05)
+note: rust-toolchain.toml pins 1.98.1; this host ran 1.100.0, the newest installed
+
+## 2. Test suite
+exit=0
+totals: passed=246 failed=0
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## 3. Native release build
+exit=0
+    Finished `release` profile [optimized] target(s) in 0.49s
+$ file target/release/pfl-desktop
+target/release/pfl-desktop: Mach-O 64-bit executable arm64
+$ shasum -a 256 target/release/pfl-desktop
+9bdedd64dc5137f6d9fff324ba1f0c700dfe0cc8ffad8a953ada7507e917523e  target/release/pfl-desktop
+
+## 4. Bundle
+assembled (UNSIGNED): /Users/scottconverse/pfl-audit-20261124-114630/packaging/macos/Patent Forge Lite.app
+signing and notarization require an explicit policy decision; none was made here.
+$ PlistBuddy CFBundleShortVersionString
+0.2.0
+Resources/docs/evidence present? no
+$ codesign -dv
+Executable=/Users/scottconverse/pfl-audit-20261124-114630/packaging/macos/Patent Forge Lite.app/Contents/MacOS/pfl-desktop
+Identifier=pfl_desktop
+Format=app bundle with Mach-O thin (arm64)
+CodeDirectory v=20400 size=160680 flags=0x20002(adhoc,linker-signed) hashes=5018+0 location=embedded
+$ shasum -a 256 app.zip
+e852fc2292ea4e2aaab97f7dbc8062ba3af218dab9a87c671877c495587bc23c  /tmp/pfl-app.zip
+$ du -sh app
+21M
+artifact_revision=bb68c0f
+
+## 5. Launch with a fresh profile
+open exit=0
+process: alive after 8s
+$ ls profile
+projects.lock projects.sqlite3 projects.sqlite3-shm projects.sqlite3-wal 
+$ schema version 1
+$ tables
+document_revisions events intake_revisions legacy_imports legacy_records projects run_sequences runs schema_migrations settings 
+$ counts 0 projects, 0 runs
+quit: clean via AppleScript
+
+## 6. Existing workspace
+seed exit=0
+before launch: 1 projects, 4 runs
+process: alive after 8s
+after launch:  1 projects, 4 runs
+
+## 7. Cleanup
+profile removed: yes
+app left in place: yes
+clone status:
+?? "packaging/macos/Patent Forge Lite.app/"

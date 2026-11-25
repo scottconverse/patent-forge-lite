@@ -1,0 +1,62 @@
+{
+  "area": "macos",
+  "captured_utc": "2026-11-25T02:36:19Z",
+  "revision": "bb68c0f",
+  "host": {
+    "machine": "Scott's Mac mini",
+    "cpu": "Apple M4",
+    "arch": "arm64",
+    "os": "27.2.1",
+    "build": "26B131"
+  },
+  "toolchain": {
+    "xcode": "Xcode 27.2",
+    "developer_dir": "/Applications/Xcode.app/Contents/Developer",
+    "metal": "Apple metal version 32023.922 (metalfe-32023.922.4)",
+    "metal_path_kind": "cryptex mount with a random suffix; may change after a reboot, xcrun resolves it",
+    "rustc": "1.100.0 (0ef1bc386 2026-11-09)",
+    "cargo": "1.100.0 (3acc79c0c 2026-11-05)",
+    "pinned_by_repo": "1.98.1 (rust-toolchain.toml); not installed on this host"
+  },
+  "checks": {
+    "tests": {
+      "result": "246 passed, 0 failed",
+      "exit": 0
+    },
+    "native_build": {
+      "result": "Mach-O 64-bit executable arm64",
+      "exit": 0,
+      "binary_sha256": "9bdedd64dc5137f6d9fff324ba1f0c700dfe0cc8ffad8a953ada7507e917523e",
+      "bytes": 20963344
+    },
+    "bundle": {
+      "plist_version": "0.2.0",
+      "evidence_dir_present": false,
+      "codesign": "adhoc, linker-signed (not Developer ID, not notarised)",
+      "app_zip_sha256": "e852fc2292ea4e2aaab97f7dbc8062ba3af218dab9a87c671877c495587bc23c",
+      "size": "21M"
+    },
+    "fresh_profile": {
+      "process_alive": true,
+      "schema_version": 1,
+      "run_sequences": true,
+      "projects": 0,
+      "runs": 0,
+      "quit": "clean via AppleScript"
+    },
+    "existing_workspace": {
+      "before": "1 projects, 4 runs",
+      "after": "1 projects, 4 runs",
+      "process_alive": true
+    },
+    "cleanup": {
+      "profile_removed": true,
+      "app_left_in_place": true,
+      "app_path": "~/pfl-audit-20261124-114630/packaging/macos/Patent Forge Lite.app"
+    }
+  },
+  "not_covered": [
+    "interactive UI acceptance: the harness in this repository is PowerShell + UIAutomation and does not run on macOS",
+    "no run was created through the macOS window; the rollback write path is proven by the storage test only"
+  ]
+}
