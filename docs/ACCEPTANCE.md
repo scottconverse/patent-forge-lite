@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `f1ebd76` |
+| Revision | `7acf8d1` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -176,7 +176,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Item | Evidence | Result |
 | --- | --- | --- |
-| One Windows installer from one revision, both profiles, SHA-256 recorded | run | pass — `docs/RELEASE-MANIFEST.md`, revision `f1ebd76`, `bb961ef5…`, 12,060,878 bytes, unsigned |
+| One Windows installer from one revision, both profiles, SHA-256 recorded | run | pass — `docs/RELEASE-MANIFEST.md`, revision `7acf8d1`, `07f35cd8…`, 12,067,814 bytes, unsigned |
 | The release workflow builds the requested tag, versions the installer from it, requires versioned notes, and refuses to overwrite a published release without `replace: true` (never rewriting notes) | review + YAML parse | pass — F-005, F-006 |
 | Windows install, upgrade, rollback, uninstall, data retained | run, 11/11 twice | pass — `docs/evidence/upgrade/` |
 | Signature status recorded truthfully | review + `Get-AuthenticodeSignature` | pass — v0.1.0 signed; candidate unsigned |
