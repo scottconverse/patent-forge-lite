@@ -1,9 +1,10 @@
 # Platform runbook: macOS and Linux
 
-Windows is built and executed on this machine. macOS and Linux are **built and tested on
-CI only**; their installed acceptance is **blocked — hardware**, and this runbook is what a
-person with those machines would run. Nothing below has been executed here, and no row that
-depends on it may be marked pass.
+Windows is built and executed on this machine. macOS is now **built, bundled and launched on a real
+Mac mini** (Apple M4, macOS 27.2.1, Xcode 27.2), recorded in `docs/evidence/macos/20261125T023619Z/`;
+what it still lacks is an **interactive** pass, because the UI harness in this repository is
+PowerShell and cannot run there. Linux remains **blocked — hardware**: no machine, so this runbook
+is what a person with one would run.
 
 ## What CI does and does not prove
 
@@ -12,7 +13,7 @@ CI (`native-manual.yml`) builds the desktop on `macos-15` (aarch64) and `ubuntu-
 errors. That is **build and test** evidence. It is not installed acceptance: no package is
 created there and no window is opened.
 
-## macOS (blocked — hardware)
+## macOS (built and launched; interactive pass outstanding)
 
 Build a bundle on a Mac with Xcode command line tools:
 
@@ -25,7 +26,13 @@ bash packaging/macos/bundle.sh
 `prompts/`. Unsigned: macOS will require right-click → Open, or `xattr -dr com.apple.quarantine`
 on the app, and Gatekeeper will refuse a downloaded unsigned copy from another machine.
 
-Checks to run on the machine, recorded with their output:
+Done on the Mac mini, with output in `docs/evidence/macos/20261125T023619Z/transcript.txt`: the
+release build, `bundle.sh`, `CFBundleShortVersionString` (`0.2.0`), absence of
+`Resources/docs/evidence`, ad-hoc signing status, the SHA-256 of the zipped bundle, a launch that
+created its profile (schema v1, `run_sequences`, zero rows) and quit cleanly, and a second launch
+over an existing workspace (1 project, 4 runs) that left the counts unchanged.
+
+Still to do on that machine, and **not** yet marked pass anywhere:
 
 1. The app launches from `Applications` and shows the first-run profile prompt.
 2. Choosing Full allows a loopback Ollama endpoint; choosing Lean refuses it.
