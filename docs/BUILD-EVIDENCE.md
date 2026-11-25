@@ -1668,3 +1668,25 @@ halves are fixed: the check now verifies the baseline commit exists and fails lo
 not ("baseline '…' is not in this clone; fetch full history"), the script exits explicitly, and
 both workflows that run it check out with `fetch-depth: 0`. The absent-baseline path was tested
 with a bogus baseline and returns exit 1 rather than a silent pass.
+## Linux gets an artifact and a launch test (2026-11-25)
+
+"Linux has no machine" was the last hardware block, and it was never really a hardware problem:
+the release workflow already knew how to build the tarball, and a runner can start the binary.
+`native-manual.yml` now, on `ubuntu-24.04`, builds a **release** binary with the target triple,
+packages the same tarball the release would ship, and launches that binary under `Xvfb` with
+`mesa-vulkan-drivers`, requiring it to stay up for ten seconds:
+
+    linux launch: alive after 10s
+    linux profile created
+    7e9046edaa7a112a6915ecdd19423ff7d2817cefe54a9ef3aba66ef3fdcd3a07  patent-forge-lite-v0.2.1-linux-x64.tar.gz
+
+Three attempts were needed, each failing for a real reason worth recording: the packaging step
+copied `target/release/pfl-desktop` while the build used a target triple (so the path did not
+exist), the same step then ran before the matrix check and was masked by it, and the earlier build
+in the job is a **debug** binary, so a release build had to be added. The step now derives the
+version from `Cargo.toml` instead of hard-coding it, and runs before the matrix check so a matrix
+failure cannot hide a launch failure.
+
+What this proves: the artifact exists, its hash is recorded, and the shipped binary starts on a
+real desktop display stack. What it does not prove: a human using it, which no automated launch
+can establish.

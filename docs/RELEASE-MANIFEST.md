@@ -16,9 +16,11 @@ commands in *Reproducing* to check them.
 | --- | --- | --- | --- | --- | --- |
 | Windows x64 | `patent-forge-lite-0.2.1-x64.exe` | 0.2.1 release candidate | `bb961ef598a1921c12f083afed99ca0e76071256ebc497c9148c9a625b85ca19` | 12,060,878 | **no** |
 | Windows x64 | `patent-forge-lite-0.1.0-x64.exe` | 0.1.0 released artifact, unchanged | `624f731cea661176ae9989bbba6234ee633af3d8b49314e0c151307b340c7f37` | 7,837,495 | **no** (the signed copy is `dist/signed/`) |
+| Linux x86_64 | `patent-forge-lite-v0.2.1-linux-x64.tar.gz` | 0.2.1 release candidate, built in CI from `3535022` | `7e9046edaa7a112a6915ecdd19423ff7d2817cefe54a9ef3aba66ef3fdcd3a07` | not recorded | **yes** (CI only, no signing key involved) |
 
-macOS and Linux have **no artifact from this revision**. Their installed acceptance is
-blocked on hardware; `docs/PLATFORM-RUNBOOK.md` is the deliverable for both.
+macOS and Linux now have artifacts, both built away from this Windows machine: Linux in CI
+(tarball above, launched under Xvfb), macOS on the Mac mini (`docs/evidence/macos/20261125T023619Z/`,
+unsigned because there is no Apple certificate). What neither has is a human using the window.
 
 ## One installer, two profiles
 
