@@ -159,7 +159,8 @@ jobs:
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { throw "ISCC.exe not found" }
           # The installer's version and file name come from the tag being released, so a
-          # v0.2.0 tag can never publish an installer that calls itself 0.1.0.
+          # v0.2.1 tag can never publish an installer that calls itself something else: AppVersion is
+# checked against the tag before a build is accepted.
           $tag = "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           $version = $tag.TrimStart('v')
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "tag '$tag' is not vMAJOR.MINOR.PATCH" }

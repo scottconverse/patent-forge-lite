@@ -56,4 +56,46 @@ jobs:
       # failure: counts must match rows, evidence paths must exist, no stale claims.
       - name: Acceptance matrix consistency
         shell: pwsh
-        run: ./scripts/acceptance-check.ps1
+        run: ./scripts/acceptance-check.ps1      # Linux has no machine to test on, so the runner is the machine: build the tarball the
+      # release would ship, then start that binary under a virtual display and require it to
+      # stay up. A build that compiles but cannot open is not a usable artifact.
+      - name: Linux artifact and headless launch
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y xvfb mesa-vulkan-drivers libvulkan1 x11-utils
+          name="patent-forge-lite-v0.2.1-linux-x64"
+          stage="dist/$name"
+          mkdir -p "$stage/fonts"
+          cp target/release/pfl-desktop "$stage/"
+          cp README.md LICENSE LICENSE-PROMPTS LEGAL_NOTICE.md THIRD_PARTY_NOTICES.md "$stage/"
+          cp -R docs prompts "$stage/"
+          rm -rf "$stage/docs/evidence"
+          cp packaging/linux/pfl-desktop.desktop "$stage/"
+          cp assets/brand/app-256.png "$stage/patent-forge-lite.png"
+          cp -R assets/fonts/. "$stage/fonts/"
+          tar -czf "dist/$name.tar.gz" -C dist "$name"
+          ( cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256" && cat "$name.tar.gz.sha256" )
+          export HOME="$(mktemp -d)"
+          xvfb-run -a "$stage/pfl-desktop" > /tmp/pfl-linux-run.log 2>&1 &
+          pid=$!
+          sleep 10
+          if kill -0 "$pid" 2>/dev/null; then
+            echo "linux launch: alive after 10s"
+            kill "$pid" 2>/dev/null || true
+          else
+            echo "linux launch: the process exited; log follows"
+            cat /tmp/pfl-linux-run.log || true
+            exit 1
+          fi
+          test -f "$HOME/.local/share/patent-forge-lite/projects.sqlite3" \
+            && echo "linux profile created" \
+            || echo "linux profile: not created under a virtual display (recorded, not required)"
+      - name: Upload the Linux artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-tarball
+          path: dist/*.tar.gz*
+          if-no-files-found: error

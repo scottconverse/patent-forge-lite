@@ -1,4 +1,8 @@
-# Candidate 0.2.0 — built, not released
+# Historical notes — v0.1.0 and earlier candidates
+
+The release workflow publishes `docs/RELEASE-NOTES-<version>.md` and refuses to publish when it is
+missing. The current release notes are `docs/RELEASE-NOTES-0.2.1.md`; this file is kept for the
+history it records.
 
 Built from revision `9e5d168`. Nothing here is published, tagged or signed; the artifact
 and its SHA-256 are recorded in `docs/RELEASE-MANIFEST.md`. The release workflow publishes

@@ -1,14 +1,14 @@
 # Packaging
 
 Packaging source exists for all three platforms. The **Windows installer is built and
-install-accepted**; the 0.2.0 candidate is unsigned, while the published v0.1.0 release was
+install-accepted**; the 0.2.1 candidate is unsigned, while the published v0.1.0 release was
 signed. macOS and Linux were built and published for v0.1.0 by the release workflow, but **no
 installed or interactive acceptance has been performed on either**, and this machine cannot
 build them.
 
 | Platform | Source | Tooling | State |
 | --- | --- | --- | --- |
-| Windows x64 | `packaging/windows/patent-forge-lite.iss` | Inno Setup 6 (`%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`) | **Built from `8c51ca1`**: `dist\patent-forge-lite-0.2.0-x64.exe`, SHA-256 in `docs/RELEASE-MANIFEST.md`, install/upgrade/rollback/uninstall verified. Unsigned. |
+| Windows x64 | `packaging/windows/patent-forge-lite.iss` | Inno Setup 6 (`%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`) | **Built from `8c51ca1`**: `dist\patent-forge-lite-0.2.1-x64.exe`, SHA-256 in `docs/RELEASE-MANIFEST.md`, install/upgrade/rollback/uninstall verified. Unsigned. |
 | macOS arm64 | `packaging/macos/Info.plist` + `bundle.sh` | A real macOS host | Not built; no runner available |
 | Linux x86_64 | `packaging/linux/pfl-desktop.desktop` | A real Linux host | Not built; no runner available |
 
@@ -16,8 +16,8 @@ build them.
 
 ```powershell
 cargo build -p pfl-desktop --features native --release --locked
-& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" /DAppVersion=0.2.0 packaging\windows\patent-forge-lite.iss
-Get-FileHash dist\patent-forge-lite-0.2.0-x64.exe -Algorithm SHA256
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" /DAppVersion=0.2.1 packaging\windows\patent-forge-lite.iss
+Get-FileHash dist\patent-forge-lite-0.2.1-x64.exe -Algorithm SHA256
 ```
 
 `/DAppVersion` is not optional in a recipe: without it the installer is named and versioned

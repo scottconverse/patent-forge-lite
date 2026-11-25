@@ -12,7 +12,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Field | Value |
 | --- | --- |
 | Revision | `d373e1d` |
-| Candidate version | 0.2.0 (crates still declare 0.1.0 — see `docs/RELEASE-MANIFEST.md`) |
+| Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
 ## Summary

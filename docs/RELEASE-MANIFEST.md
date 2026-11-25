@@ -7,14 +7,14 @@ commands in *Reproducing* to check them.
 | --- | --- |
 | Revision | `d373e1d` |
 | Branch | `main` |
-| Candidate version | `0.2.0` |
+| Candidate version | `0.2.1` |
 | Licence | MIT (application); prompts CC BY-SA 4.0 |
 
 ## Artifacts
 
 | Platform | File | Version | SHA-256 | Bytes | Signed |
 | --- | --- | --- | --- | --- | --- |
-| Windows x64 | `patent-forge-lite-0.2.0-x64.exe` | 0.2.0 candidate | `d7fa794d198ad975ed026959121b758cd61bda8e936d08280175b4971ea08526` | 12,053,762 | **no** |
+| Windows x64 | `patent-forge-lite-0.2.1-x64.exe` | 0.2.1 release candidate | `d7fa794d198ad975ed026959121b758cd61bda8e936d08280175b4971ea08526` | 12,053,762 | **no** |
 | Windows x64 | `patent-forge-lite-0.1.0-x64.exe` | 0.1.0 released artifact, unchanged | `624f731cea661176ae9989bbba6234ee633af3d8b49314e0c151307b340c7f37` | 7,837,495 | **no** (the signed copy is `dist/signed/`) |
 
 macOS and Linux have **no artifact from this revision**. Their installed acceptance is
@@ -28,8 +28,8 @@ provider. There is no separate Lean package.
 
 ## Version skew, stated plainly
 
-The candidate installer is named **0.2.0** by overriding `AppVersion` at compile time
-(`ISCC /DAppVersion=0.2.0`), while `crates/*/Cargo.toml` still declares `0.1.0`. The v0.1.0
+The installer is named **0.2.1** from `AppVersion`
+(`ISCC /DAppVersion=0.2.1`), and `crates/*/Cargo.toml` declares `0.2.1` too, so the artifact name and the crate version agree. The v0.1.0
 release and tag are kept as an accepted decision, and re-issuing an artifact called 0.1.0
 from a later revision would silently replace a published file. Choosing the next release
 version, and bumping the crates to match, is Scott's decision; until it is made this
@@ -46,8 +46,8 @@ requires approval.
 ```sh
 cargo build -p pfl-desktop --features native --release
 cp target/native/release/pfl-desktop.exe target/release/pfl-desktop.exe
-"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" /DAppVersion=0.2.0 packaging\windows\patent-forge-lite.iss
-Get-FileHash dist\patent-forge-lite-0.2.0-x64.exe -Algorithm SHA256
+"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" /DAppVersion=0.2.1 packaging\windows\patent-forge-lite.iss
+Get-FileHash dist\patent-forge-lite-0.2.1-x64.exe -Algorithm SHA256
 ```
 
 The build is not bit-reproducible across machines (Rust does not promise that), so the

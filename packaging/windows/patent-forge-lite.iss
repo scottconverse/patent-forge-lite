@@ -16,7 +16,7 @@
 ; The version can be overridden from the command line (ISCC /DAppVersion=...), so a
 ; candidate can be built and an upgrade exercised without editing this file.
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.2.1"
 #endif
 #define AppPublisher "Scott Converse"
 #define AppId "com.scottconverse.patentforgelite"

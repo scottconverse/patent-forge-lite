@@ -1,8 +1,8 @@
-# PatentForge Lite 0.2.0
+# PatentForge Lite 0.2.1
 
 <!--
 Versioned notes. The release workflow publishes `docs/RELEASE-NOTES-<version>.md` and
-refuses to publish when it is missing, so this file is the notes for a 0.2.0 release.
+refuses to publish when it is missing, so this file is the notes for a 0.2.1 release.
 Writing the file is not publishing it: the release, its tag and its signing are separate
 decisions recorded in docs/ACCEPTANCE.md.
 -->
@@ -36,7 +36,7 @@ revision. This release is a candidate until it is published, signed and tagged.
 
 | Platform | Asset |
 | --- | --- |
-| Windows 10/11 x64 | `patent-forge-lite-0.2.0-x64.exe` |
+| Windows 10/11 x64 | `patent-forge-lite-0.2.1-x64.exe` |
 | macOS 13+ (Apple silicon) | built by the release workflow; unsigned |
 | Linux x86_64 | built by the release workflow; unsigned |
 
