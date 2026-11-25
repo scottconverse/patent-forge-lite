@@ -723,6 +723,256 @@ pub async fn list_local_models(endpoint: &str) -> Result<Vec<String>> {
     Ok(names)
 }
 
+/// Any server that speaks OpenAI's `/v1/chat/completions`.
+///
+/// This is the widest door into the product: LM Studio, llama.cpp's server, vLLM, Ollama's own
+/// OpenAI endpoint, OpenRouter, and the hosted APIs all answer the same shape, so one adapter
+/// covers local runtimes and remote gateways without a variant per vendor.
+pub struct OpenAiCompatibleProvider {
+    base: String,
+    model: String,
+    key: Option<String>,
+    client: reqwest::Client,
+    kind: ProviderKind,
+}
+
+impl OpenAiCompatibleProvider {
+    pub fn new(
+        base: impl Into<String>,
+        model: impl Into<String>,
+        key: Option<String>,
+    ) -> Result<Self> {
+        let base = base.into().trim_end_matches('/').to_string();
+        let url = reqwest::Url::parse(&base)
+            .map_err(|_| Error::Invalid("invalid OpenAI-compatible base URL".into()))?;
+        if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+            return Err(Error::Invalid(
+                "the base URL must be an HTTP(S) URL with a host".into(),
+            ));
+        }
+        let kind = if is_loopback_url(&base) {
+            ProviderKind::Local
+        } else {
+            ProviderKind::Cloud
+        };
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(300))
+            .build()
+            .map_err(|_| Error::Provider("cannot initialize the HTTP client".into()))?;
+        Ok(Self {
+            base,
+            model: model.into(),
+            key,
+            client,
+            kind,
+        })
+    }
+}
+
+#[async_trait]
+impl Provider for OpenAiCompatibleProvider {
+    fn snapshot(&self) -> ProviderSnapshot {
+        ProviderSnapshot {
+            kind: self.kind,
+            model: self.model.clone(),
+            endpoint: Some(self.base.clone()),
+        }
+    }
+
+    async fn generate(
+        &self,
+        request: ProviderRequest,
+        cancellation: CancellationToken,
+        deltas: UnboundedSender<String>,
+    ) -> Result<ProviderResponse> {
+        let mut body = serde_json::json!({
+            "model": self.model,
+            "stream": true,
+            "stream_options": { "include_usage": true },
+            "messages": [
+                { "role": "system", "content": request.system_prompt },
+                { "role": "user", "content": request.user_prompt }
+            ]
+        });
+        if self.key.is_none() {
+            // A local server ignores this, but omitting the field keeps the request honest about
+            // the fact that no credential is being presented.
+            body["messages"][0]["content"] = serde_json::json!(request.system_prompt);
+        }
+        let mut send = self
+            .client
+            .post(format!("{}/v1/chat/completions", self.base))
+            .json(&body);
+        if let Some(key) = &self.key {
+            send = send.header("authorization", format!("Bearer {key}"));
+        }
+        let response = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(Error::Cancelled),
+            r = send.send() => r.map_err(|_| Error::Provider(
+                "the model server could not be reached; no alternate destination attempted".into()
+            ))?,
+        };
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let advice = match status {
+                401 | 403 => "the key was rejected; check the key for this server",
+                404 => "no /v1/chat/completions at that address; check the base URL",
+                429 => "the server is rate-limiting; wait and try again",
+                500..=599 => "the server is failing; try again later",
+                _ => "the server refused the request",
+            };
+            return Err(Error::Provider(format!(
+                "model server HTTP {status}: {advice}"
+            )));
+        }
+
+        const MAX_FRAME: usize = 2 * 1024 * 1024;
+        let mut stream = response.bytes_stream();
+        let mut pending: Vec<u8> = Vec::new();
+        let mut text = String::new();
+        let mut input_tokens = None;
+        let mut output_tokens = None;
+        let mut finished = false;
+        let mut stop_reason: Option<String> = None;
+        loop {
+            let item = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => return Err(Error::Cancelled),
+                item = stream.next() => item
+            };
+            match item {
+                Some(Ok(bytes)) => {
+                    pending.extend_from_slice(&bytes);
+                    if pending.len() > MAX_FRAME {
+                        return Err(Error::Incomplete(
+                            "model stream exceeded the frame buffer limit; partial text was not committed".into(),
+                        ));
+                    }
+                }
+                Some(Err(_)) => {
+                    return Err(Error::Provider(
+                        "the model stream was interrupted; partial stage not committed".into(),
+                    ));
+                }
+                None => {
+                    if !finished {
+                        return Err(Error::Incomplete(
+                            "model stream ended before its completion frame; partial text was not committed".into(),
+                        ));
+                    }
+                    break;
+                }
+            }
+            // Consume whole lines; SSE frames are newline delimited.
+            while let Some(newline) = pending.iter().position(|b| *b == b'\n') {
+                let line: Vec<u8> = pending.drain(..=newline).collect();
+                let line = String::from_utf8_lossy(&line);
+                let line = line.trim();
+                if line.is_empty() || !line.starts_with("data:") {
+                    continue;
+                }
+                let payload = line["data:".len()..].trim();
+                if payload == "[DONE]" {
+                    finished = true;
+                    break;
+                }
+                let frame: serde_json::Value = serde_json::from_str(payload)
+                    .map_err(|_| Error::Incomplete("malformed frame in the model stream".into()))?;
+                if let Some(message) = frame["error"]["message"].as_str() {
+                    return Err(Error::Provider(format!(
+                        "the model server reported an error: {message}"
+                    )));
+                }
+                if let Some(usage) = frame.get("usage").filter(|u| !u.is_null()) {
+                    input_tokens = usage["prompt_tokens"].as_u64().or(input_tokens);
+                    output_tokens = usage["completion_tokens"].as_u64().or(output_tokens);
+                }
+                if let Some(choice) = frame["choices"].get(0) {
+                    if let Some(delta) = choice["delta"]["content"].as_str()
+                        && !delta.is_empty()
+                    {
+                        text.push_str(delta);
+                        let _ = deltas.send(delta.to_string());
+                    }
+                    if let Some(reason) = choice["finish_reason"].as_str() {
+                        stop_reason = Some(reason.to_string());
+                        finished = true;
+                    }
+                }
+            }
+            if finished {
+                break;
+            }
+        }
+        if let Some(reason) = &stop_reason
+            && !matches!(reason.as_str(), "stop" | "end_turn" | "tool_calls")
+        {
+            return Err(Error::Incomplete(format!(
+                "the model stopped for a reason that is not a finished answer ({reason}); partial text was not committed"
+            )));
+        }
+        if text.trim().is_empty() {
+            return Err(Error::Incomplete(
+                "the model returned no text; nothing was committed".into(),
+            ));
+        }
+        Ok(ProviderResponse {
+            text,
+            usage: Usage {
+                input_tokens,
+                output_tokens,
+            },
+        })
+    }
+}
+
+/// Lists models from a server's OpenAI-style catalogue.
+pub async fn list_openai_models(base: &str) -> Result<Vec<String>> {
+    let base = base.trim_end_matches('/');
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|_| Error::Provider("cannot initialize the model catalogue client".into()))?;
+    let response = client
+        .get(format!("{base}/v1/models"))
+        .send()
+        .await
+        .map_err(|_| Error::Provider(format!("no /v1/models answer from {base}")))?;
+    if !response.status().is_success() {
+        return Err(Error::Provider(format!(
+            "model catalogue HTTP {}",
+            response.status().as_u16()
+        )));
+    }
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|_| Error::Provider("the model catalogue was not JSON".into()))?;
+    let models = body["data"]
+        .as_array()
+        .ok_or_else(|| Error::Provider("the catalogue has no data array".into()))?
+        .iter()
+        .filter_map(|entry| entry["id"].as_str().map(str::to_string))
+        .collect();
+    Ok(models)
+}
+
+/// Which API a local endpoint answers: Ollama, or the OpenAI shape.
+pub async fn local_flavour(endpoint: &str) -> &'static str {
+    if list_openai_models(endpoint).await.is_ok() {
+        "openai"
+    } else {
+        "ollama"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

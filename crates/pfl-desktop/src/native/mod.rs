@@ -262,6 +262,15 @@ struct Desktop {
     content_focus: FocusHandle,
 }
 
+/// The platform's display name, from the target the binary was built for.
+fn platform_name() -> &'static str {
+    match std::env::consts::OS {
+        "macos" => "macOS",
+        "windows" => "Windows",
+        "linux" => "Linux",
+        other => other,
+    }
+}
 impl Desktop {
     fn new(
         session: Rc<ApplicationSession>,
@@ -879,7 +888,6 @@ impl Desktop {
             )
     }
 
-    /// Selecting one of the four workflows.
     fn workflow_tab(
         &self,
         kind: WorkflowKind,
@@ -2878,12 +2886,11 @@ impl Render for Desktop {
                                     .child("LITE"),
                             ),
                     )
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(rgb(theme::FAINT))
-                            .child("Standalone workspace · v0.1.0 · Windows"),
-                    ),
+                    .child(div().text_xs().text_color(rgb(theme::FAINT)).child(format!(
+                        "Standalone workspace · v{} · {}",
+                        env!("CARGO_PKG_VERSION"),
+                        platform_name()
+                    ))),
             )
             .child(top_right);
 

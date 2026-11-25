@@ -1690,3 +1690,28 @@ failure cannot hide a launch failure.
 What this proves: the artifact exists, its hash is recorded, and the shipped binary starts on a
 real desktop display stack. What it does not prove: a human using it, which no automated launch
 can establish.
+## Local stops meaning "Ollama only" (2026-11-25)
+
+Two providers existed: Ollama over its own API, and Anthropic over `/v1/messages`. Neither covers
+LM Studio, llama.cpp, vLLM, or any hosted gateway, which is what "choose any way I want" needs.
+
+The first piece is now in: `OpenAiCompatibleProvider` speaks `/v1/chat/completions` with streaming
+SSE, a 2 MiB frame cap, cancellation, redirect refusal, no proxy, and the same status advice the
+Cloud adapter gives. `local_flavour` asks the endpoint what it is — `/v1/models` answers on LM
+Studio, llama.cpp, vLLM and Ollama itself; `/api/tags` answers only on Ollama — and `Mode::Local`
+constructs the matching provider instead of assuming Ollama. The model list falls back from
+`/api/tags` to `/v1/models`, so the picker can populate from either.
+
+Live proof, no credential involved, against servers running on this machine:
+
+    LM Studio  http://127.0.0.1:1234  qwen/qwen3.8-27b   -> "Paris."   (2 streamed deltas)
+    Ollama     http://127.0.0.1:11434 qwen3.5:4b         -> "The capital of France is Paris."
+                                                             usage input=30 output=6484
+
+`cargo run -p pfl-workflow --example chat_probe -- <base> <model> <prompt>` is the probe used.
+
+Still missing for parity with the reference implementation (TownReporter): provider **choice in the
+window** (a picker listing discovered servers and their models, with what is loaded marked), and
+**CLI agents** — TownReporter does not implement OAuth itself, it spawns the vendor CLI (`claude`,
+`codex`, `gemini`), which owns its own sign-in and refresh, and records only the attempt, the
+authorize URL and a one-time code. That is the model to copy for subscription access.

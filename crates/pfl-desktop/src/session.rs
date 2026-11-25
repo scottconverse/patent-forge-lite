@@ -3,7 +3,7 @@ use pfl_domain::*;
 use pfl_storage::SqliteStore;
 use pfl_workflow::{
     CloudProvider, OllamaProvider, PatentsViewSource, ReplayProvider, ResearchSource,
-    WorkflowService, export_html, export_markdown,
+    WorkflowService, export_html, export_markdown, providers::OpenAiCompatibleProvider,
 };
 use std::{
     collections::HashSet,
@@ -413,11 +413,22 @@ impl Actor {
         );
     }
 
-    fn build_provider(&self, mode: &Mode) -> Result<Arc<dyn Provider>> {
+    async fn build_provider(&self, mode: &Mode) -> Result<Arc<dyn Provider>> {
         Ok(match mode {
             Mode::Replay => self.replay.clone(),
             Mode::Local { endpoint, model } => {
-                Arc::new(OllamaProvider::new(endpoint.clone(), model.clone())?)
+                // "Local" means a runtime on this machine, not one brand of it: LM Studio,
+                // llama.cpp, vLLM and Ollama's own OpenAI endpoint all answer /v1/models, while
+                // Ollama answers /api/tags. Ask the server instead of guessing.
+                if pfl_workflow::providers::local_flavour(endpoint).await == "openai" {
+                    Arc::new(OpenAiCompatibleProvider::new(
+                        endpoint.clone(),
+                        model.clone(),
+                        None,
+                    )?)
+                } else {
+                    Arc::new(OllamaProvider::new(endpoint.clone(), model.clone())?)
+                }
             }
             Mode::Cloud { model } => {
                 let key = self.cloud_key.clone().ok_or_else(|| {
@@ -477,13 +488,18 @@ impl Actor {
                 self.ensure_idle("changing execution mode").await?;
                 self.cloud_key = Some(key).filter(|value| !value.is_blank());
                 let mode = Mode::Cloud { model };
-                let provider = self.build_provider(&mode)?;
+                let provider = self.build_provider(&mode).await?;
                 self.rebuild_service(provider);
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));
             }
             Request::ListLocalModels { endpoint } => {
-                let models = pfl_workflow::list_local_models(&endpoint).await?;
+                // Ollama first; if it does not answer, read the OpenAI-style catalogue so LM
+                // Studio, llama.cpp and vLLM are listed too.
+                let models = match pfl_workflow::list_local_models(&endpoint).await {
+                    Ok(models) => models,
+                    Err(_) => pfl_workflow::providers::list_openai_models(&endpoint).await?,
+                };
                 self.reply(Reply::LocalModels(models));
             }
             Request::RegenerateFrom {
@@ -651,7 +667,7 @@ impl Actor {
                     _ => Arc::new(PatentsViewSource::new(api_key.expose())?),
                 };
                 let provider = match &self.mode {
-                    Some(mode) => self.build_provider(mode)?,
+                    Some(mode) => self.build_provider(mode).await?,
                     None => self.replay.clone(),
                 };
                 self.research = Some(source);
@@ -679,7 +695,7 @@ impl Actor {
             }
             Request::Configure(mode) => {
                 self.ensure_idle("changing execution mode").await?;
-                let provider = self.build_provider(&mode)?;
+                let provider = self.build_provider(&mode).await?;
                 self.rebuild_service(provider);
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));

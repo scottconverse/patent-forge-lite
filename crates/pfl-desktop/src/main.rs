@@ -1,3 +1,7 @@
+// A desktop application must not open a console window. Without this the Windows default is the
+// console subsystem, so every launch -- from the installer's shortcut as much as from a shell --
+// leaves a terminal sitting behind the window.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 #[cfg(feature = "native")]
 fn main() {
     if let Err(error) = pfl_desktop::native::run() {
