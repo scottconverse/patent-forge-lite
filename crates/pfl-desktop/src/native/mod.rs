@@ -808,6 +808,48 @@ impl Desktop {
             )
     }
 
+    /// The control that makes a provider the fallback when the choice fails.
+    fn provider_fallback_button(
+        &self,
+        provider: &pfl_workflow::catalog::ProviderView,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let Some(project) = self.state.selected_project.as_ref().map(|p| p.id.clone()) else {
+            return div().into_any_element();
+        };
+        if !provider.available {
+            return div().into_any_element();
+        }
+        let id = provider.id.clone();
+        self.ghost_button(
+            format!("fallback-{}", provider.id),
+            if self
+                .assignments
+                .iter()
+                .any(|row| row.provider == provider.id && row.rank == 1)
+            {
+                "Is fallback"
+            } else {
+                "As fallback"
+            },
+            move |this, _, cx| {
+                for kind in pfl_domain::WorkflowKind::ALL {
+                    this.send(
+                        Request::SetAssignment {
+                            project: project.clone(),
+                            surface: format!("workflow-{}", kind.slug()),
+                            rank: 1,
+                            provider: id.clone(),
+                            model: None,
+                        },
+                        cx,
+                    );
+                }
+            },
+            cx,
+        )
+        .into_any_element()
+    }
     /// The control that makes a provider the choice for every workflow.
     ///
     /// Per-stage assignment is the finer grain the store already supports; this is the coarse
@@ -2554,7 +2596,8 @@ impl Render for Desktop {
                                         .text_color(rgb(theme::FAINT))
                                         .child(format!("{} model(s)", provider.models.len())),
                                 )
-                                .child(self.provider_choice_button(provider, cx)),
+                                .child(self.provider_choice_button(provider, cx))
+                                .child(self.provider_fallback_button(provider, cx)),
                         ),
                     );
                 }
