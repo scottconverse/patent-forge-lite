@@ -9,6 +9,7 @@ mod context;
 mod cost;
 pub mod diff;
 mod export;
+pub mod local_discovery;
 pub mod package;
 pub mod prompts;
 pub mod providers;
