@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `044d4ac` |
+| Revision | `28cc878` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 136 |
+| pass | 137 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -188,6 +188,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Per-surface provider assignment (three ranks), per-install provider overrides and operator connections persist; a connection row stores no credential; an older database opens unassigned | integration (`assignments`, 10 tests) | pass — CRUD, rank refusal, cascade, reopen, and a payload grep for credential shapes |
 | Effort reaches the provider: low/medium/high become an Anthropic thinking budget, and an unknown word is refused before any request | integration (`anthropic_effort`, 4 tests) | pass — 1024/4096/8192 in the body; no field when unset; unknown effort refused |
 | The operator's own Claude CLI runs as a provider: spawn, parse the result envelope, kill the tree on cancel or timeout, never store a credential | unit (`claude_cli`, 10 tests) + one live call on this machine | pass — captured envelope with its warning line, error/empty/timeout/exit-code cases, redaction, effort in argv; live call returned "ok" with usage 10/81 |
+| The operator's own Codex CLI runs as a provider: JSONL events parsed to the last agent message, usage from `turn.completed`, a failed turn's nested reason unwrapped, prompt on stdin | unit (`codex_cli`, 8 tests) + one live call on this machine | pass — captured stream parsed; live `gpt-6.1-sol` call returned "ok" with usage 24845/5; the account's default model fails with model_not_found and that is a test case |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
 | macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded — macOS 27.2.1 (2026-11-25) | run on the same Mac: `bundle.sh`, recorded in `docs/evidence/macos/20261125T023619Z/` | pass — plist `0.2.0`; `Resources/docs` present, `docs/evidence` absent |
