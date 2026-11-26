@@ -435,6 +435,45 @@ impl Actor {
         );
     }
 
+    /// The provider an assignment names, when it names one this build can use safely.
+    ///
+    /// Only local servers for now: they are loopback, so a run's text does not leave the machine.
+    /// A subscription or hosted assignment needs the consent matrix finished first, and building
+    /// that provider before the matrix exists would let a real invention reach a third party.
+    async fn assigned_provider(
+        &self,
+        project: &ProjectId,
+        kind: WorkflowKind,
+    ) -> Result<Option<Arc<dyn Provider>>> {
+        let surface = format!("workflow-{}", kind.slug());
+        let rows = self.store.assignments(project)?;
+        let Some(row) = rows
+            .iter()
+            .find(|row| row.surface == surface && row.rank == 0)
+        else {
+            return Ok(None);
+        };
+        let Some(server) = assigned_local_kind(&row.provider) else {
+            return Ok(None);
+        };
+        let catalog = pfl_workflow::local_discovery::discover().await;
+        let Some(server) = catalog.servers.iter().find(|s| s.kind == server) else {
+            return Ok(None);
+        };
+        // An empty model means "whatever is loaded"; a named one is used as given.
+        let model = match row.model.clone() {
+            Some(model) if !model.trim().is_empty() => model,
+            _ => match catalog.pick_loaded() {
+                Some((_, model)) => model.id.clone(),
+                None => return Ok(None),
+            },
+        };
+        Ok(Some(Arc::new(OpenAiCompatibleProvider::new(
+            server.base_url.clone(),
+            model,
+            None,
+        )?)))
+    }
     async fn build_provider(&self, mode: &Mode) -> Result<Arc<dyn Provider>> {
         Ok(match mode {
             Mode::Replay => self.replay.clone(),
@@ -824,6 +863,11 @@ impl Actor {
                     }
                     _ => {}
                 }
+                // An assignment overrides the configured mode, but only where this build can honour
+                // it safely (loopback servers). Everything else keeps the mode above.
+                if let Some(assigned) = self.assigned_provider(&project, kind).await? {
+                    self.rebuild_service(assigned);
+                }
                 let snapshot = self
                     .service
                     .start_workflow(project, kind, idempotency_key, authorization)
@@ -954,4 +998,36 @@ pub fn data_directory() -> Result<PathBuf> {
         Error::Io("No absolute per-user application data location is available".into())
     })?;
     Ok(base.join("patent-forge-lite"))
+}
+/// Which local server an assignment names, if it names one this build may use.
+///
+/// `None` is deliberate for every off-machine provider: a run must not reach a third party until
+/// the consent matrix covers that kind, and returning `None` keeps the configured mode instead.
+pub(crate) fn assigned_local_kind(slug: &str) -> Option<pfl_workflow::local_discovery::LocalKind> {
+    use pfl_workflow::local_discovery::LocalKind;
+    match slug {
+        "local-lmstudio" => Some(LocalKind::LmStudio),
+        "local-ollama" => Some(LocalKind::Ollama),
+        "local-llamacpp" => Some(LocalKind::LlamaCpp),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod assigned_tests {
+    use super::*;
+
+    #[test]
+    fn only_loopback_providers_are_accepted_from_an_assignment_yet() {
+        assert!(assigned_local_kind("local-ollama").is_some());
+        assert!(assigned_local_kind("local-lmstudio").is_some());
+        assert!(assigned_local_kind("local-llamacpp").is_some());
+        for off_machine in ["claude", "codex", "gemini", "anthropic", "openai"] {
+            assert!(
+                assigned_local_kind(off_machine).is_none(),
+                "{off_machine} must not be used from an assignment until consent covers it"
+            );
+        }
+        assert!(assigned_local_kind("nonsense").is_none());
+    }
 }
