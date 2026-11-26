@@ -52,6 +52,14 @@ impl Store for BarrierStore {
     forward!(revision(id: &RevisionId) -> Result<DocumentRevision>);
     forward!(settings() -> Result<Settings>);
     forward!(save_settings(settings: &Settings) -> Result<()>);
+    forward!(assignments(project: &ProjectId) -> Result<Vec<ModelAssignment>>);
+    forward!(set_assignment(project: &ProjectId, assignment: &ModelAssignment) -> Result<()>);
+    forward!(clear_assignments(project: &ProjectId, surface: &str) -> Result<usize>);
+    forward!(provider_settings() -> Result<ProviderSettings>);
+    forward!(save_provider_settings(settings: &ProviderSettings) -> Result<()>);
+    forward!(connections() -> Result<Vec<ApiConnection>>);
+    forward!(save_connection(connection: &ApiConnection) -> Result<()>);
+    forward!(delete_connection(id: &str) -> Result<()>);
     fn create_run(&self, request: &NewRun) -> Result<RunSnapshot> {
         self.pause(Point::Create);
         self.inner.create_run(request)

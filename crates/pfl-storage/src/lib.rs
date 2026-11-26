@@ -258,6 +258,13 @@ impl SqliteStore {
                ordinal INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(identity,table_name,ordinal));
              INSERT INTO schema_migrations(version) SELECT 1
                WHERE NOT EXISTS (SELECT 1 FROM schema_migrations);
+             CREATE TABLE IF NOT EXISTS model_assignments(
+               project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+               surface TEXT NOT NULL,rank INTEGER NOT NULL CHECK(rank>=0 AND rank<=2),
+               provider TEXT NOT NULL,model TEXT,effort TEXT,
+               PRIMARY KEY(project_id,surface,rank));
+             CREATE TABLE IF NOT EXISTS provider_settings(id INTEGER PRIMARY KEY CHECK(id=1),payload TEXT NOT NULL);
+             CREATE TABLE IF NOT EXISTS api_connections(id TEXT PRIMARY KEY,payload TEXT NOT NULL);
              CREATE TABLE IF NOT EXISTS document_revisions(
                id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES projects(id),
                kind TEXT NOT NULL,version INTEGER NOT NULL CHECK(version>0),payload TEXT NOT NULL,
@@ -558,6 +565,141 @@ impl Store for SqliteStore {
     fn save_settings(&self, settings: &Settings) -> Result<()> {
         self.transaction(|tx| {
             tx.execute("INSERT INTO settings VALUES(1,?1) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload", [encode(settings)?]).map_err(db)?;
+            Ok(())
+        })
+    }
+
+    fn assignments(&self, project: &ProjectId) -> Result<Vec<ModelAssignment>> {
+        self.transaction(|tx| {
+            let mut statement = tx
+                .prepare(
+                    "SELECT surface,rank,provider,model,effort FROM model_assignments
+                     WHERE project_id=?1 ORDER BY surface,rank",
+                )
+                .map_err(db)?;
+            let rows = statement
+                .query_map([&project.0], |row| {
+                    Ok(ModelAssignment {
+                        surface: row.get(0)?,
+                        rank: row.get::<_, i64>(1)?.clamp(0, 2) as u8,
+                        provider: row.get(2)?,
+                        model: row.get(3)?,
+                        effort: row.get(4)?,
+                    })
+                })
+                .map_err(db)?;
+            rows.collect::<std::result::Result<Vec<_>, _>>().map_err(db)
+        })
+    }
+
+    fn set_assignment(&self, project: &ProjectId, assignment: &ModelAssignment) -> Result<()> {
+        if assignment.rank > 2 {
+            return Err(Error::Invalid(
+                "an assignment has at most three ranks: the choice and two fallbacks".into(),
+            ));
+        }
+        self.transaction(|tx| {
+            tx.execute(
+                "INSERT INTO model_assignments(project_id,surface,rank,provider,model,effort)
+                 VALUES(?1,?2,?3,?4,?5,?6)
+                 ON CONFLICT(project_id,surface,rank) DO UPDATE SET
+                   provider=excluded.provider,model=excluded.model,effort=excluded.effort",
+                params![
+                    project.0,
+                    assignment.surface,
+                    assignment.rank as i64,
+                    assignment.provider,
+                    assignment.model,
+                    assignment.effort
+                ],
+            )
+            .map_err(db)?;
+            Ok(())
+        })
+    }
+
+    fn clear_assignments(&self, project: &ProjectId, surface: &str) -> Result<usize> {
+        self.transaction(|tx| {
+            let removed = tx
+                .execute(
+                    "DELETE FROM model_assignments WHERE project_id=?1 AND surface=?2",
+                    params![project.0, surface],
+                )
+                .map_err(db)?;
+            Ok(removed)
+        })
+    }
+
+    fn provider_settings(&self) -> Result<ProviderSettings> {
+        self.transaction(|tx| {
+            let value: Option<String> = tx
+                .query_row(
+                    "SELECT payload FROM provider_settings WHERE id=1",
+                    [],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(db)?;
+            value
+                .map(|s| decode(&s))
+                .transpose()
+                .map(|v| v.unwrap_or_default())
+        })
+    }
+
+    fn save_provider_settings(&self, settings: &ProviderSettings) -> Result<()> {
+        self.transaction(|tx| {
+            tx.execute(
+                "INSERT INTO provider_settings VALUES(1,?1)
+                 ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+                [encode(settings)?],
+            )
+            .map_err(db)?;
+            Ok(())
+        })
+    }
+
+    fn connections(&self) -> Result<Vec<ApiConnection>> {
+        self.transaction(|tx| {
+            let mut statement = tx
+                .prepare("SELECT payload FROM api_connections ORDER BY id")
+                .map_err(db)?;
+            let rows = statement
+                .query_map([], |row| row.get::<_, String>(0))
+                .map_err(db)?;
+            let mut out = Vec::new();
+            for row in rows {
+                out.push(decode(&row.map_err(db)?)?);
+            }
+            Ok(out)
+        })
+    }
+
+    fn save_connection(&self, connection: &ApiConnection) -> Result<()> {
+        if connection.id.trim().is_empty() || connection.base_url.trim().is_empty() {
+            return Err(Error::Invalid(
+                "a connection needs an id and a base URL".into(),
+            ));
+        }
+        self.transaction(|tx| {
+            tx.execute(
+                "INSERT INTO api_connections(id,payload) VALUES(?1,?2)
+                 ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+                params![connection.id, encode(connection)?],
+            )
+            .map_err(db)?;
+            Ok(())
+        })
+    }
+
+    fn delete_connection(&self, id: &str) -> Result<()> {
+        self.transaction(|tx| {
+            let removed = tx
+                .execute("DELETE FROM api_connections WHERE id=?1", [id])
+                .map_err(db)?;
+            if removed == 0 {
+                return Err(Error::NotFound(format!("connection {id}")));
+            }
             Ok(())
         })
     }

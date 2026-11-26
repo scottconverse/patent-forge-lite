@@ -726,6 +726,47 @@ pub enum Command {
     Cancel(RunId),
 }
 
+/// Which provider runs one place, and in what order.
+///
+/// `surface` is a stable slug (`stage-prior-art`, `workflow-claims`), never prose: the label can be
+/// reworded without orphaning a stored row. Rank 0 is the choice; ranks 1 and 2 are the fallbacks,
+/// tried in order when the one before them fails in a way that warrants moving on.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModelAssignment {
+    pub surface: String,
+    pub rank: u8,
+    pub provider: String,
+    /// Empty means "whatever the server has loaded" for a local provider, and "the entry's own
+    /// model" for everything else.
+    pub model: Option<String>,
+    pub effort: Option<String>,
+}
+
+/// A connection the operator defined: a base URL and a model, with the key kept elsewhere.
+///
+/// There is deliberately no key column. A key lives in the session and never reaches storage;
+/// `key_ref` names the in-session credential so a run can be attributed without storing it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApiConnection {
+    pub id: String,
+    pub name: String,
+    pub base_url: String,
+    pub model: Option<String>,
+    pub key_ref: Option<String>,
+}
+
+/// Per-install overrides for the provider layer.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderSettings {
+    /// A gateway the operator configured, used by the `openai` kind when it has no entry base URL.
+    pub openai_base_url: Option<String>,
+    /// Where Anthropic's API is reached; loopback is allowed for verification only.
+    pub anthropic_endpoint: Option<String>,
+    /// A local address to probe in addition to the known ports.
+    pub local_endpoint_override: Option<String>,
+    /// An operator-chosen whole-run wall clock, in milliseconds.
+    pub wall_budget_ms: Option<u64>,
+}
 /// All compound writes are atomic. Every attempt-owned mutation rejects stale
 /// attempts. A checkpoint, its usage and its event commit together before notification.
 pub trait Store: Send + Sync {
@@ -772,6 +813,16 @@ pub trait Store: Send + Sync {
     fn events_after(&self, cursor: &Subscribe) -> Result<Vec<RunEvent>>;
     /// Startup-only recovery, never called by a read or a second view.
     fn recover_interrupted(&self, at_ms: u64) -> Result<Vec<RunId>>;
+    /// Every assignment for a project, ordered by surface and rank.
+    fn assignments(&self, project: &ProjectId) -> Result<Vec<ModelAssignment>>;
+    fn set_assignment(&self, project: &ProjectId, assignment: &ModelAssignment) -> Result<()>;
+    /// Removes every rank for one surface, so a cleared choice leaves nothing behind.
+    fn clear_assignments(&self, project: &ProjectId, surface: &str) -> Result<usize>;
+    fn provider_settings(&self) -> Result<ProviderSettings>;
+    fn save_provider_settings(&self, settings: &ProviderSettings) -> Result<()>;
+    fn connections(&self) -> Result<Vec<ApiConnection>>;
+    fn save_connection(&self, connection: &ApiConnection) -> Result<()>;
+    fn delete_connection(&self, id: &str) -> Result<()>;
 }
 
 #[derive(Debug, Clone)]
