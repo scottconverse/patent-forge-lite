@@ -10,6 +10,7 @@ mod export;
 pub mod package;
 pub mod prompts;
 pub mod providers;
+pub mod registry;
 pub use cost::{Estimate, Pricing, confirmation_text, estimate, estimate_run, pricing_for};
 mod report;
 pub use report::{UsageSummary, usage_summary};
