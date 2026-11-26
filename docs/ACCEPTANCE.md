@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `f9f7943` |
+| Revision | `c0d39cc` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 134 |
+| pass | 135 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -176,7 +176,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Item | Evidence | Result |
 | --- | --- | --- |
-| One Windows installer from one revision, both profiles, SHA-256 recorded | run | pass — `docs/RELEASE-MANIFEST.md`, revision `f9f7943`, `42947b7d…`, 12,083,594 bytes, unsigned |
+| One Windows installer from one revision, both profiles, SHA-256 recorded | run | pass — `docs/RELEASE-MANIFEST.md`, revision `c0d39cc`, `3b33916b…`, 12,084,047 bytes, unsigned |
 | The release workflow builds the requested tag, versions the installer from it, requires versioned notes, and refuses to overwrite a published release without `replace: true` (never rewriting notes) | review + YAML parse | pass — F-005, F-006 |
 | Windows install, upgrade, rollback, uninstall, data retained | run, 11/11 twice | pass — `docs/evidence/upgrade/` |
 | Signature status recorded truthfully | review + `Get-AuthenticodeSignature` | pass — v0.1.0 signed; candidate unsigned |
@@ -186,6 +186,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | The shipped Linux binary starts on a real desktop display | run in CI under Xvfb with `mesa-vulkan-drivers` | pass — process alive after 10 s and its profile created; a human has still not used it interactively |
 | One provider registry defines every provider, its budget and its lists; a stored kind this build does not know opens as Replay instead of failing | unit (`registry`, `provider_kind_compat`) | pass — 13 tests, including list/registry agreement, slug round-trips and a captured 0.2.1 payload |
 | Per-surface provider assignment (three ranks), per-install provider overrides and operator connections persist; a connection row stores no credential; an older database opens unassigned | integration (`assignments`, 10 tests) | pass — CRUD, rank refusal, cascade, reopen, and a payload grep for credential shapes |
+| Effort reaches the provider: low/medium/high become an Anthropic thinking budget, and an unknown word is refused before any request | integration (`anthropic_effort`, 4 tests) | pass — 1024/4096/8192 in the body; no field when unset; unknown effort refused |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
 | macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded — macOS 27.2.1 (2026-11-25) | run on the same Mac: `bundle.sh`, recorded in `docs/evidence/macos/20261125T023619Z/` | pass — plist `0.2.0`; `Resources/docs` present, `docs/evidence` absent |
