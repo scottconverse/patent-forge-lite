@@ -54,11 +54,26 @@ async fn run_program(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    let mut child = command.spawn().map_err(|error| {
-        Error::Provider(format!(
-            "could not run the {label} program ({program}): {error}. {hint}"
-        ))
-    })?;
+    // A program written moments ago can be `ETXTBSY` for a little while: another thread's fork may
+    // still hold its write handle. Retrying is what an operator double-clicking a fresh install
+    // needs anyway, and it is cheaper than explaining the race.
+    let mut child = {
+        let mut attempt = 0;
+        loop {
+            match command.spawn() {
+                Ok(child) => break child,
+                Err(error) if error.raw_os_error() == Some(26) && attempt < 20 => {
+                    attempt += 1;
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                Err(error) => {
+                    return Err(Error::Provider(format!(
+                        "could not run the {label} program ({program}): {error}. {hint}"
+                    )));
+                }
+            }
+        }
+    };
     let pid = child.id();
     if let Some(text) = stdin_text {
         use tokio::io::AsyncWriteExt;
