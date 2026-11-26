@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `7de3895` |
+| Revision | `a8f03a2` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 156 |
+| pass | 157 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -210,6 +210,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | A provider can be named as the fallback (rank 1) from the Models page, and the page reads it back | installed, driven on this machine | pass — choosing a fallback wrote four rank-1 rows and the button read "Is fallback" |
 | A provider can be assigned to one stage, not only a workflow, and read back | run (`pfl-cli models --set-surface stage-prior-art --provider claude --rank 0`) | pass — the database held stage-prior-art rank 0 claude and rank 1 codex |
 | A reader can learn what the provider layer does, what it refuses, and what is missing, from `docs/PROVIDERS.md` | review | pass — the kinds, the consent rule, the ladder taxonomy, and the four known gaps are stated there |
+| An installed-but-stopped Ollama is started; a server that answers is never spawned; a spawn that never serves is a failure | unit (`ollama_supervision`, 5 tests) + wired into discovery | pass — every branch by fake probe/spawn; on this machine Ollama was already running and was left alone |
 | A run uses a stage-level assignment | — | **blocked — harness** — a run holds one provider, so stage entries are recorded but not yet honoured |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
