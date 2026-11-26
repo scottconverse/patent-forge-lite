@@ -475,6 +475,19 @@ impl Actor {
                 AssignedCli::Gemini => Arc::new(pfl_workflow::cli::GeminiCliProvider::new(model)?),
             }));
         }
+        if row.provider == "anthropic" {
+            // A hosted assignment needs the session's key, exactly as the Cloud mode does. Without
+            // one there is nothing to build, so it falls back to the configured mode instead.
+            let Some(key) = self.cloud_key.clone() else {
+                return Ok(None);
+            };
+            let model = row
+                .model
+                .clone()
+                .filter(|model| !model.trim().is_empty())
+                .unwrap_or_else(|| default_model("anthropic"));
+            return Ok(Some(Arc::new(CloudProvider::new(key.expose(), model)?)));
+        }
         let Some(server) = assigned_local_kind(&row.provider) else {
             return Ok(None);
         };
