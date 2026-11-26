@@ -33,6 +33,7 @@ fn request() -> ProviderRequest {
         },
         upstream: Upstream::default(),
         regeneration: None,
+        provider_plan: Vec::new(),
     };
     ProviderRequest {
         run_id: RunId("run".into()),

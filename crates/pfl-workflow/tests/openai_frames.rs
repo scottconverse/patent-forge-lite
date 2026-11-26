@@ -92,7 +92,7 @@ fn request(snapshot: ProviderSnapshot) -> ProviderRequest {
             ..Default::default()
         },
         upstream: Upstream::default(),
-        regeneration: None,
+        regeneration: None,        provider_plan: Vec::new(),
     };
     ProviderRequest {
         run_id: RunId("run".into()),

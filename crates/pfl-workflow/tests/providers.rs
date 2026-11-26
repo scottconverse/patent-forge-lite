@@ -34,6 +34,7 @@ fn request(stage: Stage) -> ProviderRequest {
             },
             upstream: Upstream::default(),
             regeneration: None,
+            provider_plan: Vec::new(),
         },
         system_prompt: "system".into(),
         user_prompt: "user".into(),

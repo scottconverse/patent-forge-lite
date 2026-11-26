@@ -583,6 +583,29 @@ pub struct RunInput {
     /// Present only on a regeneration run.
     #[serde(default)]
     pub regeneration: Option<RegenerationPlan>,
+    /// Every provider this run is allowed to use, in order: the first is the choice, the rest are
+    /// the ladder behind it. Empty means "just `provider`", which is what older runs carry.
+    ///
+    /// This is what lets a run record the truth when more than one provider might answer, and it
+    /// is why the field is additive and defaulted: an existing run's JSON still parses.
+    #[serde(default)]
+    pub provider_plan: Vec<ProviderSnapshot>,
+}
+
+impl RunInput {
+    /// The plan as a run should read it: the named provider when no plan was recorded.
+    pub fn plan(&self) -> Vec<ProviderSnapshot> {
+        if self.provider_plan.is_empty() {
+            vec![self.provider.clone()]
+        } else {
+            self.provider_plan.clone()
+        }
+    }
+
+    /// May this run use this provider?
+    pub fn permits(&self, snapshot: &ProviderSnapshot) -> bool {
+        self.plan().iter().any(|candidate| candidate == snapshot)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1088,4 +1111,64 @@ pub struct ProviderLogin {
     pub detail: String,
     /// When this attempt stops being worth showing.
     pub expires_at_ms: u64,
+}
+
+#[cfg(test)]
+mod provider_plan_tests {
+    use super::*;
+
+    fn snapshot(model: &str) -> ProviderSnapshot {
+        ProviderSnapshot {
+            kind: ProviderKind::ClaudeCode,
+            model: model.into(),
+            endpoint: None,
+        }
+    }
+
+    fn input(provider: ProviderSnapshot, provider_plan: Vec<ProviderSnapshot>) -> RunInput {
+        RunInput {
+            kind: WorkflowKind::Feasibility,
+            intake: Intake::default(),
+            provider,
+            prompts: PromptSnapshot {
+                version: "t".into(),
+                sha256: "0".repeat(64),
+            },
+            authorization: Authorization::default(),
+            upstream: Upstream::default(),
+            regeneration: None,
+            provider_plan,
+        }
+    }
+
+    #[test]
+    fn an_older_run_without_a_plan_permits_only_its_own_provider() {
+        let run = input(snapshot("a"), Vec::new());
+        assert_eq!(run.plan(), vec![snapshot("a")]);
+        assert!(run.permits(&snapshot("a")));
+        assert!(!run.permits(&snapshot("b")));
+    }
+
+    #[test]
+    fn a_plan_permits_every_rung_and_nothing_else() {
+        let run = input(snapshot("a"), vec![snapshot("a"), snapshot("b")]);
+        assert!(run.permits(&snapshot("a")));
+        assert!(run.permits(&snapshot("b")));
+        assert!(!run.permits(&snapshot("c")));
+    }
+
+    #[test]
+    fn an_older_payload_still_parses() {
+        let json = serde_json::json!({
+            "kind": "feasibility",
+            "intake": Intake::default(),
+            "provider": snapshot("a"),
+            "prompts": { "version": "t", "sha256": "0" },
+            "authorization": Authorization::default(),
+            "upstream": Upstream::default(),
+        });
+        let parsed: RunInput = serde_json::from_value(json).expect("an older payload parses");
+        assert!(parsed.provider_plan.is_empty());
+        assert!(parsed.permits(&snapshot("a")));
+    }
 }

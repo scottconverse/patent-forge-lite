@@ -111,6 +111,7 @@ fn request(project: &Project, provider: &ReplayProvider, key: &str) -> NewRun {
             },
             upstream: Upstream::default(),
             regeneration: None,
+            provider_plan: Vec::new(),
         },
         rerun_of: None,
         created_at_ms: 1,

@@ -31,6 +31,7 @@ async fn main() -> Result<()> {
             authorization: Authorization::default(),
             upstream: Upstream::default(),
             regeneration: None,
+            provider_plan: Vec::new(),
         },
         system_prompt: "Answer in one short sentence.".into(),
         user_prompt: prompt.clone(),

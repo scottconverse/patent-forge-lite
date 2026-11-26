@@ -560,6 +560,7 @@ impl SqliteStore {
                         },
                         authorization: Authorization::default(),
                         regeneration: None,
+        provider_plan: Vec::new(),
                         upstream: Upstream::default(),
                     },
                     rerun_of: None,

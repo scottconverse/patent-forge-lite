@@ -302,6 +302,7 @@ impl WorkflowService {
             authorization,
             upstream,
             regeneration: None,
+            provider_plan: Vec::new(),
         };
         // Consent and prerequisites are decided before anything leaves the machine: a start
         // that will be refused must not send the invention's title to a prior-art service.
@@ -435,6 +436,7 @@ impl WorkflowService {
                 authorization,
                 upstream,
                 regeneration: None,
+                provider_plan: Vec::new(),
             },
             rerun_of: None,
             created_at_ms: now_ms(),
@@ -612,6 +614,7 @@ impl WorkflowService {
                 authorization,
                 upstream,
                 regeneration: None,
+                provider_plan: Vec::new(),
             },
             rerun_of: None,
             created_at_ms: now_ms(),
