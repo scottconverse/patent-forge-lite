@@ -52,15 +52,19 @@ for a run is one the server already reports as loaded.
 
 ## What is not done yet
 
-- **One provider per run.** `WorkflowService` holds a single provider for its lifetime, so a
-  *stage-level* assignment is recorded and validated but not honoured during a run. Making it real
-  needs a provider factory inside the service, and a run that can carry more than one provider
-  snapshot.
-- **Hosted assignment.** `anthropic` and `openai` assignments fall back to the configured mode: the
-  key plumbing from the session into a per-run provider is not wired.
+- **A per-stage run has not been observed.** The wiring is in: a run carries a `provider_plan`, the
+  service takes a stage resolver, the session precomputes a stage→provider map, and every checkpoint
+  records the provider that answered. But no run has been *seen* using a stage-level assignment,
+  because no local model is loaded on this machine and a subscription run would spend the operator's
+  quota. The cheap path to observe it is in `docs/HANDOFF-PROVIDERS.md`.
+- **Hosted `openai`-compatible assignment by name.** `anthropic` builds from the session key, and a
+  saved connection is usable as `conn-<id>`; there is no connection picker, and a connection whose
+  key lives in the OS store is not yet resolved.
+- **Per-run override** (the plan's T15) is not built: overrides are per project surface, not per run.
 - **Gemini live call.** The transport is tested against its documented JSON; the live call is
   blocked on a Google sign-in or `GEMINI_API_KEY`.
-- **Per-run override and custom connections** (the plan's T15 and T16) are not built.
+- **Connection UI** (T16's remaining half): connections can be created by the CLI and used by a run,
+  but not managed from the window.
 
 ## Evidence
 
