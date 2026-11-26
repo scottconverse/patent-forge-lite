@@ -69,3 +69,29 @@ pwsh -NoProfile -File scripts/acceptance-check.ps1     # 13 checks, includes ins
 
 Then rebuild the installer (`target/native` release, ISCC), update `docs/RELEASE-MANIFEST.md`, and
 run `scripts/upgrade-proof.ps1`. The freshness check fails if shipped code moves without that.
+
+## Step 3: the session wiring, and its one trap
+
+The four prerequisites are in (`RunInput.provider_plan`, `WorkflowService::new_with_stage_provider`,
+`Checkpoint.provider`, `set_provider_plan`). What remains is `Request::Start` in
+`crates/pfl-desktop/src/session.rs`.
+
+**The trap:** `StageProvider` is a *synchronous* `Fn(Stage) -> Arc<dyn Provider>`, while building a
+provider is *async* — a local kind needs discovery to choose the loaded model. A resolver therefore
+cannot construct anything; it can only look up something already built.
+
+So the wiring precomputes, before the run:
+
+1. read the project's assignments (`store.assignments(&project)`);
+2. for each stage-level rank-0 row, build its provider asynchronously and keep a
+   `HashMap<Stage, Arc<dyn Provider>>`;
+3. build the workflow-level provider exactly as `assigned_provider` does today;
+4. `WorkflowService::new_with_stage_provider(store, workflow_provider.clone(), handle,
+   move |stage| map.get(&stage).cloned().unwrap_or_else(|| workflow_provider.clone()))`;
+5. `Arc::get_mut(&mut service).unwrap().set_provider_plan(plan)`, where `plan` is the distinct
+   snapshots in rung order — **before** the service is shared. `Arc::get_mut` fails once a clone
+   exists, so set it first, clone second.
+
+Two consequences worth stating: a stage whose provider cannot be built falls back to the workflow
+provider rather than failing the run, and the plan must contain every provider the resolver can
+return, or `authorize` will (correctly) refuse the resume later.
