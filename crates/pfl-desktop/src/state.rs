@@ -14,6 +14,7 @@ pub enum Page {
     Workflow,
     History,
     Report,
+    Models,
     Settings,
 }
 

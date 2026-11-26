@@ -2415,6 +2415,64 @@ impl Render for Desktop {
                     content = content.child(list);
                 }
             }
+            Page::Models => {
+                content = content.child(self.page_header(
+                    "Models",
+                    "What can run each stage: the registry, what is answering on this machine, and whether the CLIs are signed in.",
+                    Some(div().child(self.primary_button(
+                        "refresh-models",
+                        "Refresh",
+                        |this, _, cx| {
+                            this.send(Request::DiscoverProviders, cx);
+                        },
+                        cx,
+                    ))),
+                ));
+                let mut list = div().flex().flex_col().gap_2().w_full();
+                if self.providers.is_empty() {
+                    list = list.child(
+                        theme::panel().p_4().child(
+                            div()
+                                .text_sm()
+                                .text_color(rgb(theme::MUTED))
+                                .child("Nothing scanned yet. Refresh to look for local servers and signed-in programs."),
+                        ),
+                    );
+                }
+                for provider in &self.providers {
+                    let status = if provider.available {
+                        "available".to_string()
+                    } else {
+                        provider
+                            .note
+                            .clone()
+                            .unwrap_or_else(|| "unavailable".to_string())
+                    };
+                    list = list.child(
+                        theme::panel().p_4().child(
+                            div()
+                                .flex()
+                                .flex_row()
+                                .items_center()
+                                .gap_3()
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .text_color(rgb(theme::TEXT))
+                                        .child(provider.label.clone()),
+                                )
+                                .child(div().text_xs().text_color(rgb(theme::MUTED)).child(status))
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(rgb(theme::FAINT))
+                                        .child(format!("{} model(s)", provider.models.len())),
+                                ),
+                        ),
+                    );
+                }
+                content = content.child(list);
+            }
             Page::Settings => {
                 content = content.child(self.page_header(
                     "Execution setup",
@@ -2804,6 +2862,14 @@ impl Render for Desktop {
                 "Report",
                 Page::Report,
                 self.state.page == Page::Report,
+                cx,
+            ))
+            .child(self.nav_button(
+                "nav-models",
+                theme::Icon::Setup,
+                "Models",
+                Page::Models,
+                self.state.page == Page::Models,
                 cx,
             ))
             .child(self.nav_button(
