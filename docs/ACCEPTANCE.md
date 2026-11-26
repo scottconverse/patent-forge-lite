@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `da6bcc5` |
+| Revision | `28413f1` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 149 |
+| pass | 150 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -203,6 +203,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | The Models page renders every provider with its availability and reason, and refreshes on demand | installed, driven on this machine; screenshot `docs/evidence/models/20261126T1130Z/` | pass — 8 rows: Claude/Codex available, Gemini not signed in, Anthropic/OpenAI not configured, LM Studio 15, Ollama 36, llama.cpp silent |
 | A model assignment can be read and written per project and surface: rank 0 is the choice, 1–2 the fallbacks, and an empty provider clears the surface | unit (`assignments`, storage) + session request/reply | pass — the reply carries the record, so the page redraws from what was stored |
 | A provider can be chosen from the Models page: one control writes rank 0 for every workflow, the page redraws from the record, and unavailable providers offer nothing | installed, driven on this machine; screenshot `docs/evidence/models/20261126T1130Z/` | pass — choosing Claude wrote four `workflow-*` rows (verified in the database) and the button read "In use" |
+| Automatic is a choice that clears the record rather than pinning something | installed, driven on this machine | pass — Automatic removed all four workflow rows; the database held zero afterwards |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
 | macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded — macOS 27.2.1 (2026-11-25) | run on the same Mac: `bundle.sh`, recorded in `docs/evidence/macos/20261125T023619Z/` | pass — plist `0.2.0`; `Resources/docs` present, `docs/evidence` absent |
