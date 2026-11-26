@@ -453,6 +453,14 @@ impl Actor {
         else {
             return Ok(None);
         };
+        self.provider_for_assignment(row).await
+    }
+
+    /// The provider one assignment names, when this build can honour it.
+    async fn provider_for_assignment(
+        &self,
+        row: &pfl_domain::ModelAssignment,
+    ) -> Result<Option<Arc<dyn Provider>>> {
         if let Some(program) = assigned_cli_kind(&row.provider) {
             let model = row
                 .model
@@ -902,8 +910,50 @@ impl Actor {
                 }
                 // An assignment overrides the configured mode, but only where this build can honour
                 // it safely (loopback servers). Everything else keeps the mode above.
-                if let Some(assigned) = self.assigned_provider(&project, kind).await? {
-                    self.rebuild_service(assigned);
+                // Per-stage providers are built before the run: the resolver is synchronous, but
+                // building a provider can need discovery. A stage whose provider cannot be built
+                // falls back to the workflow's.
+                if let Some(workflow) = self.assigned_provider(&project, kind).await? {
+                    let rows = self.store.assignments(&project)?;
+                    let mut by_stage: Vec<(Stage, Arc<dyn Provider>)> = Vec::new();
+                    for row in rows.iter().filter(|row| row.rank == 0) {
+                        let Some(stage) = Stage::ALL
+                            .iter()
+                            .copied()
+                            .find(|stage| row.surface == format!("stage-{}", stage.slug()))
+                        else {
+                            continue;
+                        };
+                        if let Some(provider) = self.provider_for_assignment(row).await? {
+                            by_stage.push((stage, provider));
+                        }
+                    }
+                    // The plan lists every provider the resolver can return, or a later resume is
+                    // correctly refused for naming one the run never permitted.
+                    let mut plan = vec![workflow.snapshot()];
+                    for (_, provider) in &by_stage {
+                        let snapshot = provider.snapshot();
+                        if !plan.contains(&snapshot) {
+                            plan.push(snapshot);
+                        }
+                    }
+                    let fallback = workflow.clone();
+                    let mut service = WorkflowService::new_with_stage_provider(
+                        self.store.clone(),
+                        workflow,
+                        tokio::runtime::Handle::current(),
+                        std::sync::Arc::new(move |stage: Stage| {
+                            by_stage
+                                .iter()
+                                .find(|(candidate, _)| *candidate == stage)
+                                .map(|(_, provider)| provider.clone())
+                                .unwrap_or_else(|| fallback.clone())
+                        }),
+                    );
+                    std::sync::Arc::get_mut(&mut service)
+                        .expect("a service that was just built is not shared yet")
+                        .set_provider_plan(plan);
+                    self.service = service;
                 }
                 let snapshot = self
                     .service
