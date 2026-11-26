@@ -1194,12 +1194,17 @@ async fn main() {
                 ("gemini", env.has_gemini),
             ];
             let providers = pfl_workflow::catalog::build(&env, &discovered, &sign_ins);
+            // What Automatic would actually try, in order, given what this machine can reach.
+            let automatic: Vec<&str> = pfl_workflow::ladder::planned_order(&env)
+                .iter()
+                .map(|id| id.slug())
+                .collect();
             let choice = discovered
                 .pick_loaded()
                 .map(|(server, model)| serde_json::json!({ "endpoint": server.base_url, "model": model.id }));
             println!(
                 "{}",
-                serde_json::json!({ "providers": providers, "use_whatever_is_loaded": choice })
+                serde_json::json!({ "providers": providers, "automatic": automatic, "use_whatever_is_loaded": choice })
             );
             return Ok(());
         }
