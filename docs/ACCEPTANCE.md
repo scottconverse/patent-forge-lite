@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `e59f4be` |
+| Revision | `1060014` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 146 |
+| pass | 147 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -200,6 +200,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Automatic tries rungs in order and advances only on quota, unavailable, lapsed sign-in, timeout, no output or unreadable answer; a refusal or unrecognised failure stops and is shown | unit (`ladder`, 6 tests) | pass — the quota-then-success path records `skipped: claude / quota`, a refusal is not retried elsewhere, an unbuildable rung is recorded |
 | A run records what it asked for, what answered, the effort and which rungs were skipped and why | unit (`ladder`, receipt fields) | pass — `requested`, `actual`, `effort`, `skipped[{rung, reason}]` |
 | One catalogue joins the registry, the discovered servers and the CLI sign-in states; every provider appears once with a reason when it cannot be used | unit (`catalog`, 5 tests) + live `pfl-cli models` on this machine | pass — claude/codex signed in, gemini installed not signed in, LM Studio 15 models, Ollama 36, llama.cpp silent |
+| The Models page renders every provider with its availability and reason, and refreshes on demand | installed, driven on this machine; screenshot `docs/evidence/models-page.png` | pass — 8 rows: Claude/Codex available, Gemini not signed in, Anthropic/OpenAI not configured, LM Studio 15, Ollama 36, llama.cpp silent |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
 | macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded — macOS 27.2.1 (2026-11-25) | run on the same Mac: `bundle.sh`, recorded in `docs/evidence/macos/20261125T023619Z/` | pass — plist `0.2.0`; `Resources/docs` present, `docs/evidence` absent |
