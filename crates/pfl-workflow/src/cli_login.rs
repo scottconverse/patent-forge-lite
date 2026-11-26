@@ -5,6 +5,7 @@
 //! code) it prints, and ask its own `status` subcommand whether it is signed in. Nothing here
 //! reads, stores or logs a credential.
 
+use crate::cli::{redact, tail};
 use crate::*;
 use std::{process::Stdio, time::Duration};
 
@@ -199,4 +200,256 @@ mod tests {
             Some("https://claude.com/cai/oauth/authorize?x=1")
         );
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Starting, polling and cancelling an attempt
+// ---------------------------------------------------------------------------------------------
+
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
+/// What an attempt is doing, in the words the record uses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoginState {
+    Starting,
+    AwaitingUser,
+    Done,
+    Failed,
+    Cancelled,
+}
+
+impl LoginState {
+    pub fn slug(self) -> &'static str {
+        match self {
+            LoginState::Starting => "starting",
+            LoginState::AwaitingUser => "awaiting_user",
+            LoginState::Done => "done",
+            LoginState::Failed => "failed",
+            LoginState::Cancelled => "cancelled",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LoginSnapshot {
+    pub id: u64,
+    pub provider: String,
+    pub state: LoginState,
+    pub url: Option<String>,
+    pub code: Option<String>,
+    /// Redacted before it is put here.
+    pub detail: String,
+}
+
+struct Attempt {
+    provider: String,
+    pid: Option<u32>,
+    child: tokio::process::Child,
+    output: Arc<Mutex<String>>,
+    cancelled: bool,
+}
+
+/// Owns the running sign-in programs.
+///
+/// One attempt per provider at a time: two Codex device flows print two codes and only one works,
+/// and an operator staring at a stale code has no way to tell which.
+pub struct LoginManager {
+    attempts: Mutex<HashMap<u64, Attempt>>,
+    next_id: Mutex<u64>,
+}
+
+impl Default for LoginManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LoginManager {
+    pub fn new() -> Self {
+        Self {
+            attempts: Mutex::new(HashMap::new()),
+            next_id: Mutex::new(1),
+        }
+    }
+
+    /// Starts an attempt and waits briefly for the URL the program prints.
+    pub async fn start(&self, provider: &str) -> Result<LoginSnapshot> {
+        let (program, args): (String, Vec<&str>) = match provider {
+            "claude" => (
+                crate::cli::default_program("PFL_CLAUDE_CLI", "claude"),
+                vec!["auth", "login", "--claudeai"],
+            ),
+            "codex" => (
+                crate::cli::default_program("PFL_CODEX_CLI", "codex"),
+                vec!["login", "--device-auth"],
+            ),
+            other => {
+                return Err(Error::Invalid(format!(
+                    "unknown provider {other:?}; expected claude or codex"
+                )));
+            }
+        };
+        self.start_with(provider, &program, &args).await
+    }
+
+    /// The same, against a specific program — for tests and unusual installations.
+    pub async fn start_with(
+        &self,
+        provider: &str,
+        program: &str,
+        args: &[&str],
+    ) -> Result<LoginSnapshot> {
+        {
+            let attempts = self.attempts.lock().expect("attempts mutex");
+            if attempts
+                .values()
+                .any(|attempt| attempt.provider == provider && !attempt.cancelled)
+            {
+                return Err(Error::Conflict(format!(
+                    "a {provider} sign-in is already waiting; finish or cancel it first"
+                )));
+            }
+        }
+        let mut child = tokio::process::Command::new(program)
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(|error| {
+                Error::Provider(format!("could not start {program} for {provider}: {error}"))
+            })?;
+        let pid = child.id();
+        let output = Arc::new(Mutex::new(String::new()));
+        if let Some(stdout) = child.stdout.take() {
+            collect(stdout, output.clone());
+        }
+        if let Some(stderr) = child.stderr.take() {
+            collect(stderr, output.clone());
+        }
+        let id = {
+            let mut next = self.next_id.lock().expect("id mutex");
+            let id = *next;
+            *next += 1;
+            id
+        };
+        self.attempts.lock().expect("attempts mutex").insert(
+            id,
+            Attempt {
+                provider: provider.to_string(),
+                pid,
+                child,
+                output: output.clone(),
+                cancelled: false,
+            },
+        );
+        // Give the program a moment to print its URL before reporting back; a login that needs a
+        // human is useless until the human knows where to go.
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        loop {
+            let snapshot = self.poll(id)?;
+            if snapshot.url.is_some() || snapshot.state == LoginState::Done {
+                return Ok(snapshot);
+            }
+            if snapshot.state == LoginState::Failed || std::time::Instant::now() >= deadline {
+                return Ok(snapshot);
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
+
+    pub fn poll(&self, id: u64) -> Result<LoginSnapshot> {
+        let mut attempts = self.attempts.lock().expect("attempts mutex");
+        let attempt = attempts
+            .get_mut(&id)
+            .ok_or_else(|| Error::NotFound(format!("login {id}")))?;
+        let text = attempt.output.lock().expect("output mutex").clone();
+        let (url, code) = parse_login_output(&text);
+        let state = if attempt.cancelled {
+            LoginState::Cancelled
+        } else {
+            match attempt.child.try_wait().map_err(|error| {
+                Error::Provider(format!("could not read the sign-in program: {error}"))
+            })? {
+                Some(status) if status.success() => LoginState::Done,
+                Some(_) => LoginState::Failed,
+                None if url.is_some() => LoginState::AwaitingUser,
+                None => LoginState::Starting,
+            }
+        };
+        Ok(LoginSnapshot {
+            id,
+            provider: attempt.provider.clone(),
+            state,
+            url,
+            code,
+            detail: if state == LoginState::Failed {
+                tail(&redact(&text), 300)
+            } else {
+                String::new()
+            },
+        })
+    }
+
+    pub fn cancel(&self, id: u64) -> Result<LoginSnapshot> {
+        {
+            let mut attempts = self.attempts.lock().expect("attempts mutex");
+            let attempt = attempts
+                .get_mut(&id)
+                .ok_or_else(|| Error::NotFound(format!("login {id}")))?;
+            attempt.cancelled = true;
+            #[cfg(windows)]
+            if let Some(pid) = attempt.pid {
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/PID", &pid.to_string(), "/T", "/F"])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+            }
+            let _ = attempt.child.start_kill();
+        }
+        self.poll(id)
+    }
+
+    /// Forgets a finished attempt, so the next one may start.
+    pub fn retire(&self, id: u64) -> Result<()> {
+        let mut attempts = self.attempts.lock().expect("attempts mutex");
+        let done = attempts
+            .get_mut(&id)
+            .map(|a| a.cancelled || matches!(a.child.try_wait(), Ok(Some(_))))
+            .unwrap_or(false);
+        if !done {
+            return Err(Error::Conflict(
+                "that sign-in is still running; cancel it first".into(),
+            ));
+        }
+        attempts.remove(&id);
+        Ok(())
+    }
+}
+
+/// Drains a pipe into the attempt's shared buffer.
+fn collect(mut pipe: impl tokio::io::AsyncRead + Unpin + Send + 'static, into: Arc<Mutex<String>>) {
+    tokio::spawn(async move {
+        use tokio::io::AsyncReadExt;
+        let mut buffer = [0u8; 1024];
+        loop {
+            match pipe.read(&mut buffer).await {
+                Ok(0) | Err(_) => break,
+                Ok(read) => {
+                    if let Ok(mut text) = into.lock() {
+                        text.push_str(&String::from_utf8_lossy(&buffer[..read]));
+                        if text.len() > 64 * 1024 {
+                            let keep = text.len() - 64 * 1024;
+                            text.drain(..keep);
+                        }
+                    }
+                }
+            }
+        }
+    });
 }

@@ -147,7 +147,7 @@ async fn terminate(pid: Option<u32>) {
 }
 
 /// Keeps the end of a message, which is where a CLI puts the reason.
-fn tail(text: &str, max: usize) -> String {
+pub(crate) fn tail(text: &str, max: usize) -> String {
     let text = text.trim();
     if text.chars().count() <= max {
         return text.to_string();
