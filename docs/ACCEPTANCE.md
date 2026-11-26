@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 132 |
+| pass | 134 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -184,6 +184,8 @@ Anything installed writes its JSON and, where relevant, its request log into
 | macOS artifact of this revision | — | **blocked — authorization** — an unsigned, unnotarised `.app` of `bb68c0f` exists locally (`e852fc22…`); publishing it is Scott's decision |
 | Linux artifact of this revision | run in CI (`ubuntu-24.04`): release build, tarball, SHA-256 | pass — `patent-forge-lite-v0.2.1-linux-x64.tar.gz`, `7e9046ed…`, uploaded as a build artifact |
 | The shipped Linux binary starts on a real desktop display | run in CI under Xvfb with `mesa-vulkan-drivers` | pass — process alive after 10 s and its profile created; a human has still not used it interactively |
+| One provider registry defines every provider, its budget and its lists; a stored kind this build does not know opens as Replay instead of failing | unit (`registry`, `provider_kind_compat`) | pass — 13 tests, including list/registry agreement, slug round-trips and a captured 0.2.1 payload |
+| Per-surface provider assignment (three ranks), per-install provider overrides and operator connections persist; a connection row stores no credential; an older database opens unassigned | integration (`assignments`, 10 tests) | pass — CRUD, rank refusal, cascade, reopen, and a payload grep for credential shapes |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live: `chat_probe` against LM Studio :1234 and Ollama :11434 | pass — streamed answers returned; usage recorded when the server reports it |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
 | macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded — macOS 27.2.1 (2026-11-25) | run on the same Mac: `bundle.sh`, recorded in `docs/evidence/macos/20261125T023619Z/` | pass — plist `0.2.0`; `Resources/docs` present, `docs/evidence` absent |
