@@ -121,12 +121,7 @@ impl Provider for ClaudeCliProvider {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
-        // On POSIX the child leads its own process group, so `kill -TERM -<pid>` reaches the
-        // program and whatever it started — and can never reach this process's own group.
-        #[cfg(unix)]
-        {
-            command.process_group(0);
-        }
+
         let mut child = command.spawn().map_err(|error| {
             Error::Provider(format!(
                 "could not run the Claude CLI ({program}): {error}. Sign in with `claude` in a terminal, or set PFL_CLAUDE_CLI to its path.",
@@ -283,8 +278,10 @@ async fn kill_pid(pid: Option<u32>) {
     }
     #[cfg(unix)]
     {
+        // The pid alone, never the process group: `kill -TERM -<pid>` addresses a *group*, and on
+        // a shared runner a wrong guess there reaches processes this program does not own.
         let _ = tokio::process::Command::new("kill")
-            .args(["-TERM", &format!("-{pid}")])
+            .args(["-TERM", &pid.to_string()])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
