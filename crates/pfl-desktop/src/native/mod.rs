@@ -2475,7 +2475,7 @@ impl Render for Desktop {
                 content = content.child(self.page_header(
                     "Models",
                     "What can run each stage: the registry, what is answering on this machine, and whether the CLIs are signed in.",
-                    Some(div().child(self.primary_button(
+                    Some(div().flex().gap_2().child(self.primary_button(
                         "refresh-models",
                         "Refresh",
                         |this, _, cx| {
@@ -2487,7 +2487,32 @@ impl Render for Desktop {
                             }
                         },
                         cx,
-                    ))),
+                    ))
+                    .child(if self.state.selected_project.is_some() {
+                        self.button(
+                            "models-automatic",
+                            "Automatic for every workflow",
+                            |this, _, cx| {
+                                if let Some(project) =
+                                    this.state.selected_project.as_ref().map(|p| p.id.clone())
+                                {
+                                    for kind in pfl_domain::WorkflowKind::ALL {
+                                        this.send(
+                                            Request::ClearAssignments {
+                                                project: project.clone(),
+                                                surface: format!("workflow-{}", kind.slug()),
+                                            },
+                                            cx,
+                                        );
+                                    }
+                                }
+                            },
+                            cx,
+                        )
+                        .into_any_element()
+                    } else {
+                        div().into_any_element()
+                    })),
                 ));
                 let mut list = div().flex().flex_col().gap_2().w_full();
                 if self.providers.is_empty() {
