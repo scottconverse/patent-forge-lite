@@ -20,9 +20,15 @@ struct Job {
     done: watch::Receiver<bool>,
 }
 
+/// Resolves the provider that should serve one stage.
+pub type StageProvider = Arc<dyn Fn(Stage) -> Arc<dyn Provider> + Send + Sync>;
+
 pub struct WorkflowService {
     store: Arc<dyn Store>,
     provider: Arc<dyn Provider>,
+    /// An optional per-stage resolver. `None` means every stage uses `provider`, which is how every
+    /// existing run behaves; `Some` lets a stage be served by a different rung of the run's plan.
+    stage_provider: Option<StageProvider>,
     runtime: Handle,
     /// Optional prior-art source. Absent means no research is performed at all;
     /// it is only consulted for runs that explicitly authorized research.
@@ -73,6 +79,23 @@ impl WorkflowService {
         Self::new_with_research(store, provider, runtime, None)
     }
 
+    /// A service whose stages may be served by different providers.
+    ///
+    /// The resolver is consulted per stage; a stage it does not recognise must fall back to the
+    /// service's own provider, which is what keeps this additive.
+    pub fn new_with_stage_provider(
+        store: Arc<dyn Store>,
+        provider: Arc<dyn Provider>,
+        runtime: Handle,
+        resolve: StageProvider,
+    ) -> Arc<Self> {
+        let mut service = Self::new_with_research(store, provider, runtime, None);
+        Arc::get_mut(&mut service)
+            .expect("a service that was just built is not shared yet")
+            .stage_provider = Some(resolve);
+        service
+    }
+
     /// Adds a prior-art source without changing anything else about a run.
     pub fn new_with_research(
         store: Arc<dyn Store>,
@@ -83,6 +106,7 @@ impl WorkflowService {
         Arc::new(Self {
             store,
             provider,
+            stage_provider: None,
             runtime,
             research,
             research_cancel: CancellationToken::new(),
@@ -864,7 +888,15 @@ impl WorkflowService {
                 effort: None,
             };
             let (tx, mut rx) = mpsc::unbounded_channel();
-            let provider = self.provider.clone();
+            // A staged resolver lets this one stage be served by another rung of the run's plan.
+            let provider = match &self.stage_provider {
+                Some(resolve) => resolve(stage),
+                None => self.provider.clone(),
+            };
+            // The request names the provider that will actually answer this stage, so a receipt
+            // cannot claim the plan's first rung when the third one replied.
+            let mut request = request;
+            request.input.provider = provider.snapshot();
             let generation = provider.generate(request, cancellation.clone(), tx);
             tokio::pin!(generation);
             let mut channel_open = true;
