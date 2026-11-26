@@ -1,0 +1,15 @@
+{
+  "revision": "ea1ba19",
+  "at": "20261126T222346Z",
+  "workspace_tests": {
+    "failed_binaries": 0,
+    "passed": 352
+  },
+  "acceptance": "RESULT: 13 passed, 0 failed",
+  "matrix_pass_rows": "162",
+  "installer": {
+    "bytes": 12321856,
+    "sha256": "46a7ec70abf634cc7a6dc7db6e480f8ed03f9358c81e156cce65bfa369151690"
+  },
+  "note": "structural provider work: prerequisites complete; session wiring outstanding (see docs/HANDOFF-PROVIDERS.md)"
+}
