@@ -95,3 +95,26 @@ So the wiring precomputes, before the run:
 Two consequences worth stating: a stage whose provider cannot be built falls back to the workflow
 provider rather than failing the run, and the plan must contain every provider the resolver can
 return, or `authorize` will (correctly) refuse the resume later.
+
+## Observing a per-stage run (not yet done)
+
+The wiring is in and compiles under both feature sets, but **no run has been observed using a
+stage-level assignment**. The reason is concrete, not an oversight:
+
+- a **local** provider must be *loaded* to answer; discovery currently reports `loaded: false` for
+  every model on this machine (LM Studio 15, Ollama 36), and this application never loads one;
+- a **subscription** provider would answer, but six stages of Claude or Codex is a real spend from
+  the operator's quota, and this session's rule is not to make a run cost money to prove a
+  mechanism.
+
+To observe it, cheaply:
+
+1. load one small model in the runtime the operator prefers (`ollama run <tiny>` — the operator's
+   action, not the app's);
+2. assign that server to one late stage:
+   `pfl-cli models --set-surface stage-final-report --provider local-ollama --rank 0 --database … --project …`;
+3. start a feasibility run with synthetic data;
+4. read the run's checkpoints: every stage should record the workflow's provider, the final report
+   should record the local one, and the plan stored on the run should contain both.
+
+That converts the matrix row from "wired" to "observed". Until then the row says exactly what it is.
