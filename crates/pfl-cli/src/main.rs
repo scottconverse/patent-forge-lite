@@ -859,6 +859,10 @@ async fn main() {
         let mut workspace = None;
         let mut stage = None;
         let mut addr = None;
+    let mut set_surface: Option<String> = None;
+    let mut set_provider: Option<String> = None;
+    let mut set_rank: Option<u8> = None;
+    let mut set_project: Option<ProjectId> = None;
         let mut endpoint = None;
         let mut model = None;
         let mut database = None;
@@ -886,6 +890,18 @@ async fn main() {
                     database = Some(PathBuf::from(value))
                 }
                 ("--addr", Some(value)) if addr.is_none() => addr = Some(value.to_string()),
+                ("--set-surface", Some(value)) if set_surface.is_none() => {
+                    set_surface = Some(value.to_string())
+                }
+                ("--provider", Some(value)) if set_provider.is_none() => {
+                    set_provider = Some(value.to_string())
+                }
+                ("--rank", Some(value)) if set_rank.is_none() => {
+                    set_rank = Some(value.parse::<u8>().map_err(|_| invalid("--rank takes 0, 1 or 2"))?)
+                }
+                ("--project", Some(value)) if set_project.is_none() => {
+                    set_project = Some(ProjectId(value.to_string()))
+                }
                 ("--endpoint", Some(value)) if endpoint.is_none() => {
                     endpoint = Some(value.to_string())
                 }
@@ -1129,6 +1145,36 @@ async fn main() {
                 println!(
                     "{}",
                     serde_json::json!({ "endpoint": endpoint, "models": models })
+                );
+                return Ok(());
+            }
+            // A write: name the provider for one surface, so a stage can differ from its workflow.
+            if let Some(surface) = set_surface {
+                let database = database
+                    .clone()
+                    .ok_or_else(|| invalid("--set-surface needs --database"))?;
+                let project = set_project
+                    .clone()
+                    .ok_or_else(|| invalid("--set-surface needs --project"))?;
+                let provider = set_provider
+                    .clone()
+                    .ok_or_else(|| invalid("--set-surface needs --provider"))?;
+                let rank = set_rank.unwrap_or(0);
+                let store = SqliteStore::open(&database)?;
+                store.set_assignment(
+                    &project,
+                    &pfl_domain::ModelAssignment {
+                        surface: surface.clone(),
+                        rank,
+                        provider: provider.clone(),
+                        model: None,
+                        effort: None,
+                    },
+                )?;
+                let rows = store.assignments(&project)?;
+                println!(
+                    "{}",
+                    serde_json::json!({ "surface": surface, "rank": rank, "provider": provider, "assignments": rows })
                 );
                 return Ok(());
             }
