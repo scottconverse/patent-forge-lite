@@ -808,6 +808,55 @@ impl Desktop {
             )
     }
 
+    /// The control that makes a provider the choice for every workflow.
+    ///
+    /// Per-stage assignment is the finer grain the store already supports; this is the coarse
+    /// "use this for everything" that an operator reaches for first.
+    fn provider_choice_button(
+        &self,
+        provider: &pfl_workflow::catalog::ProviderView,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let Some(project) = self.state.selected_project.as_ref().map(|p| p.id.clone()) else {
+            return div()
+                .text_xs()
+                .text_color(rgb(theme::FAINT))
+                .child("Open a project to choose a provider")
+                .into_any_element();
+        };
+        if !provider.available {
+            return div().into_any_element();
+        }
+        let id = provider.id.clone();
+        self.button(
+            format!("use-{}", provider.id),
+            if self
+                .assignments
+                .iter()
+                .any(|row| row.provider == provider.id && row.rank == 0)
+            {
+                "In use"
+            } else {
+                "Use for every workflow"
+            },
+            move |this, _, cx| {
+                for kind in pfl_domain::WorkflowKind::ALL {
+                    this.send(
+                        Request::SetAssignment {
+                            project: project.clone(),
+                            surface: format!("workflow-{}", kind.slug()),
+                            rank: 0,
+                            provider: id.clone(),
+                            model: None,
+                        },
+                        cx,
+                    );
+                }
+            },
+            cx,
+        )
+        .into_any_element()
+    }
     /// Primary action: accent-filled.
     fn primary_button(
         &self,
@@ -2431,6 +2480,11 @@ impl Render for Desktop {
                         "Refresh",
                         |this, _, cx| {
                             this.send(Request::DiscoverProviders, cx);
+                            if let Some(project) =
+                                this.state.selected_project.as_ref().map(|p| p.id.clone())
+                            {
+                                this.send(Request::ListAssignments { project }, cx);
+                            }
                         },
                         cx,
                     ))),
@@ -2474,7 +2528,8 @@ impl Render for Desktop {
                                         .text_xs()
                                         .text_color(rgb(theme::FAINT))
                                         .child(format!("{} model(s)", provider.models.len())),
-                                ),
+                                )
+                                .child(self.provider_choice_button(provider, cx)),
                         ),
                     );
                 }
