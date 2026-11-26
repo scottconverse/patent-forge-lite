@@ -1123,11 +1123,37 @@ async fn main() {
             return Ok(());
         }
         if command == "models" {
-            let endpoint = endpoint.ok_or_else(|| invalid("models requires --endpoint"))?;
-            let models = pfl_workflow::list_local_models(&endpoint).await?;
+            if let Some(endpoint) = endpoint {
+                // One endpoint, the old shape: keep it working.
+                let models = pfl_workflow::list_local_models(&endpoint).await?;
+                println!(
+                    "{}",
+                    serde_json::json!({ "endpoint": endpoint, "models": models })
+                );
+                return Ok(());
+            }
+            // No endpoint: the whole picture, joined the same way the Models page joins it.
+            let env = pfl_workflow::registry::Env {
+                has_claude: pfl_workflow::cli_login::probe("claude").await.unwrap_or(false),
+                has_codex: pfl_workflow::cli_login::probe("codex").await.unwrap_or(false),
+                has_gemini: pfl_workflow::cli_login::probe("gemini").await.unwrap_or(false),
+                has_anthropic_key: std::env::var("PFL_ANTHROPIC_KEY").is_ok(),
+                has_openai_endpoint: std::env::var("PFL_OPENAI_BASE_URL").is_ok(),
+                ..Default::default()
+            };
+            let discovered = pfl_workflow::local_discovery::discover().await;
+            let sign_ins = [
+                ("claude", env.has_claude),
+                ("codex", env.has_codex),
+                ("gemini", env.has_gemini),
+            ];
+            let providers = pfl_workflow::catalog::build(&env, &discovered, &sign_ins);
+            let choice = discovered
+                .pick_loaded()
+                .map(|(server, model)| serde_json::json!({ "endpoint": server.base_url, "model": model.id }));
             println!(
                 "{}",
-                serde_json::json!({ "endpoint": endpoint, "models": models })
+                serde_json::json!({ "providers": providers, "use_whatever_is_loaded": choice })
             );
             return Ok(());
         }
