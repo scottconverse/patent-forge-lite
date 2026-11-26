@@ -1,0 +1,15 @@
+{
+  "revision": "0c4a082",
+  "at": "20261126T182257Z",
+  "workspace_tests": {
+    "binaries": 45,
+    "passed": 347,
+    "failed_binaries": 0
+  },
+  "acceptance": "RESULT: 13 passed, 0 failed",
+  "matrix_pass_rows": "157",
+  "installer": {
+    "sha256": "7ad3f992a205b1636b4ae5c72eaeab953a20d1cbcc65207aacaab8d435e7a0b8",
+    "bytes": 12316971
+  }
+}
