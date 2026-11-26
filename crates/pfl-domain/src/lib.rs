@@ -834,6 +834,12 @@ pub struct ProviderRequest {
     pub system_prompt: String,
     pub user_prompt: String,
     pub prior_outputs: Vec<Checkpoint>,
+    /// How hard the model should think, when the transport accepts a run-scoped setting.
+    ///
+    /// This travels with the call rather than with [`ProviderSnapshot`]: effort does not change
+    /// which provider a run used, and putting it in the snapshot would make a resumed run refuse
+    /// its own provider because someone adjusted how hard it should think.
+    pub effort: Option<String>,
 }
 
 #[derive(Debug, Clone)]

@@ -35,6 +35,7 @@ async fn main() -> Result<()> {
         system_prompt: "Answer in one short sentence.".into(),
         user_prompt: prompt.clone(),
         prior_outputs: Vec::new(),
+        effort: None,
     };
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let pump = tokio::spawn(async move {

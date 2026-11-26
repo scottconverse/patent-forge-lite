@@ -5,6 +5,35 @@ use serde::Deserialize;
 use std::{collections::BTreeMap, sync::Mutex, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
 
+/// The Anthropic request body, with the thinking budget when the call asked for effort.
+fn anthropic_body(model: &str, request: &ProviderRequest) -> Result<serde_json::Value> {
+    let mut body = serde_json::json!({
+        "model": model,
+        "max_tokens": CLOUD_MAX_TOKENS,
+        "stream": true,
+        "system": request.system_prompt,
+        "messages": [{ "role": "user", "content": request.user_prompt }]
+    });
+    if let Some(effort) = &request.effort {
+        let budget = thinking_budget(effort)?;
+        body["thinking"] = serde_json::json!({ "type": "enabled", "budget_tokens": budget });
+    }
+    Ok(body)
+}
+/// How much thinking budget an effort name asks for.
+///
+/// Anthropic takes a token budget rather than a word like "medium", and the API rejects a
+/// `budget_tokens` at or above `max_tokens`, so these stay well under [`CLOUD_MAX_TOKENS`].
+fn thinking_budget(effort: &str) -> Result<u64> {
+    match effort {
+        "low" => Ok(1_024),
+        "medium" => Ok(4_096),
+        "high" => Ok(8_192),
+        other => Err(Error::Invalid(format!(
+            "unknown effort {other:?}; use low, medium or high"
+        ))),
+    }
+}
 /// Synthetic recorded responses. This never contacts a model or research API.
 pub struct ReplayProvider {
     outputs: BTreeMap<Stage, String>,
@@ -235,13 +264,7 @@ impl Provider for CloudProvider {
             .post(format!("{}/v1/messages", self.endpoint))
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", "2023-06-01")
-            .json(&serde_json::json!({
-                "model": self.snapshot.model,
-                "max_tokens": CLOUD_MAX_TOKENS,
-                "stream": true,
-                "system": request.system_prompt,
-                "messages": [{ "role": "user", "content": request.user_prompt }]
-            }))
+            .json(&anthropic_body(&self.snapshot.model, &request)?)
             .send();
         let response = tokio::select! {
             biased;

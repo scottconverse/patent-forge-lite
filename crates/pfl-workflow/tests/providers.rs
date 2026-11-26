@@ -38,6 +38,7 @@ fn request(stage: Stage) -> ProviderRequest {
         system_prompt: "system".into(),
         user_prompt: "user".into(),
         prior_outputs: Vec::new(),
+        effort: None,
     }
 }
 

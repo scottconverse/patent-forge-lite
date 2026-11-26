@@ -846,6 +846,7 @@ impl WorkflowService {
                 system_prompt: prompts::system(stage),
                 user_prompt: prompts::user(stage, &run.input, &context),
                 prior_outputs: checkpoints.clone(),
+                effort: None,
             };
             let (tx, mut rx) = mpsc::unbounded_channel();
             let provider = self.provider.clone();
