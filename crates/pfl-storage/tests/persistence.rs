@@ -67,6 +67,7 @@ fn checkpoint(attempt: &Attempt, stage: Stage) -> Checkpoint {
         stage,
         attempt_id: attempt.id.clone(),
         text: format!("Synthetic stage {} café 🧪", stage.number()),
+        provider: None,
         usage: Usage {
             input_tokens: Some(stage.number() as u64),
             output_tokens: None,
@@ -737,6 +738,7 @@ fn a_checkpoint_from_another_workflow_is_refused() {
         stage: Stage::TechnicalRestatement,
         attempt_id: attempt.id.clone(),
         text: "feasibility text".into(),
+        provider: None,
         usage: Usage::default(),
         completed_at_ms: 1_100,
     };
