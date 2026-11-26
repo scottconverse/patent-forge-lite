@@ -512,6 +512,8 @@ impl SqliteStore {
                             output_tokens: stage.get("outputTokens").and_then(Value::as_u64),
                         },
                         completed_at_ms: timestamp(stage, "completedAt"),
+                        // A legacy checkpoint never recorded a provider.
+                        provider: None,
                     });
                 }
                 checkpoints.sort_by_key(|c| c.stage);

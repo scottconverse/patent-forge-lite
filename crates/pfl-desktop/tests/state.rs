@@ -131,6 +131,7 @@ fn saved_checkpoints_outrank_streaming_and_historical_events_do_not_regress_stat
         stage: Stage::FinalReport,
         attempt_id: AttemptId("attempt".into()),
         text: "durable".into(),
+        provider: None,
         usage: Usage::default(),
         completed_at_ms: 4,
     });

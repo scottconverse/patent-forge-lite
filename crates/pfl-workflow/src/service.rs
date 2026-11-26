@@ -855,6 +855,7 @@ impl WorkflowService {
                         text: original.text,
                         usage: original.usage,
                         completed_at_ms: original.completed_at_ms,
+                        provider: original.provider,
                     };
                     let id = run.id.clone();
                     let aid = attempt.id.clone();
@@ -931,6 +932,8 @@ impl WorkflowService {
                 text: response.text,
                 usage: response.usage,
                 completed_at_ms: now_ms(),
+                // The provider that answered, recorded so a receipt cannot claim another rung.
+                provider: Some(provider.snapshot()),
             };
             let id = run.id.clone();
             let aid = attempt.id.clone();

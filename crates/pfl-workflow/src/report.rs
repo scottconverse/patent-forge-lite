@@ -200,6 +200,7 @@ mod tests {
             stage,
             attempt_id: AttemptId("attempt-1".into()),
             text: text.into(),
+            provider: None,
             usage: Usage::default(),
             completed_at_ms: 1,
         }

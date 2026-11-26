@@ -665,6 +665,10 @@ pub struct Checkpoint {
     pub text: String,
     pub usage: Usage,
     pub completed_at_ms: u64,
+    /// Which provider actually answered this stage. `None` on checkpoints recorded before the field
+    /// existed, so an older run still reads.
+    #[serde(default)]
+    pub provider: Option<ProviderSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

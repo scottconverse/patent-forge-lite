@@ -270,6 +270,7 @@ async fn recovery_before_stage_one_and_after_prefix_uses_original_snapshot() {
                         stage,
                         attempt_id: attempt.id.clone(),
                         text: format!("saved stage {} café 🧪", stage.number()),
+                        provider: None,
                         usage: Usage::default(),
                         completed_at_ms: 3,
                     },
