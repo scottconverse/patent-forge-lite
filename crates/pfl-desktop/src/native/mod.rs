@@ -236,6 +236,8 @@ struct Desktop {
     first_run: bool,
     /// Models the local runtime reported, newest listing wins.
     local_models: Vec<String>,
+    /// The joined provider catalogue, refreshed on request.
+    providers: Vec<pfl_workflow::catalog::ProviderView>,
     /// Honest readiness text for the runtime: a count, or why it could not be asked.
     local_status: String,
     revisions: Vec<DocumentRevision>,
@@ -375,6 +377,7 @@ impl Desktop {
             research_configured: false,
             first_run: false,
             local_models: Vec::new(),
+            providers: Vec::new(),
             local_status: "Runtime not queried yet.".into(),
             revisions: Vec::new(),
             revision_diff: None,
@@ -528,6 +531,12 @@ impl Desktop {
                     self.start_key = None;
                     self.state.notice =
                         Some("Execution mode configured. No inference request was sent.".into());
+                }
+                // The Models page consumes this next; holding it here keeps the reply from being
+                // dropped on the floor while the page is built.
+                Reply::Providers(providers) => {
+                    self.providers = providers;
+                    cx.notify();
                 }
                 Reply::LocalModels(models) => {
                     self.local_status = if models.is_empty() {
