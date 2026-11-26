@@ -29,6 +29,9 @@ pub struct WorkflowService {
     /// An optional per-stage resolver. `None` means every stage uses `provider`, which is how every
     /// existing run behaves; `Some` lets a stage be served by a different rung of the run's plan.
     stage_provider: Option<StageProvider>,
+    /// The providers this service's runs may use, in order. Empty keeps the historical behaviour:
+    /// a run permits exactly the provider it names.
+    provider_plan: Vec<ProviderSnapshot>,
     runtime: Handle,
     /// Optional prior-art source. Absent means no research is performed at all;
     /// it is only consulted for runs that explicitly authorized research.
@@ -107,6 +110,7 @@ impl WorkflowService {
             store,
             provider,
             stage_provider: None,
+            provider_plan: Vec::new(),
             runtime,
             research,
             research_cancel: CancellationToken::new(),
@@ -326,7 +330,7 @@ impl WorkflowService {
             authorization,
             upstream,
             regeneration: None,
-            provider_plan: Vec::new(),
+            provider_plan: self.provider_plan.clone(),
         };
         // Consent and prerequisites are decided before anything leaves the machine: a start
         // that will be refused must not send the invention's title to a prior-art service.
@@ -460,7 +464,7 @@ impl WorkflowService {
                 authorization,
                 upstream,
                 regeneration: None,
-                provider_plan: Vec::new(),
+                provider_plan: self.provider_plan.clone(),
             },
             rerun_of: None,
             created_at_ms: now_ms(),
@@ -638,7 +642,7 @@ impl WorkflowService {
                 authorization,
                 upstream,
                 regeneration: None,
-                provider_plan: Vec::new(),
+                provider_plan: self.provider_plan.clone(),
             },
             rerun_of: None,
             created_at_ms: now_ms(),
