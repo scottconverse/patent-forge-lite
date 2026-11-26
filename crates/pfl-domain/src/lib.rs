@@ -494,12 +494,46 @@ impl Upstream {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderKind {
     Replay,
+    /// A server on this machine, addressed explicitly.
     Local,
+    /// Anthropic's API. The name is historical: runs written before other vendors existed carry
+    /// it, and a stored run must keep loading.
     Cloud,
+    /// The operator's own Claude Code program, already signed in.
+    ClaudeCode,
+    /// The operator's own Codex program, already signed in.
+    Codex,
+    /// The operator's own Gemini CLI, already signed in.
+    GeminiCli,
+    /// Any OpenAI-compatible endpoint: a gateway, a vendor API, or a server on this machine.
+    OpenAi,
+}
+
+impl<'de> Deserialize<'de> for ProviderKind {
+    /// Reads a stored kind, and never fails.
+    ///
+    /// A run written by a newer build, a typo, or a vendor this build does not know must not make
+    /// the database unreadable. An unrecognised name opens as `Replay`, the only kind that cannot
+    /// contact anything; the caller records a warning rather than silently running a model.
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "local" => ProviderKind::Local,
+            "cloud" => ProviderKind::Cloud,
+            "claude_code" => ProviderKind::ClaudeCode,
+            "codex" => ProviderKind::Codex,
+            "gemini_cli" => ProviderKind::GeminiCli,
+            "open_ai" => ProviderKind::OpenAi,
+            _ => ProviderKind::Replay,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -908,5 +942,68 @@ mod tests {
         assert_eq!(cursor.after_sequence, 42);
         assert!(!RunOutcome::Running.is_terminal());
         assert!(RunOutcome::Interrupted.is_terminal());
+    }
+}
+
+impl Stage {
+    /// The stable key a stored assignment uses. Never derived from the label, which is prose.
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::TechnicalRestatement => "technical-restatement",
+            Self::PriorArt => "prior-art",
+            Self::Patentability => "patentability",
+            Self::Landscape => "landscape",
+            Self::IpStrategy => "ip-strategy",
+            Self::FinalReport => "final-report",
+            Self::ClaimsPlan => "claims-plan",
+            Self::ClaimsDraft => "claims-draft",
+            Self::ClaimsExamine => "claims-examine",
+            Self::ClaimsRevise => "claims-revise",
+            Self::ComplianceWrittenDescription => "compliance-written-description",
+            Self::ComplianceDefiniteness => "compliance-definiteness",
+            Self::ComplianceFormalities => "compliance-formalities",
+            Self::ComplianceEligibility => "compliance-eligibility",
+            Self::ApplicationBackground => "application-background",
+            Self::ApplicationSummary => "application-summary",
+            Self::ApplicationDetailedDescription => "application-detailed-description",
+            Self::ApplicationAbstract => "application-abstract",
+            Self::ApplicationFigures => "application-figures",
+        }
+    }
+}
+
+#[cfg(test)]
+mod provider_kind_compat {
+    use super::*;
+
+    #[test]
+    fn the_kinds_this_build_writes_round_trip() {
+        for kind in [
+            ProviderKind::Replay,
+            ProviderKind::Local,
+            ProviderKind::Cloud,
+            ProviderKind::ClaudeCode,
+            ProviderKind::Codex,
+            ProviderKind::GeminiCli,
+            ProviderKind::OpenAi,
+        ] {
+            let text = serde_json::to_string(&kind).unwrap();
+            assert_eq!(serde_json::from_str::<ProviderKind>(&text).unwrap(), kind);
+        }
+    }
+
+    #[test]
+    fn a_run_written_before_other_vendors_existed_still_loads() {
+        let stored = r#"{"kind":"cloud","model":"claude-sonnet-4-5","endpoint":null}"#;
+        let snapshot: ProviderSnapshot = serde_json::from_str(stored).unwrap();
+        assert_eq!(snapshot.kind, ProviderKind::Cloud);
+        assert_eq!(snapshot.model, "claude-sonnet-4-5");
+    }
+
+    #[test]
+    fn a_kind_this_build_does_not_know_opens_as_replay_instead_of_failing() {
+        let stored = r#"{"kind":"some_future_vendor","model":"x","endpoint":null}"#;
+        let snapshot: ProviderSnapshot = serde_json::from_str(stored).unwrap();
+        assert_eq!(snapshot.kind, ProviderKind::Replay);
     }
 }
