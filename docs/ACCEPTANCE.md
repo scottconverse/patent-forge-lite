@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `9317138` |
+| Revision | `3a3df61` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,12 +19,12 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 140 |
+| pass | 141 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
-| blocked — authorization | 3 |
-| blocked — harness | 3 |
+| blocked — authorization | 4 |
+| blocked — harness | 2 |
 | open defect | 0 |
 
 ## Phase A — Cloud correctness and consent
@@ -193,7 +193,8 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Gemini live call | — | **blocked — authorization** — the installed CLI (0.71.1) reports "Please set an Auth method"; Google sign-in or `GEMINI_API_KEY` is the operator's to give |
 | Sign-in state is asked of the installed CLIs, with no model call: `claude auth status` JSON and `codex login status` (which prints its sentence to stderr) | live probe on this machine (`cli_login`, ignored test run once) | pass — both report signed in |
 | Login attempts record the authorize URL, one-time code and expiry, never a credential; a finished or expired attempt is not open | unit (`cli_login` parsers, 5 tests; `assignments` login rows, 3 tests) | pass — URL read from the sentence, banner version rejected, ANSI stripped, expiry honoured |
-| A sign-in can be started, polled and cancelled from the window | — | **blocked — harness** — the manager and its UI are not built yet; the probe and the record are |
+| A sign-in can be started, polled and cancelled: URL and code surfaced while it waits, outcome from the program's own exit, one attempt per provider, cancel kills the tree | unit (`login_manager`, 5 tests) | pass — URL then finish, redacted failure, cancel, one-at-a-time, late URL |
+| A real re-authentication completed end to end | — | **blocked — authorization** — both CLIs are already signed in here; re-auth opens a browser, which is the operator's to complete |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
 | macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded — macOS 27.2.1 (2026-11-25) | run on the same Mac: `bundle.sh`, recorded in `docs/evidence/macos/20261125T023619Z/` | pass — plist `0.2.0`; `Resources/docs` present, `docs/evidence` absent |
