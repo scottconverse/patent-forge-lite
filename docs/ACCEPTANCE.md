@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `ce12f48` |
+| Revision | `42b8d2b` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -213,6 +213,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | An installed-but-stopped Ollama is started; a server that answers is never spawned; a spawn that never serves is a failure | unit (`ollama_supervision`, 5 tests) + wired into discovery | pass — every branch by fake probe/spawn; on this machine Ollama was already running and was left alone |
 | The Automatic order this machine would try is shown, not implied | run (`pfl-cli models` now reports `automatic`) | pass — this machine reports `automatic: ["claude"]`, which is the registry ladder filtered to what is reachable |
 | A run can carry the provider plan behind its choice, and an older run without one still parses and permits only its own provider | unit (`provider_plan_tests`, 3 tests) | pass — plan membership authorizes, a non-member is refused, an older payload parses with an empty plan |
+| A service can be given a per-stage provider resolver, and each stage request names the provider that will answer it | unit (workspace regression on the default path) | partial — the mechanism and request naming are in; the Some path gets its test when the session builds a resolver |
 | A run uses a stage-level assignment | — | **blocked — harness** — a run holds one provider, so stage entries are recorded but not yet honoured |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
