@@ -274,7 +274,7 @@ pub const PROVIDER_REGISTRY: &[ProviderEntry] = &[
     ProviderEntry {
         id: ProviderId::Codex,
         label: "Codex (your subscription)",
-        model: "codex-default",
+        model: "gpt-6.1-sol",
         detail: "Runs the Codex program already signed in on this machine",
         budget: Budget::new(900_000, 300_000, 170_000),
         enabled: |env| env.has_codex,
