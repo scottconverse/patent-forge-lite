@@ -186,7 +186,7 @@ async fn a_program_that_never_answers_times_out() {
         )
         .await
         .unwrap_err();
-    assert!(format!("{error}").contains("did not answer"));
+    assert!(format!("{error}").contains("did not answer"), "got {error}");
 }
 
 #[tokio::test]

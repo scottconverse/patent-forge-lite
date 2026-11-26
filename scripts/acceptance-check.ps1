@@ -141,7 +141,9 @@ if ($baseline -and $head) {
     $known = ($LASTEXITCODE -eq 0)
 }
 if ($known) {
-    $changed = @(& git -C $root diff --name-only "$baseline..$head" -- $shipped 2>$null)
+    $changed = @(& git -C $root diff --name-only "$baseline..$head" -- $shipped 2>$null |
+        # A test or an example is not inside the installer, so it cannot make one stale.
+        Where-Object { $_ -notmatch '[\\/]tests?[\\/]' -and $_ -notmatch '[\\/]examples?[\\/]' })
 }
 $ErrorActionPreference = $previous
 $LASTEXITCODE = 0
