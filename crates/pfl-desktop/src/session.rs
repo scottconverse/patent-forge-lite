@@ -453,6 +453,20 @@ impl Actor {
         else {
             return Ok(None);
         };
+        if let Some(program) = assigned_cli_kind(&row.provider) {
+            let model = row
+                .model
+                .clone()
+                .filter(|model| !model.trim().is_empty())
+                .unwrap_or_else(|| default_model(&row.provider));
+            // These kinds leave the machine; the workflow's consent rule refuses real-invention
+            // data before the program is ever started, so building it here is safe.
+            return Ok(Some(match program {
+                AssignedCli::Claude => Arc::new(pfl_workflow::cli::ClaudeCliProvider::new(model)?),
+                AssignedCli::Codex => Arc::new(pfl_workflow::cli::CodexCliProvider::new(model)?),
+                AssignedCli::Gemini => Arc::new(pfl_workflow::cli::GeminiCliProvider::new(model)?),
+            }));
+        }
         let Some(server) = assigned_local_kind(&row.provider) else {
             return Ok(None);
         };
@@ -1003,6 +1017,36 @@ pub fn data_directory() -> Result<PathBuf> {
 ///
 /// `None` is deliberate for every off-machine provider: a run must not reach a third party until
 /// the consent matrix covers that kind, and returning `None` keeps the configured mode instead.
+/// A subscription program an assignment may name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AssignedCli {
+    Claude,
+    Codex,
+    Gemini,
+}
+
+/// Which signed-in program an assignment names, if it names one.
+///
+/// The consent rule in the workflow covers these kinds, so they are safe to build: a run carrying
+/// real-invention data is refused before the program is ever started.
+pub(crate) fn assigned_cli_kind(slug: &str) -> Option<AssignedCli> {
+    match slug {
+        "claude" => Some(AssignedCli::Claude),
+        "codex" => Some(AssignedCli::Codex),
+        "gemini" => Some(AssignedCli::Gemini),
+        _ => None,
+    }
+}
+
+/// The model a registry entry names, used when the assignment names none.
+fn default_model(slug: &str) -> String {
+    pfl_workflow::registry::PROVIDER_REGISTRY
+        .iter()
+        .find(|entry| entry.id.slug() == slug)
+        .map(|entry| entry.model.to_string())
+        .filter(|model| !model.trim().is_empty())
+        .unwrap_or_else(|| slug.to_string())
+}
 pub(crate) fn assigned_local_kind(slug: &str) -> Option<pfl_workflow::local_discovery::LocalKind> {
     use pfl_workflow::local_discovery::LocalKind;
     match slug {
