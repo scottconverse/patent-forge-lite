@@ -125,7 +125,6 @@ impl Provider for ClaudeCliProvider {
         // program and whatever it started — and can never reach this process's own group.
         #[cfg(unix)]
         {
-            use std::os::unix::process::CommandExt;
             command.process_group(0);
         }
         let mut child = command.spawn().map_err(|error| {
