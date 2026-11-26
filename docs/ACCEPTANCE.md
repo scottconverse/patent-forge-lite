@@ -24,7 +24,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | blocked — hardware | 0 |
 | blocked — key | 1 |
 | blocked — authorization | 4 |
-| blocked — harness | 3 |
+| blocked — harness | 2 |
 | open defect | 0 |
 
 ## Phase A — Cloud correctness and consent
