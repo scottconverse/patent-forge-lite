@@ -37,7 +37,13 @@ async fn an_attempt_reports_the_url_then_finishes() {
     let (_dir, program) = fake(body, "signin");
     let manager = LoginManager::new();
     let started = manager.start_with("claude", &program, &[]).await.unwrap();
-    assert_eq!(started.state, LoginState::AwaitingUser);
+    // A very fast program can finish before the first poll; what must not vary is that the URL the
+    // human needs is surfaced either way.
+    assert!(
+        matches!(started.state, LoginState::AwaitingUser | LoginState::Done),
+        "got {:?}",
+        started.state
+    );
     assert_eq!(
         started.url.as_deref(),
         Some("https://claude.com/cai/oauth/authorize?x=1")
