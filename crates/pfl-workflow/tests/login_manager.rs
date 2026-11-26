@@ -33,7 +33,7 @@ async fn an_attempt_reports_the_url_then_finishes() {
     #[cfg(windows)]
     let body = "@echo off\r\necho https://claude.com/cai/oauth/authorize?x=1\r\nping -n 3 127.0.0.1 >nul\r\nexit /b 0\r\n";
     #[cfg(unix)]
-    let body = "#!/bin/sh\nprintf '%s\\n' 'If the browser didn't open, visit: https://claude.com/cai/oauth/authorize?x=1'\nsleep 1\nexit 0\n";
+    let body = "#!/bin/sh\nprintf '%s\\n' 'If the browser could not open, visit: https://claude.com/cai/oauth/authorize?x=1'\nsleep 1\nexit 0\n";
     let (_dir, program) = fake(body, "signin");
     let manager = LoginManager::new();
     let started = manager.start_with("claude", &program, &[]).await.unwrap();
