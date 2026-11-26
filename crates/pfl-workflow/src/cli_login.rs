@@ -313,16 +313,30 @@ impl LoginManager {
                 )));
             }
         }
-        let mut child = tokio::process::Command::new(program)
+        let mut command = tokio::process::Command::new(program);
+        command
             .args(args)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|error| {
-                Error::Provider(format!("could not start {program} for {provider}: {error}"))
-            })?;
+            .kill_on_drop(true);
+        let mut child = {
+            let mut attempt = 0;
+            loop {
+                match command.spawn() {
+                    Ok(child) => break child,
+                    Err(error) if error.raw_os_error() == Some(26) && attempt < 20 => {
+                        attempt += 1;
+                        tokio::time::sleep(Duration::from_millis(50)).await;
+                    }
+                    Err(error) => {
+                        return Err(Error::Provider(format!(
+                            "could not start {program} for {provider}: {error}"
+                        )));
+                    }
+                }
+            }
+        };
         let pid = child.id();
         let output = Arc::new(Mutex::new(String::new()));
         if let Some(stdout) = child.stdout.take() {
@@ -406,6 +420,14 @@ impl LoginManager {
             if let Some(pid) = attempt.pid {
                 let _ = std::process::Command::new("taskkill")
                     .args(["/PID", &pid.to_string(), "/T", "/F"])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+            }
+            #[cfg(unix)]
+            if let Some(pid) = attempt.pid {
+                let _ = std::process::Command::new("kill")
+                    .args(["-TERM", &pid.to_string()])
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .status();
