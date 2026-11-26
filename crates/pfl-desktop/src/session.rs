@@ -475,6 +475,35 @@ impl Actor {
                 AssignedCli::Gemini => Arc::new(pfl_workflow::cli::GeminiCliProvider::new(model)?),
             }));
         }
+        // A saved connection is addressed by its id: an assignment naming `conn-<id>` uses exactly
+        // that endpoint. The key reference is deliberately not resolved here — a connection whose
+        // key lives in the OS store is wired when the connection UI lands, and until then it can
+        // only serve a loopback endpoint, where no key is needed.
+        if row.provider.starts_with("conn-") {
+            let wanted = row.provider.clone();
+            let Some(connection) = self
+                .store
+                .connections()?
+                .into_iter()
+                .find(|connection| connection.id == wanted)
+            else {
+                return Ok(None);
+            };
+            let model = row
+                .model
+                .clone()
+                .filter(|model| !model.trim().is_empty())
+                .or_else(|| connection.model.clone())
+                .filter(|model| !model.trim().is_empty());
+            let Some(model) = model else {
+                return Ok(None);
+            };
+            return Ok(Some(Arc::new(OpenAiCompatibleProvider::new(
+                connection.base_url,
+                model,
+                None,
+            )?)));
+        }
         if row.provider == "anthropic" {
             // A hosted assignment needs the session's key, exactly as the Cloud mode does. Without
             // one there is nothing to build, so it falls back to the configured mode instead.
