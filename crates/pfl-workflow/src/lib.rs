@@ -12,6 +12,7 @@ pub mod diff;
 mod export;
 pub mod ladder;
 pub mod local_discovery;
+pub mod ollama_supervision;
 pub mod package;
 pub mod prompts;
 pub mod providers;

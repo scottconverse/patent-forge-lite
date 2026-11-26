@@ -569,6 +569,29 @@ impl Actor {
                 self.reply(Reply::Configured(mode));
             }
             Request::DiscoverProviders => {
+                // An installed-but-stopped Ollama is started here, and only here: a server that
+                // answers is left alone, and one this app starts is never stopped by it.
+                let ollama_up = || {
+                    std::net::TcpStream::connect_timeout(
+                        &std::net::SocketAddr::from(([127, 0, 0, 1], 11434)),
+                        std::time::Duration::from_millis(250),
+                    )
+                    .is_ok()
+                };
+                let _ = pfl_workflow::ollama_supervision::ensure(
+                    ollama_up,
+                    || {
+                        std::process::Command::new("ollama")
+                            .arg("serve")
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
+                            .spawn()
+                            .is_ok()
+                    },
+                    10,
+                    std::time::Duration::from_millis(500),
+                )
+                .await;
                 let env = pfl_workflow::registry::Env {
                     has_claude: pfl_workflow::cli_login::probe("claude")
                         .await
