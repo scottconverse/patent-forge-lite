@@ -36,6 +36,36 @@ pub struct WorkflowService {
     started: AtomicBool,
 }
 
+/// The data and billing rules, in one function so every provider kind is covered by the same
+/// question rather than by whichever branch someone remembered to write.
+///
+/// `off_machine` is the load-bearing part: a subscription program runs locally but its prompt does
+/// not, so "not Cloud" is not the same as "stays here". `measured` is the other: a subscription is
+/// already paid for, while a hosted API bills per token.
+fn data_rule_violation(kind: ProviderKind, auth: &Authorization) -> Option<&'static str> {
+    let off_machine = !matches!(kind, ProviderKind::Local | ProviderKind::Replay);
+    if auth.real_data && off_machine {
+        return Some(
+            "real-invention data is local-only in this build; a run that leaves this machine requires synthetic test data",
+        );
+    }
+    let metered = matches!(kind, ProviderKind::Cloud | ProviderKind::OpenAi);
+    if metered && !auth.paid_provider {
+        return Some("paid providers require explicit paid-provider authorization for this run");
+    }
+    if kind == ProviderKind::Local && !auth.local_inference {
+        return Some(
+            "local inference has not been explicitly authorized for this endpoint and model",
+        );
+    }
+    if kind == ProviderKind::Replay && !auth.synthetic_data {
+        return Some(
+            "recorded replay produces synthetic output and cannot be used for a real-invention run",
+        );
+    }
+    None
+}
+
 impl WorkflowService {
     /// The application must retain the Tokio runtime until shutdown completes.
     /// This constructor has no recovery, network, filesystem or provider effects.
@@ -175,12 +205,6 @@ impl WorkflowService {
     }
 
     async fn authorize(&self, input: &RunInput) -> Result<()> {
-        if input.provider.kind == ProviderKind::Cloud && !input.authorization.paid_provider {
-            return Err(Error::Invalid(
-                "paid/cloud providers require explicit paid-provider authorization for this run"
-                    .into(),
-            ));
-        }
         if input.provider != self.provider.snapshot() {
             return Err(Error::Conflict(
                 "provider snapshot differs; restore the exact adapter/endpoint/model before resume"
@@ -207,6 +231,11 @@ impl WorkflowService {
                     .into(),
             ));
         }
+        // The per-kind rules run only once the run has declared its data: "you did not say what
+        // this is" is a better first answer than "this kind cannot carry it".
+        if let Some(reason) = data_rule_violation(input.provider.kind, &input.authorization) {
+            return Err(Error::Invalid(reason.into()));
+        }
         // Real-invention text must not leave the machine: not to a Cloud model, and not to
         // a prior-art service. PatentsView receives the title or technical field, which is
         // enough to disclose an unfiled invention.
@@ -216,19 +245,7 @@ impl WorkflowService {
                     .into(),
             ));
         }
-        // Real-invention data is Local-only until a Cloud consent model is designed.
-        if input.authorization.real_data && input.provider.kind == ProviderKind::Cloud {
-            return Err(Error::Invalid(
-                "real-invention data is local-only in this build; cloud runs require synthetic test data"
-                    .into(),
-            ));
-        }
-        if input.provider.kind == ProviderKind::Replay && !input.authorization.synthetic_data {
-            return Err(Error::Invalid(
-                "recorded replay produces synthetic output and cannot be used for a real-invention run"
-                    .into(),
-            ));
-        }
+
         // Setup profiles decide which provider families an installation may use, and the rule
         // belongs here rather than in the start helpers: every path that authorizes a run --
         // start, resume, rerun, regenerate -- must honour it.
@@ -239,12 +256,7 @@ impl WorkflowService {
                 "Lean setup is Cloud-only: it never acquires or uses a local runtime".into(),
             ));
         }
-        if input.provider.kind == ProviderKind::Local && !input.authorization.local_inference {
-            return Err(Error::Invalid(
-                "local inference has not been explicitly authorized for this endpoint and model"
-                    .into(),
-            ));
-        }
+
         if input.intake.title.trim().is_empty()
             || input.intake.description.split_whitespace().count() < 50
         {
@@ -1039,5 +1051,77 @@ impl WorkflowService {
         } else {
             Ok(())
         }
+    }
+}
+#[cfg(test)]
+mod data_rule_tests {
+    use super::*;
+
+    fn synthetic() -> Authorization {
+        Authorization {
+            synthetic_data: true,
+            ..Default::default()
+        }
+    }
+
+    fn paid() -> Authorization {
+        Authorization {
+            synthetic_data: true,
+            paid_provider: true,
+            ..Default::default()
+        }
+    }
+
+    fn local() -> Authorization {
+        Authorization {
+            synthetic_data: true,
+            local_inference: true,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn every_off_machine_kind_refuses_real_invention_data() {
+        let real = Authorization {
+            real_data: true,
+            ..Default::default()
+        };
+        for kind in [
+            ProviderKind::Cloud,
+            ProviderKind::OpenAi,
+            ProviderKind::ClaudeCode,
+            ProviderKind::Codex,
+            ProviderKind::GeminiCli,
+        ] {
+            let refusal = data_rule_violation(kind, &real);
+            assert!(
+                refusal.is_some(),
+                "{kind:?} must not carry a real invention"
+            );
+            assert!(refusal.unwrap().contains("local-only"), "for {kind:?}");
+        }
+    }
+
+    #[test]
+    fn a_local_run_and_a_replay_run_are_not_off_machine() {
+        assert!(data_rule_violation(ProviderKind::Local, &local()).is_none());
+        assert!(data_rule_violation(ProviderKind::Replay, &synthetic()).is_none());
+    }
+
+    #[test]
+    fn a_subscription_is_not_metered_but_a_hosted_api_is() {
+        assert!(data_rule_violation(ProviderKind::ClaudeCode, &synthetic()).is_none());
+        assert!(data_rule_violation(ProviderKind::Codex, &synthetic()).is_none());
+        assert!(data_rule_violation(ProviderKind::GeminiCli, &synthetic()).is_none());
+        assert!(data_rule_violation(ProviderKind::Cloud, &synthetic()).is_some());
+        assert!(data_rule_violation(ProviderKind::OpenAi, &synthetic()).is_some());
+        assert!(data_rule_violation(ProviderKind::Cloud, &paid()).is_none());
+        assert!(data_rule_violation(ProviderKind::OpenAi, &paid()).is_none());
+    }
+
+    #[test]
+    fn local_inference_needs_its_own_authorization_and_replay_needs_synthetic_data() {
+        assert!(data_rule_violation(ProviderKind::Local, &synthetic()).is_some());
+        assert!(data_rule_violation(ProviderKind::Replay, &Authorization::default()).is_some());
     }
 }
