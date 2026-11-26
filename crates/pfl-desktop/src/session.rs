@@ -112,6 +112,8 @@ pub enum Request {
     },
     /// Lists the models a loopback runtime reports. An unreachable runtime is an error,
     /// never an empty list.
+    /// Ask for the whole catalogue: every provider, what it has, and whether it is usable.
+    DiscoverProviders,
     ListLocalModels {
         endpoint: String,
     },
@@ -172,6 +174,8 @@ pub enum Reply {
     PackageExported(PathBuf),
     ResearchConfigured,
     LocalModels(Vec<String>),
+    /// The joined catalogue: registry, discovery and sign-in state.
+    Providers(Vec<pfl_workflow::catalog::ProviderView>),
     Revisions(Vec<DocumentRevision>),
     Recovered(Vec<RunId>),
     Error(String),
@@ -492,6 +496,29 @@ impl Actor {
                 self.rebuild_service(provider);
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));
+            }
+            Request::DiscoverProviders => {
+                let env = pfl_workflow::registry::Env {
+                    has_claude: pfl_workflow::cli_login::probe("claude")
+                        .await
+                        .unwrap_or(false),
+                    has_codex: pfl_workflow::cli_login::probe("codex")
+                        .await
+                        .unwrap_or(false),
+                    has_gemini: pfl_workflow::cli_login::probe("gemini")
+                        .await
+                        .unwrap_or(false),
+                    has_anthropic_key: self.cloud_key.is_some(),
+                    ..Default::default()
+                };
+                let discovered = pfl_workflow::local_discovery::discover().await;
+                let sign_ins = [
+                    ("claude", env.has_claude),
+                    ("codex", env.has_codex),
+                    ("gemini", env.has_gemini),
+                ];
+                let providers = pfl_workflow::catalog::build(&env, &discovered, &sign_ins);
+                self.reply(Reply::Providers(providers));
             }
             Request::ListLocalModels { endpoint } => {
                 // Ollama first; if it does not answer, read the OpenAI-style catalogue so LM
