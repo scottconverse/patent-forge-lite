@@ -114,6 +114,22 @@ pub enum Request {
     /// never an empty list.
     /// Ask for the whole catalogue: every provider, what it has, and whether it is usable.
     DiscoverProviders,
+    /// Which provider runs each surface for this project.
+    ListAssignments {
+        project: ProjectId,
+    },
+    /// Rank 0 is the choice, 1 and 2 are the fallbacks. An empty provider clears the rank.
+    SetAssignment {
+        project: ProjectId,
+        surface: String,
+        rank: u8,
+        provider: String,
+        model: Option<String>,
+    },
+    ClearAssignments {
+        project: ProjectId,
+        surface: String,
+    },
     ListLocalModels {
         endpoint: String,
     },
@@ -174,6 +190,8 @@ pub enum Reply {
     PackageExported(PathBuf),
     ResearchConfigured,
     LocalModels(Vec<String>),
+    /// The project's model assignments, ordered by surface and rank.
+    Assignments(Vec<ModelAssignment>),
     /// The joined catalogue: registry, discovery and sign-in state.
     Providers(Vec<pfl_workflow::catalog::ProviderView>),
     Revisions(Vec<DocumentRevision>),
@@ -519,6 +537,42 @@ impl Actor {
                 ];
                 let providers = pfl_workflow::catalog::build(&env, &discovered, &sign_ins);
                 self.reply(Reply::Providers(providers));
+            }
+            Request::ListAssignments { project } => {
+                let rows = self.store.assignments(&project)?;
+                self.reply(Reply::Assignments(rows));
+            }
+            Request::SetAssignment {
+                project,
+                surface,
+                rank,
+                provider,
+                model,
+            } => {
+                if provider.trim().is_empty() {
+                    let removed = self.store.clear_assignments(&project, &surface)?;
+                    let rows = self.store.assignments(&project)?;
+                    let _ = removed;
+                    self.reply(Reply::Assignments(rows));
+                } else {
+                    self.store.set_assignment(
+                        &project,
+                        &ModelAssignment {
+                            surface: surface.clone(),
+                            rank,
+                            provider: provider.clone(),
+                            model: model.clone(),
+                            effort: None,
+                        },
+                    )?;
+                    let rows = self.store.assignments(&project)?;
+                    self.reply(Reply::Assignments(rows));
+                }
+            }
+            Request::ClearAssignments { project, surface } => {
+                let _ = self.store.clear_assignments(&project, &surface)?;
+                let rows = self.store.assignments(&project)?;
+                self.reply(Reply::Assignments(rows));
             }
             Request::ListLocalModels { endpoint } => {
                 // Ollama first; if it does not answer, read the OpenAI-style catalogue so LM

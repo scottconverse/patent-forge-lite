@@ -238,6 +238,8 @@ struct Desktop {
     local_models: Vec<String>,
     /// The joined provider catalogue, refreshed on request.
     providers: Vec<pfl_workflow::catalog::ProviderView>,
+    /// Which provider runs each surface for the open project.
+    assignments: Vec<pfl_domain::ModelAssignment>,
     /// Honest readiness text for the runtime: a count, or why it could not be asked.
     local_status: String,
     revisions: Vec<DocumentRevision>,
@@ -378,6 +380,7 @@ impl Desktop {
             first_run: false,
             local_models: Vec::new(),
             providers: Vec::new(),
+            assignments: Vec::new(),
             local_status: "Runtime not queried yet.".into(),
             revisions: Vec::new(),
             revision_diff: None,
@@ -534,6 +537,10 @@ impl Desktop {
                 }
                 // The Models page consumes this next; holding it here keeps the reply from being
                 // dropped on the floor while the page is built.
+                Reply::Assignments(rows) => {
+                    self.assignments = rows;
+                    cx.notify();
+                }
                 Reply::Providers(providers) => {
                     self.providers = providers;
                     cx.notify();
