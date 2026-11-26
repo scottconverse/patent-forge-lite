@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `28ff4db` |
+| Revision | `ec26147` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 160 |
+| pass | 161 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -214,6 +214,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | The Automatic order this machine would try is shown, not implied | run (`pfl-cli models` now reports `automatic`) | pass — this machine reports `automatic: ["claude"]`, which is the registry ladder filtered to what is reachable |
 | A run can carry the provider plan behind its choice, and an older run without one still parses and permits only its own provider | unit (`provider_plan_tests`, 3 tests) | pass — plan membership authorizes, a non-member is refused, an older payload parses with an empty plan |
 | A checkpoint records the provider that answered it, so a receipt cannot claim another rung; an older checkpoint without the field still reads | `Checkpoint.provider` (serde default) + legacy migration sets `None` | pass — the answering provider is recorded on every new checkpoint and legacy ones stay `None` |
+| A service's runs carry the provider plan the service was given, and an empty plan keeps today's behaviour of permitting exactly the named provider | unit (workspace regression, `permits`) | pass — all three run constructions use the service's plan; empty is the default |
 | A run uses a stage-level assignment | — | **blocked — harness** — a run holds one provider, so stage entries are recorded but not yet honoured |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
