@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `a78d8ed` |
+| Revision | `48051ad` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 152 |
+| pass | 153 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -206,6 +206,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Automatic is a choice that clears the record rather than pinning something | installed, driven on this machine | pass — Automatic removed all four workflow rows; the database held zero afterwards |
 | A run uses the assigned loopback provider, and an off-machine assignment falls back to the configured mode until consent covers it | unit (`assigned_tests`) + start path | pass — the mapping accepts the three local servers and refuses claude, codex, gemini, anthropic and openai by name |
 | One consent rule covers every provider kind: off-machine refuses real-invention data, hosted APIs need paid approval, subscriptions do not, local and replay keep their own rules | unit (`data_rule_tests`, 4 tests) | pass — the matrix is tested by kind, including the five off-machine kinds |
+| An assignment naming Claude, Codex or Gemini builds that program for the run; hosted key kinds still fall back to the configured mode | unit (`assigned_tests`) + consent matrix | pass — mapping accepts the three subscriptions and the three local servers; anthropic/openai deliberately not yet wired |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
 | macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded — macOS 27.2.1 (2026-11-25) | run on the same Mac: `bundle.sh`, recorded in `docs/evidence/macos/20261125T023619Z/` | pass — plist `0.2.0`; `Resources/docs` present, `docs/evidence` absent |
