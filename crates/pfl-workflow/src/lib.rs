@@ -3,6 +3,7 @@
 pub use pfl_domain::*;
 
 pub mod claims;
+pub mod cli;
 mod context;
 mod cost;
 pub mod diff;
