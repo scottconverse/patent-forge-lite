@@ -99,6 +99,14 @@ impl WorkflowService {
         service
     }
 
+    /// Declares the providers this service's runs may use, in ladder order.
+    ///
+    /// Call this before the service is shared; an empty plan keeps the historical behaviour of
+    /// permitting exactly the provider the run names.
+    pub fn set_provider_plan(&mut self, plan: Vec<ProviderSnapshot>) {
+        self.provider_plan = plan;
+    }
+
     /// Adds a prior-art source without changing anything else about a run.
     pub fn new_with_research(
         store: Arc<dyn Store>,
