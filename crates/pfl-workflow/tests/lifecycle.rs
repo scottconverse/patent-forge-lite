@@ -60,6 +60,10 @@ impl Store for BarrierStore {
     forward!(connections() -> Result<Vec<ApiConnection>>);
     forward!(save_connection(connection: &ApiConnection) -> Result<()>);
     forward!(delete_connection(id: &str) -> Result<()>);
+    forward!(open_login(provider: &str) -> Result<Option<ProviderLogin>>);
+    forward!(latest_login(provider: &str) -> Result<Option<ProviderLogin>>);
+    forward!(create_login(provider: &str, expires_at_ms: u64) -> Result<ProviderLogin>);
+    forward!(save_login(login: &ProviderLogin) -> Result<()>);
     fn create_run(&self, request: &NewRun) -> Result<RunSnapshot> {
         self.pause(Point::Create);
         self.inner.create_run(request)

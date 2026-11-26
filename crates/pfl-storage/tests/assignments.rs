@@ -279,3 +279,59 @@ fn a_connection_survives_a_reopen() {
     assert_eq!(all.len(), 1);
     assert_eq!(all[0].base_url, "http://127.0.0.1:1234/v1");
 }
+#[test]
+fn a_login_row_starts_open_and_closes_when_it_is_saved() {
+    let dir = tempdir().unwrap();
+    let store = SqliteStore::open(dir.path().join("lite.sqlite3")).unwrap();
+    let login = store.create_login("claude", now_ms() + 600_000).unwrap();
+    assert_eq!(login.status, "starting");
+    assert!(store.open_login("claude").unwrap().is_some());
+    assert!(store.open_login("codex").unwrap().is_none());
+
+    let mut saved = login.clone();
+    saved.status = "awaiting_user".into();
+    saved.url = Some("https://claude.com/cai/oauth/authorize?x=1".into());
+    store.save_login(&saved).unwrap();
+    let read = store.open_login("claude").unwrap().unwrap();
+    assert_eq!(read.status, "awaiting_user");
+    assert_eq!(
+        read.url.as_deref(),
+        Some("https://claude.com/cai/oauth/authorize?x=1")
+    );
+
+    saved.status = "done".into();
+    store.save_login(&saved).unwrap();
+    assert!(
+        store.open_login("claude").unwrap().is_none(),
+        "a finished attempt is not open"
+    );
+    assert_eq!(
+        store.latest_login("claude").unwrap().unwrap().status,
+        "done"
+    );
+}
+
+#[test]
+fn an_expired_attempt_is_not_open() {
+    let dir = tempdir().unwrap();
+    let store = SqliteStore::open(dir.path().join("lite.sqlite3")).unwrap();
+    store.create_login("codex", now_ms() - 1).unwrap();
+    assert!(store.open_login("codex").unwrap().is_none());
+    assert!(store.latest_login("codex").unwrap().is_some());
+}
+
+#[test]
+fn saving_a_login_that_does_not_exist_is_an_error() {
+    let dir = tempdir().unwrap();
+    let store = SqliteStore::open(dir.path().join("lite.sqlite3")).unwrap();
+    let ghost = ProviderLogin {
+        id: 999,
+        provider: "claude".into(),
+        status: "done".into(),
+        url: None,
+        code: None,
+        detail: String::new(),
+        expires_at_ms: now_ms(),
+    };
+    assert!(store.save_login(&ghost).is_err());
+}

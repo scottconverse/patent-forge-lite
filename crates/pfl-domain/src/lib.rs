@@ -823,6 +823,11 @@ pub trait Store: Send + Sync {
     fn connections(&self) -> Result<Vec<ApiConnection>>;
     fn save_connection(&self, connection: &ApiConnection) -> Result<()>;
     fn delete_connection(&self, id: &str) -> Result<()>;
+    /// The open attempt for a provider, if one is still worth showing.
+    fn open_login(&self, provider: &str) -> Result<Option<ProviderLogin>>;
+    fn latest_login(&self, provider: &str) -> Result<Option<ProviderLogin>>;
+    fn create_login(&self, provider: &str, expires_at_ms: u64) -> Result<ProviderLogin>;
+    fn save_login(&self, login: &ProviderLogin) -> Result<()>;
 }
 
 #[derive(Debug, Clone)]
@@ -1063,4 +1068,24 @@ mod provider_kind_compat {
         let snapshot: ProviderSnapshot = serde_json::from_str(stored).unwrap();
         assert_eq!(snapshot.kind, ProviderKind::Replay);
     }
+}
+
+/// One attempt to sign a CLI in, as the record keeps it.
+///
+/// No credential ever appears here. What crosses this boundary is the authorize URL the program
+/// printed, a one-time code the human reads, and how the attempt ended; the program owns its own
+/// credential file and its own refresh.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderLogin {
+    pub id: u64,
+    /// `claude` or `codex`.
+    pub provider: String,
+    /// One of `starting`, `awaiting_user`, `done`, `failed`, `expired`, `cancelled`.
+    pub status: String,
+    pub url: Option<String>,
+    pub code: Option<String>,
+    /// Redacted before it is stored.
+    pub detail: String,
+    /// When this attempt stops being worth showing.
+    pub expires_at_ms: u64,
 }

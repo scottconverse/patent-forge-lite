@@ -39,6 +39,26 @@ fn integer(value: u64) -> Result<i64> {
         .try_into()
         .map_err(|_| Error::Invalid("integer exceeds SQLite range".into()))
 }
+fn read_login(
+    connection: &Connection,
+    sql: &str,
+    params: &[&dyn rusqlite::ToSql],
+) -> Result<Option<ProviderLogin>> {
+    connection
+        .query_row(sql, params, |row| {
+            Ok(ProviderLogin {
+                id: row.get::<_, i64>(0)? as u64,
+                provider: row.get(1)?,
+                status: row.get(2)?,
+                url: row.get(3)?,
+                code: row.get(4)?,
+                detail: row.get(5)?,
+                expires_at_ms: row.get::<_, i64>(6)? as u64,
+            })
+        })
+        .optional()
+        .map_err(db)
+}
 fn read_json<T: DeserializeOwned>(
     connection: &Connection,
     sql: &str,
@@ -265,6 +285,11 @@ impl SqliteStore {
                PRIMARY KEY(project_id,surface,rank));
              CREATE TABLE IF NOT EXISTS provider_settings(id INTEGER PRIMARY KEY CHECK(id=1),payload TEXT NOT NULL);
              CREATE TABLE IF NOT EXISTS api_connections(id TEXT PRIMARY KEY,payload TEXT NOT NULL);
+             CREATE TABLE IF NOT EXISTS provider_logins(
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               provider TEXT NOT NULL,status TEXT NOT NULL,
+               url TEXT,code TEXT,detail TEXT NOT NULL DEFAULT '',
+               expires_at_ms INTEGER NOT NULL,created_at_ms INTEGER NOT NULL);
              CREATE TABLE IF NOT EXISTS document_revisions(
                id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES projects(id),
                kind TEXT NOT NULL,version INTEGER NOT NULL CHECK(version>0),payload TEXT NOT NULL,
@@ -699,6 +724,76 @@ impl Store for SqliteStore {
                 .map_err(db)?;
             if removed == 0 {
                 return Err(Error::NotFound(format!("connection {id}")));
+            }
+            Ok(())
+        })
+    }
+
+    fn open_login(&self, provider: &str) -> Result<Option<ProviderLogin>> {
+        self.transaction(|tx| {
+            let now = integer(now_ms())?;
+            read_login(
+                tx,
+                "SELECT id,provider,status,url,code,detail,expires_at_ms FROM provider_logins
+                 WHERE provider=?1 AND status IN ('starting','awaiting_user') AND expires_at_ms>?2
+                 ORDER BY id DESC LIMIT 1",
+                params![provider, now],
+            )
+        })
+    }
+
+    fn latest_login(&self, provider: &str) -> Result<Option<ProviderLogin>> {
+        self.transaction(|tx| {
+            read_login(
+                tx,
+                "SELECT id,provider,status,url,code,detail,expires_at_ms FROM provider_logins
+                 WHERE provider=?1 ORDER BY id DESC LIMIT 1",
+                params![provider],
+            )
+        })
+    }
+
+    fn create_login(&self, provider: &str, expires_at_ms: u64) -> Result<ProviderLogin> {
+        let now = integer(now_ms())?;
+        let expires = integer(expires_at_ms)?;
+        self.transaction(|tx| {
+            tx.execute(
+                "INSERT INTO provider_logins(provider,status,detail,expires_at_ms,created_at_ms)
+                 VALUES(?1,'starting','',?2,?3)",
+                params![provider, expires, now],
+            )
+            .map_err(db)?;
+            let id = tx.last_insert_rowid() as u64;
+            Ok(ProviderLogin {
+                id,
+                provider: provider.to_string(),
+                status: "starting".into(),
+                url: None,
+                code: None,
+                detail: String::new(),
+                expires_at_ms,
+            })
+        })
+    }
+
+    fn save_login(&self, login: &ProviderLogin) -> Result<()> {
+        self.transaction(|tx| {
+            let updated = tx
+                .execute(
+                    "UPDATE provider_logins SET status=?2,url=?3,code=?4,detail=?5,expires_at_ms=?6
+                     WHERE id=?1",
+                    params![
+                        login.id as i64,
+                        login.status,
+                        login.url,
+                        login.code,
+                        login.detail,
+                        integer(login.expires_at_ms)?
+                    ],
+                )
+                .map_err(db)?;
+            if updated == 0 {
+                return Err(Error::NotFound(format!("login {}", login.id)));
             }
             Ok(())
         })

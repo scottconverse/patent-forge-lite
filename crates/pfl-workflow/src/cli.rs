@@ -565,19 +565,37 @@ fn nested_message(value: &serde_json::Value) -> String {
     raw.to_string()
 }
 
-/// What this build will try to run.
-fn default_program(env_key: &str, plain: &str) -> String {
+/// What this build will try to run, resolved on PATH rather than guessed.
+///
+/// Windows installs these programs as a `.cmd` shim (Claude) or a `.exe` (Codex), depending on how
+/// they were installed, so the extension is looked up instead of assumed.
+pub(crate) fn default_program(env_key: &str, plain: &str) -> String {
     if let Ok(explicit) = std::env::var(env_key)
         && !explicit.trim().is_empty()
     {
         return explicit;
     }
-    // On Windows the launcher may be a `.cmd` shim; `Command::new("claude")` would not find it.
-    if cfg!(windows) {
-        format!("{plain}.cmd")
+    resolve_on_path(plain).unwrap_or_else(|| plain.to_string())
+}
+
+fn resolve_on_path(plain: &str) -> Option<String> {
+    let suffixes: &[&str] = if cfg!(windows) {
+        // The extensionless file on an npm install is a POSIX shell script, not something Windows
+        // can run, so it is tried last.
+        &[".exe", ".cmd", ".bat", ""]
     } else {
-        plain.to_string()
+        &[""]
+    };
+    let path = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path) {
+        for suffix in suffixes {
+            let candidate = dir.join(format!("{plain}{suffix}"));
+            if candidate.is_file() {
+                return Some(candidate.to_string_lossy().to_string());
+            }
+        }
     }
+    None
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -622,9 +640,6 @@ impl GeminiCliProvider {
         vec![
             "--model".into(),
             self.model.clone(),
-            // The reference enables full tools and bypasses approvals for its own runs; this
-            // application asks for an answer, not an agent, so it uses the same mode but never
-            // grants the program a directory of its own to act in.
             "--yolo".into(),
             "--output-format".into(),
             "json".into(),
@@ -659,9 +674,8 @@ impl Provider for GeminiCliProvider {
         cancellation: CancellationToken,
         deltas: UnboundedSender<String>,
     ) -> Result<ProviderResponse> {
-        // The prompt travels on stdin. A Windows shim is a `.cmd`, and an argv value containing
-        // newlines cannot be passed to one at all ("batch file arguments are invalid"), so stdin is
-        // the only form that works on every platform.
+        // The prompt travels on stdin: a Windows shim is a `.cmd`, and an argv value containing
+        // newlines cannot be passed to one at all ("batch file arguments are invalid").
         let prompt = GeminiCliProvider::prompt(&request);
         let output = run_program(
             "Gemini",
@@ -693,8 +707,7 @@ impl Provider for GeminiCliProvider {
 
 /// Reads the one JSON object the Gemini CLI prints in `--output-format json`.
 pub fn parse_gemini_json(stdout: &str) -> Result<(String, Usage)> {
-    let start = stdout.find('{');
-    let Some(start) = start else {
+    let Some(start) = stdout.find('{') else {
         return Err(Error::Incomplete(format!(
             "the Gemini CLI printed no JSON; saw: {}",
             tail(&redact(stdout), 200)
