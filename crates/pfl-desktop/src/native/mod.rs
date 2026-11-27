@@ -840,6 +840,52 @@ impl Desktop {
         )
         .into_any_element()
     }
+    /// The control that names a provider for the final report alone.
+    ///
+    /// One stage is the honest place to start: the report is the stage an operator most often wants
+    /// a different model for, and a per-stage picker for all nineteen stages would be a UI in
+    /// search of a problem. The store and the run path already handle any stage surface.
+    fn provider_stage_button(
+        &self,
+        provider: &pfl_workflow::catalog::ProviderView,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let Some(project) = self.state.selected_project.as_ref().map(|p| p.id.clone()) else {
+            return div().into_any_element();
+        };
+        if !provider.available {
+            return div().into_any_element();
+        }
+        let id = provider.id.clone();
+        let surface = format!("stage-{}", pfl_domain::Stage::FinalReport.slug());
+        let in_use = self
+            .assignments
+            .iter()
+            .any(|row| row.surface == surface && row.provider == provider.id && row.rank == 0);
+        let label = if in_use {
+            "Report only ✓"
+        } else {
+            "Report only"
+        };
+        self.ghost_button(
+            format!("stage-{}", provider.id),
+            label,
+            move |this, _, cx| {
+                this.send(
+                    Request::SetAssignment {
+                        project: project.clone(),
+                        surface: format!("stage-{}", pfl_domain::Stage::FinalReport.slug()),
+                        rank: 0,
+                        provider: id.clone(),
+                        model: None,
+                    },
+                    cx,
+                );
+            },
+            cx,
+        )
+        .into_any_element()
+    }
     /// The control that makes a provider the fallback when the choice fails.
     fn provider_fallback_button(
         &self,
@@ -2675,7 +2721,8 @@ impl Render for Desktop {
                                 )
                                 .child(self.provider_choice_button(provider, cx))
                                 .child(self.provider_fallback_button(provider, cx))
-                                .child(self.provider_override_button(provider, cx)),
+                                .child(self.provider_override_button(provider, cx))
+                                .child(self.provider_stage_button(provider, cx)),
                         ),
                     );
                 }
