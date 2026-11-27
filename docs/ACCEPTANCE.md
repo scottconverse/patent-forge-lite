@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `7b836a0` |
+| Revision | `ab4db36` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 170 |
+| pass | 171 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -223,6 +223,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | A provider can be named for the next run only; that run spends it and the project's assignments are untouched | workspace tests + native clippy at this revision | pass — the control is on the Models page and the start path spends the override with a plan of exactly its own snapshot |
 | The Models page lists the project's assignments (surface, rank, provider) as a record, not only as an "In use" marker | workspace tests + native clippy at this revision | pass — the list renders from the stored rows after a refresh |
 | The Models page lists saved connections (name, id, endpoint), so an endpoint used as `conn-<id>` is visible | workspace tests + native clippy at this revision | pass — the panel renders from the stored rows after a refresh |
+| A connection can be added from the window: name and base URL, saved as a record with no request made | workspace tests + native clippy at this revision | pass — the form writes through `AddConnection`; the store path is covered by the storage tests |
 | A provider can be assigned to the final report stage alone, from the page | workspace tests + native clippy at this revision | pass — writes `stage-final-report` rank 0 for the open project and marks the control when it is set |
 | A run uses a stage-level assignment | — | **blocked — harness** — a run holds one provider, so stage entries are recorded but not yet honoured |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
