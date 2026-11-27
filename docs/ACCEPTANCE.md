@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `c03502e` |
+| Revision | `46771a2` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -248,7 +248,7 @@ closed by this matrix:
 - **Closed at `e306416`:** both children of the report label branch take their colour from `report_label_color()`, which is `theme::DOC_TEXT` and is not `theme::DOC_BG`. Test: `native::report_colour_tests::report_labels_are_not_drawn_in_the_page_colour`; it was run with one child reverted to `theme::TEXT` and failed (`left: 1`, `right: 2`), output in that commit's body. The test also requires exactly two uses of the helper and no `theme::TEXT` inside `report_runs`.
 - **Closed at `e0f11be`:** `StartGate` carries `mode_chosen`, `start_block` refuses with the session's words, and the compliance button goes through `gate_blocks`. Tests: `state::mode_gate_tests::a_start_with_no_mode_is_refused_in_the_same_words_as_the_session` and `compliance_start_without_a_mode_is_refused_and_creates_no_run`; both were run with their guard removed and failed, outputs in that commit's body. The session test also asserts no run row and no provider call.
 - **Closed at `c03502e`:** `SqliteStore` records whether `run_sequences` exists (probed once at open through `sqlite_master`), and the two read queries plus `sequence_of` fall back to the payload's own counter when it does not; the read-only path still never migrates. Tests: `a_v0_1_0_database_reads_read_only_and_is_not_modified` and `the_read_write_path_migrates_the_same_file_and_agrees` (`crates/pfl-storage/tests/v01_read.rs`). The first was run with the probe disabled and failed with `Storage("no such table: run_sequences")`; the test also compares the file's bytes before and after the read.
-- `serve` requires `--addr` (`crates/pfl-cli/src/main.rs:963`).
+- **Closed at `46771a2`:** the cross-argument rules are `validate_args`, a pure function, and `serve` may omit `--addr` (the loopback default is taken). Tests: `tests::serve_without_addr_is_accepted_and_other_commands_may_not_pass_one`, `tests::pause_fixture_still_requires_a_stage_and_the_others_still_refuse_it`, and `serve_takes_the_loopback_default_when_no_addr_is_passed`, which starts the binary and requires a 200 from `127.0.0.1:4330/api/health`. With the old condition restored the unit test failed (`left`/`right` on the refusal) and the integration test failed with "serve did not answer on 127.0.0.1:4330 within 20s"; outputs in that commit's body.
 - **Closed at `c6e6546`:** the `Resume` comment is finished. A comment, not behaviour; no test applies.
 
 D1 and the truncated comment are closed with tests at `c6e6546`. The compliance mode gate, the report-pane colour and the `serve` default are implemented and gated but **still owe their tests**, so those entries stay open and the list below stands. They are not entered as matrix rows because they have not been triaged here; the `open defect` count
