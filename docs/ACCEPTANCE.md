@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `5f013c0` |
+| Revision | `afd44ca` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -271,6 +271,25 @@ The window already behaved this way through `ensure_idle`; this makes the servic
 Test: `a_second_project_cannot_start_while_a_run_is_in_flight` (crates/pfl-workflow/tests/workflow.rs),
 run with the project-only guard restored and failed with `a second project must not start while a run
 is in flight`, output in that commit's body.
+
+### Part 3 dispositions (the secondary list from the review)
+
+Each item is either fixed with a test or recorded with its reason; nothing is left as "not done".
+
+| Item | Disposition |
+| --- | --- |
+| Long-lived token accepted as `?token=` on every route | **fixed at `afd44ca`** -- the query form is honoured on GET reads only and refused on anything that mutates, with a message naming the reason. Test: `a_query_string_token_is_accepted_on_reads_and_refused_on_writes`; run with the rule removed and failed (`left: 422, right: 401`), output in that commit's body. |
+| Download token not bound to a run or format | open -- next round; the token is minted with no run or format and the export route does not compare them. |
+| No Origin/Sec-Fetch-Site check on cancel | open -- next round. |
+| `pfl_api::serve` has no loopback guard | open -- next round. |
+| "Approve paid Cloud request (this run)" is not per-run | open -- next round. |
+| `send()` leaves `pending` set on failure | open -- next round. |
+| Vertical navigation ignores soft wrap | open -- next round. |
+| Editor gaps (paste cap, IME redo, Tab/Enter, aria_value) | open -- next round. |
+| Cost rates by family substring | open -- next round. |
+| Rollback claim | open -- next round. |
+| Harness honesty (`scripts/ui-acceptance.ps1`) | open -- next round. |
+| Exit-code sentence (`docs/API-CONTRACTS.md:80`) | open -- next round. |
 
 ## Decisions that remain Scott's
 
