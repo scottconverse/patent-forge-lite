@@ -341,8 +341,11 @@ impl SqliteStore {
                 )
                 .map_err(db)?;
         }
-        // The schema version stays at 1: the counter lives beside `runs`, so an older build can
-        // still read and write this database after a rollback.
+        // The schema version stays at 1 because the counter lives beside `runs` and `runs` keeps its
+        // five columns, so an older build can still read and insert the rows it knows about after a
+        // rollback. It cannot know a run's event count, which lives in the side table; a run left
+        // mid-stage is therefore read by taking the newer of the payload's counter and the table's,
+        // which `a_rollback_read_takes_the_newer_of_payload_and_side_table` demonstrates.
         transaction
             .pragma_update(None, "application_id", APPLICATION_ID)
             .map_err(db)?;
