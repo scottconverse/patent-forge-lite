@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `afd44ca` |
+| Revision | `65e6c5c` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -278,7 +278,7 @@ Each item is fixed with a test or carries its reason. A list, not a table: a tab
 by the checker as matrix rows and its status words were rejected.
 
 - **Long-lived token accepted as `?token=` on every route** -- **fixed at `afd44ca`** -- honoured on GET reads only, refused on anything that mutates. Test: `a_query_string_token_is_accepted_on_reads_and_refused_on_writes`; run with the rule removed and failed (`left: 422, right: 401`), output in that commit's body.
-- **Download token not bound to a run or format** -- to do next round -- minted with no run or format; the export route compares neither.
+- **Download token not bound to a run or format** -- **fixed at `65e6c5c`**: the token is stored and checked as (run_id, format, expiry), the mint endpoint refuses without both names, and the export route compares what it names. Test: `a_download_token_opens_only_the_run_and_format_it_names`; run with the binding removed and failed (`left: 200, right: 401`, "a token for markdown must not open html"), output in that commit's body.
 - **No Origin/Sec-Fetch-Site check on cancel** -- to do next round.
 - **`pfl_api::serve` has no loopback guard** -- to do next round.
 - **"Approve paid Cloud request (this run)" is not per-run** -- to do next round.
