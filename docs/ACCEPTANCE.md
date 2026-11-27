@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `37aaf78` |
+| Revision | `b6c31f3` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -286,7 +286,7 @@ by the checker as matrix rows and its status words were rejected.
 - **Vertical navigation ignores soft wrap** -- recorded, not fixed. `vertical` moves by logical line, and moving by display line needs the renderer's wrap width, which the input computes at paint time and does not keep in a form a headless test can drive. A pure wrap model of my own invention would move the cursor by a rule the screen may not follow -- a quieter version of the same bug -- so it is left as it is rather than guessed at.
 - **Editor gaps (paste cap, IME redo, Tab/Enter, aria_value)** -- **partly fixed at `bb708d6`**: an insertion is capped at `MAX_INSERT_CHARS` on a grapheme boundary, and an empty replacement of an empty range no longer clears the redo stack. Tests: `editor::clipboard_tests::a_paste_is_capped_at_a_grapheme_boundary` and `an_empty_replacement_keeps_the_redo_stack`; both were run with their fix removed and failed (`105000` vs `100000`; `""` vs `"hello"`), outputs in that commit's body. **Recorded, not done:** the Tab/Enter asymmetry and exposing `aria_value` both need the accessibility layer, which this session cannot drive.
 - **Cost rates by family substring** -- **fixed at `e073809`**: the table lists exact model ids with the date the rates were recorded (2026-11-27) and returns `None` for anything else, which the window renders as "no rates are configured". Test: `cost::tests::a_model_that_is_not_listed_is_refused_rather_than_given_a_family_rate`; run with the family matching restored and failed (`left: Some(3.0/15.0), right: None` for `claude-sonnet-4-6`), output in that commit's body.
-- **Rollback claim** -- to do next round.
+- **Rollback claim** -- **narrowed at `b6c31f3`** to what the proof covers: `runs` keeps five columns so an older build can read and insert the rows it knows, and a run left mid-stage is read at the newer of the payload's counter and the side table's. Test: `a_rollback_read_takes_the_newer_of_payload_and_side_table` (`crates/pfl-storage/tests/rollback_claim.rs`); run with the newer-of-two replaced by the payload's value and failed (`left: 0, right: 4`), output in that commit's body.
 - **Harness honesty (`scripts/ui-acceptance.ps1`)** -- fixed: the header now says that SendKeys is used for controls with no pattern and that those steps need focus, and the check that followed a force-kill no longer calls it a clean exit.
 - **Exit-code sentence (`docs/API-CONTRACTS.md:80`)** -- fixed: it now states both, 3 (desktop) and 1 (CLI), and adds that the desktop uses 1 for other failures and 2 from a non-native build.
 
