@@ -5,7 +5,7 @@ commands in *Reproducing* to check them.
 
 | Field | Value |
 | --- | --- |
-| Revision | `ad5ef2e` |
+| Revision | `b6fb908` |
 | Branch | `main` |
 | Candidate version | `0.2.1` |
 | Licence | MIT (application); prompts CC BY-SA 4.0 |
@@ -14,7 +14,7 @@ commands in *Reproducing* to check them.
 
 | Platform | File | Version | SHA-256 | Bytes | Signed |
 | --- | --- | --- | --- | --- | --- |
-| Windows x64 | `patent-forge-lite-0.2.1-x64.exe` | 0.2.1 release candidate | `400c31af64d5922ee29a471066ebbd0a64b5229a79a53554209c84af49b34f4f` | 12363792 | **no** |
+| Windows x64 | `patent-forge-lite-0.2.1-x64.exe` | 0.2.1 release candidate | `684c91c242e9b518cabf022651afc669cd0c4d779971d4c4cecba61dd5ff3574` | 12363952 | **no** |
 | Windows x64 | `patent-forge-lite-0.1.0-x64.exe` | 0.1.0 released artifact, unchanged | `624f731cea661176ae9989bbba6234ee633af3d8b49314e0c151307b340c7f37` | 7,837,495 | **no** (the signed copy is `dist/signed/`) |
 | Linux x86_64 | `patent-forge-lite-v0.2.1-linux-x64.tar.gz` | 0.2.1 release candidate, built in CI from `3535022` | `7e9046edaa7a112a6915ecdd19423ff7d2817cefe54a9ef3aba66ef3fdcd3a07` | not recorded | **yes** (CI only, no signing key involved) |
 
