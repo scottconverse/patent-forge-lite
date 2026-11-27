@@ -458,13 +458,21 @@ impl Actor {
     ) -> Result<Option<Arc<dyn Provider>>> {
         let surface = format!("workflow-{}", kind.slug());
         let rows = self.store.assignments(project)?;
-        let Some(row) = rows
-            .iter()
-            .find(|row| row.surface == surface && row.rank == 0)
-        else {
-            return Ok(None);
-        };
-        self.provider_for_assignment(row).await
+        // Every rank for this surface, in order: rank 0 is the choice and the rest are the ladder
+        // behind it, so a quota or an unreachable server moves on instead of failing the run.
+        let mut ordered: Vec<_> = rows.iter().filter(|row| row.surface == surface).collect();
+        ordered.sort_by_key(|row| row.rank);
+        let mut rungs: Vec<Arc<dyn Provider>> = Vec::new();
+        for row in ordered {
+            if let Some(provider) = self.provider_for_assignment(row).await? {
+                rungs.push(provider);
+            }
+        }
+        Ok(match rungs.len() {
+            0 => None,
+            1 => rungs.pop(),
+            _ => Some(Arc::new(pfl_workflow::ladder::LadderProvider::new(rungs))),
+        })
     }
 
     /// The provider one assignment names, when this build can honour it.
