@@ -16,6 +16,9 @@ const APPLICATION_ID: i64 = 0x5046_4c31;
 
 pub struct SqliteStore {
     connection: Mutex<Connection>,
+    /// Whether `run_sequences` exists. A v0.1.0 database has no such table, and a `LEFT JOIN`
+    /// against a missing table is a SQL error, not a row of nulls.
+    has_run_sequences: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -23,6 +26,19 @@ pub struct IntakeRevision {
     pub revision: u64,
     pub intake: Intake,
     pub at_ms: u64,
+}
+
+/// Whether a table exists. `sqlite_master` is readable from a read-only connection, which is what
+/// `inspect` uses, so this probe cannot change the database it is asking about.
+fn table_exists(connection: &Connection, name: &str) -> Result<bool> {
+    let count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1",
+            [name],
+            |row| row.get(0),
+        )
+        .map_err(db)?;
+    Ok(count > 0)
 }
 
 fn db(error: impl std::fmt::Display) -> Error {
@@ -75,7 +91,11 @@ fn read_json<T: DeserializeOwned>(
 /// The counter lives here, not in `runs`, so the `runs` table stays exactly five columns: a
 /// released v0.1.0 build inserts runs positionally (`INSERT INTO runs VALUES(?1..?5)`), and a
 /// sixth column would make that statement fail after an upgrade-and-rollback.
-fn sequence_of(connection: &Connection, id: &RunId) -> Result<u64> {
+fn sequence_of(connection: &Connection, id: &RunId, has_run_sequences: bool) -> Result<u64> {
+    if !has_run_sequences {
+        // A v0.1.0 database has no side table: the payload's own counter is the whole truth.
+        return Ok(0);
+    }
     let stored: Option<i64> = connection
         .query_row(
             "SELECT last_sequence FROM run_sequences WHERE run_id=?1",
@@ -97,13 +117,13 @@ fn write_sequence(connection: &Connection, id: &RunId, sequence: u64) -> Result<
         .map_err(db)?;
     Ok(())
 }
-fn load_run(connection: &Connection, id: &RunId) -> Result<RunSnapshot> {
+fn load_run(connection: &Connection, id: &RunId, has_run_sequences: bool) -> Result<RunSnapshot> {
     let mut run: RunSnapshot =
         read_json(connection, "SELECT payload FROM runs WHERE id=?1", &id.0)?
             .ok_or_else(|| Error::NotFound(format!("run {id}")))?;
     // A delta advances the column without touching the payload, so the column is the newer of
     // the two until the next full save.
-    let stored = sequence_of(connection, id)?;
+    let stored = sequence_of(connection, id, has_run_sequences)?;
     run.last_sequence = run.last_sequence.max(stored);
     Ok(run)
 }
@@ -207,8 +227,10 @@ impl SqliteStore {
         connection
             .query_row("PRAGMA application_id", [], |r| r.get::<_, i64>(0))
             .map_err(db)?;
+        let has_run_sequences = table_exists(&connection, "run_sequences")?;
         Ok(Self {
             connection: Mutex::new(connection),
+            has_run_sequences,
         })
     }
 
@@ -327,6 +349,7 @@ impl SqliteStore {
         transaction.commit().map_err(db)?;
         Ok(Self {
             connection: Mutex::new(connection),
+            has_run_sequences: true,
         })
     }
 
@@ -826,7 +849,7 @@ impl Store for SqliteStore {
                 };
             }
             if let Some(source) = &request.rerun_of
-                && load_run(tx, source)?.project_id != request.project_id
+                && load_run(tx, source, self.has_run_sequences)?.project_id != request.project_id
             {
                 return Err(Error::Invalid(
                     "rerun source belongs to another project".into(),
@@ -882,18 +905,21 @@ impl Store for SqliteStore {
     }
 
     fn run(&self, id: &RunId) -> Result<RunSnapshot> {
-        self.transaction(|tx| load_run(tx, id))
+        self.transaction(|tx| load_run(tx, id, self.has_run_sequences))
     }
 
     fn history(&self, project_id: &ProjectId) -> Result<Vec<RunSnapshot>> {
         self.transaction(|tx| {
             load_project(tx, project_id)?;
             let mut statement = tx
-                .prepare(
+                .prepare(if self.has_run_sequences {
                     "SELECT runs.payload, COALESCE(run_sequences.last_sequence,0)
                      FROM runs LEFT JOIN run_sequences ON run_sequences.run_id = runs.id
-                     WHERE runs.project_id=?1 ORDER BY runs.version",
-                )
+                     WHERE runs.project_id=?1 ORDER BY runs.version"
+                } else {
+                    // v0.1.0 numbering comes from the payload, so the side table's value is 0.
+                    "SELECT runs.payload, 0 FROM runs WHERE runs.project_id=?1 ORDER BY runs.version"
+                })
                 .map_err(db)?;
             let rows = statement
                 .query_map([&project_id.0], |r| {
@@ -912,7 +938,7 @@ impl Store for SqliteStore {
 
     fn begin_attempt(&self, run_id: &RunId, at_ms: u64) -> Result<Attempt> {
         self.transaction(|tx| {
-            let mut run = load_run(tx, run_id)?;
+            let mut run = load_run(tx, run_id, self.has_run_sequences)?;
             if run.active_attempt().is_some() || run.outcome == RunOutcome::Completed {
                 return Err(Error::Conflict("run is active or completed".into()));
             }
@@ -949,7 +975,7 @@ impl Store for SqliteStore {
         at_ms: u64,
     ) -> Result<RunEvent> {
         self.transaction(|tx| {
-            let mut run = load_run(tx, run_id)?;
+            let mut run = load_run(tx, run_id, self.has_run_sequences)?;
             active(&run, attempt)?;
             if run.outcome != RunOutcome::Running {
                 return Err(Error::Conflict("attempt is not running".into()));
@@ -975,7 +1001,7 @@ impl Store for SqliteStore {
         checkpoint: &Checkpoint,
     ) -> Result<RunEvent> {
         self.transaction(|tx| {
-            let mut run = load_run(tx, run_id)?;
+            let mut run = load_run(tx, run_id, self.has_run_sequences)?;
             active(&run, attempt)?;
             if checkpoint.attempt_id != *attempt {
                 return Err(Error::Invalid("checkpoint attempt does not match owner".into()));
@@ -1022,7 +1048,7 @@ impl Store for SqliteStore {
         at_ms: u64,
     ) -> Result<RunSnapshot> {
         self.transaction(|tx| {
-            let mut run = load_run(tx, run_id)?;
+            let mut run = load_run(tx, run_id, self.has_run_sequences)?;
             active(&run, attempt)?;
             if run.outcome == RunOutcome::Cancelling {
                 return Ok(run);
@@ -1056,7 +1082,7 @@ impl Store for SqliteStore {
             return Err(Error::Invalid("finish requires a terminal outcome".into()));
         }
         self.transaction(|tx| {
-            let mut run = load_run(tx, run_id)?;
+            let mut run = load_run(tx, run_id, self.has_run_sequences)?;
             if run.active_attempt().is_none()
                 && run.attempts.last().map(|a| &a.id) == Some(attempt)
                 && run.outcome == outcome
@@ -1108,7 +1134,7 @@ impl Store for SqliteStore {
 
     fn events_after(&self, cursor: &Subscribe) -> Result<Vec<RunEvent>> {
         self.transaction(|tx| {
-            load_run(tx, &cursor.run_id)?;
+            load_run(tx, &cursor.run_id, self.has_run_sequences)?;
             if cursor.after_sequence >= i64::MAX as u64 {
                 return Ok(vec![]);
             }
@@ -1132,11 +1158,13 @@ impl Store for SqliteStore {
     fn recover_interrupted(&self, at_ms: u64) -> Result<Vec<RunId>> {
         self.transaction(|tx| {
             let mut statement = tx
-                .prepare(
+                .prepare(if self.has_run_sequences {
                     "SELECT runs.payload, COALESCE(run_sequences.last_sequence,0)
                      FROM runs LEFT JOIN run_sequences ON run_sequences.run_id = runs.id
-                     ORDER BY runs.id",
-                )
+                     ORDER BY runs.id"
+                } else {
+                    "SELECT runs.payload, 0 FROM runs ORDER BY runs.id"
+                })
                 .map_err(db)?;
             let rows = statement
                 .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))

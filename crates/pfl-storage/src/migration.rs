@@ -621,7 +621,8 @@ impl SqliteStore {
                 save_run(tx, &run)?;
             }
             for stage in records(original, "FeasibilityStage") {
-                load_run(tx, &RunId(text(stage, "feasibilityRunId")))?;
+                // A migration runs on the read-write path, after initialize() has created the table.
+                load_run(tx, &RunId(text(stage, "feasibilityRunId")), true)?;
             }
             if let Some(record) = records(original, "AppSettings").first() {
                 let has_settings: bool = tx
