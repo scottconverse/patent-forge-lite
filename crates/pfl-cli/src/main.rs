@@ -953,26 +953,13 @@ async fn main() {
             }
             i += 2;
         }
-        if stage.is_some_and(|n| !(1..=6).contains(&n))
-            || (command == "pause-fixture") != stage.is_some()
-        {
-            return Err(invalid(
-                "only pause-fixture accepts and requires --stage 1..6",
-            ));
-        }
-        if addr.is_some() && command != "serve" {
-            return Err(invalid("only serve accepts --addr"));
-        }
-        if (endpoint.is_some() || model.is_some()) && !(command == "live" || command == "models") {
-            return Err(invalid("only live accepts --endpoint and --model"));
-        }
-        if (references.is_some() || research_endpoint.is_some())
-            && !matches!(command, "pipeline" | "live")
-        {
-            return Err(invalid(
-                "only pipeline and live accept --references and --research-endpoint",
-            ));
-        }
+        validate_args(
+            command,
+            stage,
+            addr.is_some(),
+            endpoint.is_some() || model.is_some(),
+            references.is_some() || research_endpoint.is_some(),
+        )?;
 
         if command == "settings" {
             let database =
@@ -1409,6 +1396,40 @@ async fn save_revision_cmd(
     Ok(())
 }
 
+/// The cross-argument rules, as a pure function.
+///
+/// These used to be four branches inside `main`, so the rule that `serve` may omit `--addr` had no
+/// test: nothing could observe the condition without spawning the binary. Presence is passed as a
+/// boolean where only presence matters, which keeps the rule readable and independent of the
+/// argument types.
+fn validate_args(
+    command: &str,
+    stage: Option<usize>,
+    has_addr: bool,
+    has_endpoint_or_model: bool,
+    has_references: bool,
+) -> Result<()> {
+    if stage.is_some_and(|n| !(1..=6).contains(&n))
+        || (command == "pause-fixture") != stage.is_some()
+    {
+        return Err(invalid(
+            "only pause-fixture accepts and requires --stage 1..6",
+        ));
+    }
+    if has_addr && command != "serve" {
+        return Err(invalid("only serve accepts --addr"));
+    }
+    if has_endpoint_or_model && !(command == "live" || command == "models") {
+        return Err(invalid("only live accepts --endpoint and --model"));
+    }
+    if has_references && !matches!(command, "pipeline" | "live") {
+        return Err(invalid(
+            "only pipeline and live accept --references and --research-endpoint",
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1440,5 +1461,34 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].assignee, "A");
         assert!(items[0].verified);
+    }
+
+    #[test]
+    fn serve_without_addr_is_accepted_and_other_commands_may_not_pass_one() {
+        // The default address is chosen later; the rule is that omitting --addr is legal for serve.
+        assert!(super::validate_args("serve", None, false, false, false).is_ok());
+        assert!(super::validate_args("serve", None, true, false, false).is_ok());
+
+        let refused = super::validate_args("pipeline", None, true, false, false)
+            .expect_err("a non-serve command must not accept --addr");
+        assert!(
+            refused.to_string().contains("only serve accepts --addr"),
+            "got {refused}"
+        );
+    }
+
+    #[test]
+    fn pause_fixture_still_requires_a_stage_and_the_others_still_refuse_it() {
+        let refused = super::validate_args("pause-fixture", None, false, false, false)
+            .expect_err("pause-fixture requires --stage");
+        assert!(
+            refused
+                .to_string()
+                .contains("only pause-fixture accepts and requires --stage 1..6"),
+            "got {refused}"
+        );
+        assert!(super::validate_args("pause-fixture", Some(3), false, false, false).is_ok());
+        assert!(super::validate_args("pause-fixture", Some(7), false, false, false).is_err());
+        assert!(super::validate_args("pipeline", Some(3), false, false, false).is_err());
     }
 }
