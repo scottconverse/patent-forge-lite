@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `80f93be` |
+| Revision | `bb708d6` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
