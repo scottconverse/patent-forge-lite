@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `46771a2` |
+| Revision | `5f013c0` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -257,6 +257,17 @@ or refuted at its cited line, "code complete" is not a claim this repository can
 
 The navigation defect is closed: the rail is a tab list, each item is a tab, and the UI
 harness measures it as `TabItem` with `SelectionItemPattern` (38/38).
+### Decision: one run at a time, in one process (recorded at `5f013c0`)
+
+`start_locked` now refuses while any job is owned, not only while the same project owns one, so two
+paid runs cannot be in flight at once through the CLI or the API either. The consequence is that
+**concurrent projects are not supported by this build**: starting a run in project B while project A
+is mid-run is refused with "another run is still active; finish or cancel it before starting one".
+The window already behaved this way through `ensure_idle`; this makes the service agree with it.
+Test: `a_second_project_cannot_start_while_a_run_is_in_flight` (crates/pfl-workflow/tests/workflow.rs),
+run with the project-only guard restored and failed with `a second project must not start while a run
+is in flight`, output in that commit's body.
+
 ## Decisions that remain Scott's
 
 1. **Version — decided: 0.2.1.** The crates, the installer's `AppVersion`, the manifest and
