@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `e073809` |
+| Revision | `80f93be` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -281,7 +281,7 @@ by the checker as matrix rows and its status words were rejected.
 - **Download token not bound to a run or format** -- **fixed at `65e6c5c`**: the token is stored and checked as (run_id, format, expiry), the mint endpoint refuses without both names, and the export route compares what it names. Test: `a_download_token_opens_only_the_run_and_format_it_names`; run with the binding removed and failed (`left: 200, right: 401`, "a token for markdown must not open html"), output in that commit's body.
 - **No Origin/Sec-Fetch-Site check on cancel** -- **fixed at `ad5ef2e`**: a mutating request is refused when `Origin` names another host or `Sec-Fetch-Site` says cross-site/same-site; no Origin, `same-origin` and `none` are allowed, so the CLI and a direct navigation still work. Test: `a_foreign_origin_cannot_reach_a_mutating_route`; run with the check removed and failed (`left: 404, right: 403`), output in that commit's body.
 - **`pfl_api::serve` has no loopback guard** -- **fixed at `b6fb908`**: `check_bind` refuses a non-loopback address unless `allow_remote` is passed, and `serve` is `serve_with(..., false)`. Test: `bind_tests::a_non_loopback_bind_is_refused_unless_allowed`; run with the guard removed and failed ("0.0.0.0:4330 must be refused without allow_remote"), output in that commit's body. The CLI keeps its different rule -- remote allowed when `PFL_API_TOKEN` is set -- unchanged and recorded here as a decision.
-- **"Approve paid Cloud request (this run)" is not per-run** -- to do next round.
+- **"Approve paid Cloud request (this run)" is not per-run** -- **fixed at `80f93be`**: both start paths consume the approval and opening a project drops it, so one approval authorizes one run. Test: `native::approval_tests::one_paid_approval_authorizes_one_run`; run with the plain-start reset removed and failed ("the plain start must consume the approval"), output in that commit's body. The assertion is source-level, like D3: it catches a deleted reset, not one placed where it never runs.
 - **`send()` leaves `pending` set on failure** -- to do next round.
 - **Vertical navigation ignores soft wrap** -- recorded, not fixed. `vertical` moves by logical line, and moving by display line needs the renderer's wrap width, which the input computes at paint time and does not keep in a form a headless test can drive. A pure wrap model of my own invention would move the cursor by a rule the screen may not follow -- a quieter version of the same bug -- so it is left as it is rather than guessed at.
 - **Editor gaps (paste cap, IME redo, Tab/Enter, aria_value)** -- to do next round.
