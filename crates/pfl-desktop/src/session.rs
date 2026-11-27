@@ -120,6 +120,12 @@ pub enum Request {
     },
     /// Saved custom endpoints.
     ListConnections,
+    /// Save a custom endpoint. It is a record, not a request: nothing is contacted.
+    AddConnection {
+        name: String,
+        base_url: String,
+        model: Option<String>,
+    },
     /// Which provider runs each surface for this project.
     ListAssignments {
         project: ProjectId,
@@ -687,6 +693,27 @@ impl Actor {
                 self.reply(Reply::Providers(providers));
             }
             Request::ListConnections => {
+                let rows = self.store.connections()?;
+                self.reply(Reply::Connections(rows));
+            }
+            Request::AddConnection {
+                name,
+                base_url,
+                model,
+            } => {
+                if name.trim().is_empty() || base_url.trim().is_empty() {
+                    return Err(Error::Invalid(
+                        "a connection needs a name and a base URL".into(),
+                    ));
+                }
+                let connection = ApiConnection {
+                    id: format!("conn-{}", pfl_domain::now_ms()),
+                    name: name.trim().to_string(),
+                    base_url: base_url.trim().to_string(),
+                    model: model.filter(|model| !model.trim().is_empty()),
+                    key_ref: None,
+                };
+                self.store.save_connection(&connection)?;
                 let rows = self.store.connections()?;
                 self.reply(Reply::Connections(rows));
             }

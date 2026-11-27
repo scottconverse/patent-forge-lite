@@ -216,6 +216,9 @@ struct Desktop {
     report: Entity<TextInput>,
     stream: Entity<TextInput>,
     endpoint: Entity<TextInput>,
+    /// The name and endpoint of a connection being added. Records only; nothing is contacted.
+    connection_name: Entity<TextInput>,
+    connection_url: Entity<TextInput>,
     model: Entity<TextInput>,
     saved_intake: Intake,
     mode: Option<Mode>,
@@ -316,6 +319,11 @@ impl Desktop {
             TextInput::new(TextBuffer::new(endpoint_hint, false), 42., cx)
                 .labelled("Local endpoint")
         });
+        let connection_name = cx.new(|cx| {
+            TextInput::new(TextBuffer::new("", false), 42., cx).labelled("Connection name")
+        });
+        let connection_url =
+            cx.new(|cx| TextInput::new(TextBuffer::new("", false), 42., cx).labelled("Base URL"));
         let model = cx.new(|cx| {
             TextInput::new(TextBuffer::new("", false), 42., cx).labelled("Local model name")
         });
@@ -365,6 +373,8 @@ impl Desktop {
             report,
             stream,
             endpoint,
+            connection_name,
+            connection_url,
             model,
             saved_intake: Intake::default(),
             mode: None,
@@ -2636,6 +2646,34 @@ impl Render for Desktop {
                     })),
                 ));
                 let mut list = div().flex().flex_col().gap_2().w_full();
+                // Adding a connection records an endpoint; nothing is contacted until a run uses it.
+                list = list.child(
+                    theme::panel()
+                        .p_4()
+                        .flex()
+                        .flex_col()
+                        .gap_2()
+                        .child(self.labelled("CONNECTION NAME", self.connection_name.clone()))
+                        .child(self.labelled("BASE URL", self.connection_url.clone()))
+                        .child(self.button(
+                            "add-connection",
+                            "Save connection",
+                            |this, _, cx| {
+                                let name = this.connection_name.read(cx).buffer.text().to_string();
+                                let base_url =
+                                    this.connection_url.read(cx).buffer.text().to_string();
+                                this.send(
+                                    Request::AddConnection {
+                                        name,
+                                        base_url,
+                                        model: None,
+                                    },
+                                    cx,
+                                );
+                            },
+                            cx,
+                        )),
+                );
                 // Saved endpoints, addressed by a run as `conn-<id>`.
                 if !self.connections.is_empty() {
                     let mut saved = div().flex().flex_col().gap_1().w_full();
