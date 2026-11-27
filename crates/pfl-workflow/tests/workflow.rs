@@ -908,3 +908,99 @@ async fn two_stages_can_be_answered_by_two_providers() {
         "the plan names both providers the resolver can return"
     );
 }
+
+// --- D1 at the service: resume must refuse while any job is owned --------------------------
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn resuming_is_refused_while_any_run_is_in_flight() {
+    use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+
+    struct GateReplay {
+        calls: std::sync::atomic::AtomicUsize,
+        gate: Arc<AtomicBool>,
+        release: Arc<AtomicBool>,
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for GateReplay {
+        fn snapshot(&self) -> ProviderSnapshot {
+            ProviderSnapshot {
+                kind: ProviderKind::Replay,
+                model: "workflow-gated-synthetic-v1".into(),
+                endpoint: None,
+            }
+        }
+        async fn generate(
+            &self,
+            request: ProviderRequest,
+            cancellation: CancellationToken,
+            _deltas: tokio::sync::mpsc::UnboundedSender<String>,
+        ) -> Result<ProviderResponse> {
+            self.calls.fetch_add(1, AtomicOrdering::SeqCst);
+            while self.gate.load(AtomicOrdering::SeqCst)
+                && !self.release.load(AtomicOrdering::SeqCst)
+                && !cancellation.is_cancelled()
+            {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+            Ok(ProviderResponse {
+                text: format!("gated stage {}", request.stage.number()),
+                usage: Usage::default(),
+            })
+        }
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let gate = Arc::new(AtomicBool::new(false));
+    let release = Arc::new(AtomicBool::new(false));
+    let provider = Arc::new(GateReplay {
+        calls: std::sync::atomic::AtomicUsize::new(0),
+        gate: gate.clone(),
+        release: release.clone(),
+    });
+    let store = Arc::new(SqliteStore::open(dir.path().join("d1.db")).unwrap());
+    let service = WorkflowService::new(store, provider.clone(), Handle::current());
+    let a = service.create_project(intake()).await.unwrap();
+    let b = service.create_project(intake()).await.unwrap();
+
+    // B completes while nothing is in flight.
+    let b_run = service
+        .start(request(&b, provider.as_ref(), "b-run"))
+        .await
+        .unwrap();
+    assert_eq!(
+        terminal(&service, &b_run.id).await.outcome,
+        RunOutcome::Completed
+    );
+
+    // A holds the machine.
+    gate.store(true, AtomicOrdering::SeqCst);
+    let a_run = service
+        .start(request(&a, provider.as_ref(), "a-run"))
+        .await
+        .unwrap();
+    for _ in 0..400 {
+        let running = !service
+            .run(a_run.id.clone())
+            .await
+            .unwrap()
+            .outcome
+            .is_terminal();
+        if running && provider.calls.load(AtomicOrdering::SeqCst) > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+
+    let error = service
+        .resume(b_run.id.clone(), authorization())
+        .await
+        .expect_err("a resume must be refused while another run is in flight");
+    assert!(
+        format!("{error}").contains("another run is still active"),
+        "unexpected refusal: {error}"
+    );
+
+    release.store(true, AtomicOrdering::SeqCst);
+    let _ = terminal(&service, &a_run.id).await;
+}

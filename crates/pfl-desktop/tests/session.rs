@@ -889,3 +889,145 @@ fn clearing_the_key_drops_the_cloud_provider() {
         other => panic!("a start after clearing the key must be refused, got {other:?}"),
     }
 }
+
+// --- D1: resume must not start a second run ------------------------------------------------
+
+/// A provider whose calls can be held open. `gate` turns blocking on; `release` lets the held
+/// call finish. Unlike `ControlledReplay` (one-shot on PriorArt), this one can block repeatedly,
+/// which is what a test needs after another run has already completed.
+struct GatedReplay {
+    calls: AtomicUsize,
+    gate: AtomicBool,
+    release: AtomicBool,
+}
+
+impl GatedReplay {
+    fn new() -> Self {
+        Self {
+            calls: AtomicUsize::new(0),
+            gate: AtomicBool::new(false),
+            release: AtomicBool::new(false),
+        }
+    }
+}
+
+#[async_trait]
+impl Provider for GatedReplay {
+    fn snapshot(&self) -> ProviderSnapshot {
+        ProviderSnapshot {
+            kind: ProviderKind::Replay,
+            model: "desktop-gated-synthetic-v1".into(),
+            endpoint: None,
+        }
+    }
+    async fn generate(
+        &self,
+        request: ProviderRequest,
+        cancellation: CancellationToken,
+        _deltas: tokio::sync::mpsc::UnboundedSender<String>,
+    ) -> Result<ProviderResponse> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        while self.gate.load(Ordering::SeqCst)
+            && !self.release.load(Ordering::SeqCst)
+            && !cancellation.is_cancelled()
+        {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        Ok(ProviderResponse {
+            text: format!("gated stage {}", request.stage.number()),
+            usage: Usage::default(),
+        })
+    }
+}
+
+/// Like `until`, but a refusal is an expected outcome rather than a panic.
+fn until_any(session: &ApplicationSession, mut ready: impl FnMut(&Reply) -> bool) -> Reply {
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_secs(8) {
+        for reply in session.drain() {
+            if ready(&reply) {
+                return reply;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    panic!("reply deadline exceeded");
+}
+
+fn start_run(session: &ApplicationSession, project: &Project, key: &str) -> RunSnapshot {
+    session
+        .request(Request::Start {
+            project: project.id.clone(),
+            kind: WorkflowKind::Feasibility,
+            idempotency_key: key.into(),
+            authorization: Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    match until(session, |r| matches!(r, Reply::Run(_))) {
+        Reply::Run(run) => run,
+        _ => unreachable!(),
+    }
+}
+
+#[test]
+fn resuming_while_another_run_is_in_flight_is_refused_and_sends_nothing() {
+    let store = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(GatedReplay::new());
+    let session =
+        ApplicationSession::with_replay_provider(store.clone(), provider.clone()).unwrap();
+    session.request(Request::Configure(Mode::Replay)).unwrap();
+    until(&session, |r| matches!(r, Reply::Configured(_)));
+
+    // B finishes while nothing blocks.
+    let b = create(&session);
+    let b_run = start_run(&session, &b, "b-run");
+    wait_store(|| store.run(&b_run.id).unwrap().outcome.is_terminal());
+    let outcome_before = store.run(&b_run.id).unwrap().outcome;
+    let calls_before = provider.calls.load(Ordering::SeqCst);
+
+    // A holds a provider call open, so a job is in flight.
+    provider.gate.store(true, Ordering::SeqCst);
+    let a = create(&session);
+    let a_run = start_run(&session, &a, "a-run");
+    wait_store(|| provider.calls.load(Ordering::SeqCst) > calls_before);
+    let calls_mid = provider.calls.load(Ordering::SeqCst);
+
+    // Resuming B must be refused, and must not send anything.
+    session
+        .request(Request::Resume {
+            run: b_run.id.clone(),
+            authorization: Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    match until_any(&session, |r| matches!(r, Reply::Error(_) | Reply::Run(_))) {
+        Reply::Error(error) => assert!(
+            error
+                .to_string()
+                .contains("finish or cancel active work before resuming"),
+            "unexpected refusal: {error}"
+        ),
+        other => panic!("resume was not refused: {other:?}"),
+    }
+    assert_eq!(
+        provider.calls.load(Ordering::SeqCst),
+        calls_mid,
+        "a refused resume must not send a provider request"
+    );
+    assert_eq!(
+        store.run(&b_run.id).unwrap().outcome,
+        outcome_before,
+        "a refused resume must not change the run"
+    );
+
+    // Drain the held run so the session stops cleanly.
+    provider.release.store(true, Ordering::SeqCst);
+    session.request(Request::Cancel(a_run.id.clone())).unwrap();
+    wait_store(|| store.run(&a_run.id).unwrap().outcome.is_terminal());
+    stop(&session);
+}

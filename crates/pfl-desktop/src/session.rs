@@ -1110,8 +1110,8 @@ impl Actor {
             } => {
                 let snapshot = self.service.run(id.clone()).await?;
                 // Resume never changes the snapshotted provider; it re-authorizes this attempt
-                // against the run's own snapshot, and the mode still has to match that run.
                 self.ensure_idle("resuming").await?;
+                // against the run's own snapshot, and the mode still has to match that run.
                 if self.mode.is_none() {
                     return Err(Error::Invalid(
                         "Select the matching execution mode before resume".into(),
