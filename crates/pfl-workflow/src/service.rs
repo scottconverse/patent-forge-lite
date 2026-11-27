@@ -535,15 +535,17 @@ impl WorkflowService {
             // Store verifies identical immutable payload, not just key equality.
             return self.db(move |s| s.create_run(&request)).await;
         }
-        if self
+        // One run at a time in one process, whatever project it belongs to. Refusing only the same
+        // project left the CLI and the API able to put two paid runs in flight at once; the window
+        // already refuses that through `ensure_idle`, and `resume` already refuses it here.
+        if !self
             .jobs
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .values()
-            .any(|j| j.project_id == request.project_id)
+            .is_empty()
         {
             return Err(Error::Conflict(
-                "project already has an owned active attempt; await cancellation first".into(),
+                "another run is still active; finish or cancel it before starting one".into(),
             ));
         }
         if history

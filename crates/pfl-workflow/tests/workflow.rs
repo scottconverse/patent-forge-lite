@@ -1004,3 +1004,95 @@ async fn resuming_is_refused_while_any_run_is_in_flight() {
     release.store(true, AtomicOrdering::SeqCst);
     let _ = terminal(&service, &a_run.id).await;
 }
+
+// --- S1: one run at a time, in one process, whatever the project --------------------------
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_second_project_cannot_start_while_a_run_is_in_flight() {
+    use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+
+    struct GateReplay {
+        calls: std::sync::atomic::AtomicUsize,
+        gate: Arc<AtomicBool>,
+        release: Arc<AtomicBool>,
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for GateReplay {
+        fn snapshot(&self) -> ProviderSnapshot {
+            ProviderSnapshot {
+                kind: ProviderKind::Replay,
+                model: "workflow-one-run-v1".into(),
+                endpoint: None,
+            }
+        }
+        async fn generate(
+            &self,
+            request: ProviderRequest,
+            cancellation: CancellationToken,
+            _deltas: tokio::sync::mpsc::UnboundedSender<String>,
+        ) -> Result<ProviderResponse> {
+            self.calls.fetch_add(1, AtomicOrdering::SeqCst);
+            while self.gate.load(AtomicOrdering::SeqCst)
+                && !self.release.load(AtomicOrdering::SeqCst)
+                && !cancellation.is_cancelled()
+            {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+            Ok(ProviderResponse {
+                text: format!("gated stage {}", request.stage.number()),
+                usage: Usage::default(),
+            })
+        }
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let gate = Arc::new(AtomicBool::new(true));
+    let release = Arc::new(AtomicBool::new(false));
+    let provider = Arc::new(GateReplay {
+        calls: std::sync::atomic::AtomicUsize::new(0),
+        gate: gate.clone(),
+        release: release.clone(),
+    });
+    let store = Arc::new(SqliteStore::open(dir.path().join("s1.db")).unwrap());
+    let service = WorkflowService::new(store, provider.clone(), Handle::current());
+    let a = service.create_project(intake()).await.unwrap();
+    let b = service.create_project(intake()).await.unwrap();
+
+    let a_run = service
+        .start(request(&a, provider.as_ref(), "s1-a"))
+        .await
+        .unwrap();
+    for _ in 0..400 {
+        if provider.calls.load(AtomicOrdering::SeqCst) > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    let calls = provider.calls.load(AtomicOrdering::SeqCst);
+    assert!(
+        calls > 0,
+        "the first run must be in flight for this test to mean anything"
+    );
+
+    let error = service
+        .start(request(&b, provider.as_ref(), "s1-b"))
+        .await
+        .expect_err("a second project must not start while a run is in flight");
+    assert!(
+        format!("{error}").contains("another run is still active"),
+        "unexpected refusal: {error}"
+    );
+    assert_eq!(
+        provider.calls.load(AtomicOrdering::SeqCst),
+        calls,
+        "a refused start must not send a provider request"
+    );
+    assert!(
+        service.history(b.id.clone()).await.unwrap().is_empty(),
+        "a refused start must not create a run"
+    );
+
+    release.store(true, AtomicOrdering::SeqCst);
+    let _ = terminal(&service, &a_run.id).await;
+}
