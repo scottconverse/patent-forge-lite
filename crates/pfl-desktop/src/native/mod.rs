@@ -3422,6 +3422,15 @@ impl Render for Desktop {
 
 /// Inline runs for one paragraph, preserving bold emphasis without wrapping
 /// markers in the visible text.
+/// The colour a report's bold label is drawn in.
+///
+/// `theme::TEXT` is `PAPER`, the same value as `theme::DOC_BG`, so a label drawn in the page colour
+/// is invisible. Both children of the label branch take their colour from here, and the test below
+/// fails if either one goes back to `theme::TEXT`.
+fn report_label_color() -> u32 {
+    theme::DOC_TEXT
+}
+
 fn report_runs(text: &str) -> Div {
     let runs = crate::markdown::runs(text);
     // The common report shape is "**Label:** body". Render that as a bold run
@@ -3438,7 +3447,7 @@ fn report_runs(text: &str) -> Div {
                     .text_sm()
                     .line_height(px(24.))
                     .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(rgb(theme::DOC_TEXT))
+                    .text_color(rgb(report_label_color()))
                     .child(runs[0].text.clone()),
             )
             .child(
@@ -3447,7 +3456,7 @@ fn report_runs(text: &str) -> Div {
                     .min_w_0()
                     .text_sm()
                     .line_height(px(24.))
-                    .text_color(rgb(theme::DOC_TEXT))
+                    .text_color(rgb(report_label_color()))
                     .child(runs[1].text.clone()),
             );
     }
@@ -3571,4 +3580,43 @@ fn report_document(markdown_text: &str) -> Div {
         });
     }
     column
+}
+
+#[cfg(test)]
+mod report_colour_tests {
+    /// The label branch must take its colour from `report_label_color`, and that colour must not be
+    /// the page colour. The source is read rather than a `Div`, because the element tree exposes no
+    /// colour to a headless test; reverting either child to `theme::TEXT` fails this.
+    #[test]
+    fn report_labels_are_not_drawn_in_the_page_colour() {
+        assert_eq!(
+            super::report_label_color(),
+            crate::native::theme::DOC_TEXT,
+            "the label colour must be DOC_TEXT"
+        );
+        assert_ne!(
+            super::report_label_color(),
+            crate::native::theme::DOC_BG,
+            "text the same colour as the page is not text"
+        );
+
+        let source = include_str!("mod.rs");
+        let start = source
+            .find("fn report_runs(text: &str) -> Div {")
+            .expect("report_runs must exist");
+        let end = source[start..]
+            .find("fn report_table(")
+            .map(|offset| start + offset)
+            .expect("report_table must follow report_runs");
+        let branch = &source[start..end];
+        assert_eq!(
+            branch.matches("report_label_color()").count(),
+            2,
+            "both children of the label branch must use report_label_color()"
+        );
+        assert!(
+            !branch.contains("theme::TEXT"),
+            "a label child went back to theme::TEXT, which is the page colour"
+        );
+    }
 }
