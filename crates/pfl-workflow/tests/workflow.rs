@@ -768,3 +768,60 @@ async fn failure_notice_is_durable_sanitized_and_not_an_unsupported_event_append
     );
     assert_eq!(provider.0.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_resolver_serves_every_stage_and_each_request_names_who_answered() {
+    let dir = tempfile::tempdir().unwrap();
+    let provider = Arc::new(ReplayProvider::synthetic().with_delay(Duration::ZERO));
+    let store = Arc::new(SqliteStore::open(dir.path().join("resolver.db")).unwrap());
+    // The resolver names this provider for every stage. What the test checks is not the choice but
+    // that the resolver path runs, that the request carries the answering provider, and that the
+    // checkpoint records it.
+    let serving = provider.clone();
+    let resolver = Arc::new(move |_stage: Stage| serving.clone() as Arc<dyn Provider>);
+    let mut service = WorkflowService::new_with_stage_provider(
+        store,
+        provider.clone(),
+        Handle::current(),
+        resolver,
+    );
+    Arc::get_mut(&mut service)
+        .expect("a service that was just built is not shared yet")
+        .set_provider_plan(vec![provider.snapshot()]);
+
+    let project = service.create_project(intake()).await.unwrap();
+    // Start the way the application does: the service builds the run, so its plan applies.
+    let id = service
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Feasibility,
+            "resolver".into(),
+            authorization(),
+        )
+        .await
+        .unwrap()
+        .id;
+    let saved = terminal(&service, &id).await;
+    assert_eq!(saved.outcome, RunOutcome::Completed);
+
+    let snapshot = provider.snapshot();
+    for (index, actual) in provider.requests().iter().enumerate() {
+        assert_eq!(
+            actual.input.provider, snapshot,
+            "request {index} names the provider"
+        );
+        assert!(
+            !actual.input.provider_plan.is_empty(),
+            "the run carries the plan the service was given"
+        );
+    }
+    assert_eq!(saved.checkpoints.len(), 6);
+    for checkpoint in &saved.checkpoints {
+        assert_eq!(
+            checkpoint.provider.as_ref(),
+            Some(&snapshot),
+            "stage {:?} records who answered",
+            checkpoint.stage
+        );
+    }
+}
