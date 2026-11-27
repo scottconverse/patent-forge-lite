@@ -44,7 +44,7 @@ The plan itself is **Appendix A** — read it before judging any status below.
 |---|---|
 | Repository | `C:\Users\scott\Documents\Codex\PatentForgeLite` |
 | Remote / branch | `scottconverse/patent-forge-lite`, `main` |
-| Code revision | `594fdb7` — the last commit touching shipped code; the record corrections in §15.3 were committed after it, so take the current HEAD from `git log` |
+| Code revision | `594fdb7` was the revision this document described. The defect-closure work in §17 followed it; take the current HEAD from `git log` |
 | CI at HEAD | green on windows-latest, macos-15, ubuntu-24.04 — run `45935134452` |
 | Acceptance checker | `scripts\acceptance-check.ps1` → **13/13** |
 | Matrix | 171 `pass`, 2 `blocked — harness`, 4 `blocked — authorization`, 1 `blocked — key`, 2 `not verified` |
@@ -1447,3 +1447,29 @@ harness measures it as `TabItem` with `SelectionItemPattern` (38/38).
 - That the HTTP write surface works.
 - That every documentation page matches the build while F-040 to F-048 remain open.
 ```
+
+## 17. Update: the seven defects are closed (work after `594fdb7`)
+
+Everything in §3 that describes open defects is superseded by this section. Between `c6e6546` and
+`b6c31f3` each of the seven defects listed in `docs/ACCEPTANCE.md` was fixed and closed by a test that
+**was run with its fix removed and failed**; the command and the output are in each closure commit's
+body, and `docs/ACCEPTANCE.md` carries one evidence line per defect naming its test and that commit.
+
+| Defect | Commit | Test |
+| --- | --- | --- |
+| D1 Resume bypasses the single-run guard | `c6e6546` | `resuming_while_another_run_is_in_flight_is_refused_and_sends_nothing`, `resuming_is_refused_while_any_run_is_in_flight` |
+| D2 Copy and Cut are dead | `98ecef5` | `editor::clipboard_tests::a_masked_field_never_reaches_the_clipboard` |
+| D3 Report label in the page colour | `e306416` | `native::report_colour_tests::report_labels_are_not_drawn_in_the_page_colour` |
+| D4 Compliance starts with no mode | `e0f11be` | `state::mode_gate_tests::...`, `compliance_start_without_a_mode_is_refused_and_creates_no_run` |
+| D5 `inspect` cannot open a v0.1.0 database | `c03502e` | `a_v0_1_0_database_reads_read_only_and_is_not_modified`, `the_read_write_path_migrates_the_same_file_and_agrees` |
+| D6 `serve` requires `--addr` | `46771a2` | `tests::serve_without_addr_...`, `serve_takes_the_loopback_default_when_no_addr_is_passed` |
+| D7 The `Resume` comment | `c6e6546` | a comment, not behaviour; no test applies |
+
+Also done in that window: `start_locked` now refuses a second run anywhere (`5f013c0`), so concurrent
+projects are not supported by this build; and the secondary list from the review is fully
+dispositioned in `docs/ACCEPTANCE.md` — ten items fixed with tests, two recorded with their reasons
+(soft-wrap navigation, and Tab/Enter plus `aria_value`, both of which need the accessibility layer).
+
+The release items that were open at `594fdb7` — T8 (Gemini sign-in), T17–T19 (live paid verification,
+PatentsView, three-platform acceptance) and T20 (signing) — are **unchanged and still open**: they need
+the operator's credentials, machines and certificate, not code.
