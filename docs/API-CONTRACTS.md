@@ -77,7 +77,9 @@ Known limits, stated plainly:
   single-use; the long-lived configured token keeps its legacy meaning on every route.
 - Remote access is not supported as a product: a token makes an exposed bind possible, it
   does not make it safe.
-- Two builds cannot share a workspace: the second is refused with exit code 3.
+- Two builds cannot share a workspace: the second is refused with exit code 3 (desktop) or 1
+  (CLI). The desktop exits 3 only for that refusal, 1 for any other failure, and 2 from a build
+  without the native feature; the CLI exits 1 for every failure.
 
 ## Not proven here
 

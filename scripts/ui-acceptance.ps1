@@ -2,8 +2,9 @@
 #
 # Drives the real native window through the accessibility tree: navigation,
 # disclosure of optional fields, execution mode, a recorded-replay run, history
-# selection and the report pane. No mouse or keyboard injection is used, so it
-# works even when the window cannot be focused.
+# selection and the report pane. Most steps use UI Automation patterns, but a few
+# controls expose none, so the script does send keystrokes with SendKeys (see the
+# lines calling SendWait) and those steps need the window focused.
 #
 #   pwsh -File scripts/ui-acceptance.ps1
 #   pwsh -File scripts/ui-acceptance.ps1 -Exe .\target\session\debug\pfl-desktop.exe
@@ -335,7 +336,7 @@ Check "load run text action is present" ([bool](Find-ByName 'Load run text'))
 Write-Host "`n[7] Shutdown"
 Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 700
-Check "process exits cleanly" (-not [bool](Get-Process -Id $proc.Id -ErrorAction SilentlyContinue))
+Check "the harness ended the process (force-kill one line above)" (-not [bool](Get-Process -Id $proc.Id -ErrorAction SilentlyContinue))
 if ($previousLocalAppData) { $env:LOCALAPPDATA = $previousLocalAppData } else { Remove-Item Env:\LOCALAPPDATA -ErrorAction SilentlyContinue }
 if (-not $KeepProfile -and $ownsProfileRoot) { Remove-Item $ProfileRoot -Recurse -Force -ErrorAction SilentlyContinue }
 $afterStamp = if ($realProfile -and (Test-Path $realProfile)) { (Get-Item $realProfile).LastWriteTimeUtc } else { $null }

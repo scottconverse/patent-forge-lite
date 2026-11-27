@@ -283,12 +283,12 @@ by the checker as matrix rows and its status words were rejected.
 - **`pfl_api::serve` has no loopback guard** -- **fixed at `b6fb908`**: `check_bind` refuses a non-loopback address unless `allow_remote` is passed, and `serve` is `serve_with(..., false)`. Test: `bind_tests::a_non_loopback_bind_is_refused_unless_allowed`; run with the guard removed and failed ("0.0.0.0:4330 must be refused without allow_remote"), output in that commit's body. The CLI keeps its different rule -- remote allowed when `PFL_API_TOKEN` is set -- unchanged and recorded here as a decision.
 - **"Approve paid Cloud request (this run)" is not per-run** -- to do next round.
 - **`send()` leaves `pending` set on failure** -- to do next round.
-- **Vertical navigation ignores soft wrap** -- to do next round.
+- **Vertical navigation ignores soft wrap** -- recorded, not fixed. `vertical` moves by logical line, and moving by display line needs the renderer's wrap width, which the input computes at paint time and does not keep in a form a headless test can drive. A pure wrap model of my own invention would move the cursor by a rule the screen may not follow -- a quieter version of the same bug -- so it is left as it is rather than guessed at.
 - **Editor gaps (paste cap, IME redo, Tab/Enter, aria_value)** -- to do next round.
 - **Cost rates by family substring** -- **fixed at `e073809`**: the table lists exact model ids with the date the rates were recorded (2026-11-27) and returns `None` for anything else, which the window renders as "no rates are configured". Test: `cost::tests::a_model_that_is_not_listed_is_refused_rather_than_given_a_family_rate`; run with the family matching restored and failed (`left: Some(3.0/15.0), right: None` for `claude-sonnet-4-6`), output in that commit's body.
 - **Rollback claim** -- to do next round.
-- **Harness honesty (`scripts/ui-acceptance.ps1`)** -- to do next round.
-- **Exit-code sentence (`docs/API-CONTRACTS.md:80`)** -- to do next round.
+- **Harness honesty (`scripts/ui-acceptance.ps1`)** -- fixed: the header now says that SendKeys is used for controls with no pattern and that those steps need focus, and the check that followed a force-kill no longer calls it a clean exit.
+- **Exit-code sentence (`docs/API-CONTRACTS.md:80`)** -- fixed: it now states both, 3 (desktop) and 1 (CLI), and adds that the desktop uses 1 for other failures and 2 from a non-native build.
 
 ## Decisions that remain Scott's
 
