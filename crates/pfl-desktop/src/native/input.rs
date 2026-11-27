@@ -1,13 +1,13 @@
 //! Custom native input using GPUI's EntityInputHandler and our tested TextBuffer.
 //! GPUI's upstream input example documents the handler/element integration;
 //! GPUI is Apache-2.0 licensed. Editing and IME transactions live in editor.rs.
-use crate::editor::TextBuffer;
+use crate::editor::{TextBuffer, clipboard_payload};
 use gpui::{
-    App, AvailableSpace, Bounds, Context, CursorStyle, ElementId, ElementInputHandler, Entity,
-    EntityInputHandler, FocusHandle, Focusable, GlobalElementId, KeyBinding, LayoutId, MouseButton,
-    Pixels, Point, Role, ScrollHandle, SharedString, Style, TextAlign, TextRun, UTF16Selection,
-    UnderlineStyle, Window, WrappedLine, actions, div, fill, point, prelude::*, px, relative, rgb,
-    rgba, size,
+    App, AvailableSpace, Bounds, ClipboardItem, Context, CursorStyle, ElementId,
+    ElementInputHandler, Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId,
+    KeyBinding, LayoutId, MouseButton, Pixels, Point, Role, ScrollHandle, SharedString, Style,
+    TextAlign, TextRun, UTF16Selection, UnderlineStyle, Window, WrappedLine, actions, div, fill,
+    point, prelude::*, px, relative, rgb, rgba, size,
 };
 use std::{cell::RefCell, ops::Range, rc::Rc};
 
@@ -458,13 +458,17 @@ impl Render for TextInput {
             }))
             // A masked field does not copy or cut: putting a session-only key on the
             // clipboard, and from there into clipboard history, is the leak this prevents.
-            .on_action(cx.listener(|this, _: &Copy, _, _cx| {
-                let _ = this;
+            .on_action(cx.listener(|this, _: &Copy, _, cx| {
+                if let Some(text) = clipboard_payload(this.masked, this.buffer.selected_text()) {
+                    cx.write_to_clipboard(ClipboardItem::new_string(text));
+                }
             }))
             .on_action(cx.listener(|this, _: &Cut, w, cx| {
-                let _ = w;
-                let _ = cx;
-                let _ = this;
+                if let Some(text) = clipboard_payload(this.masked, this.buffer.selected_text()) {
+                    cx.write_to_clipboard(ClipboardItem::new_string(text));
+                    this.buffer.replace_selection("");
+                    this.changed(w, cx);
+                }
             }))
             .on_action(cx.listener(|this, _: &Paste, w, cx| {
                 if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {

@@ -329,3 +329,39 @@ fn utf16_range(text: &str, range: Range<usize>) -> Range<usize> {
     }
     start..end.max(start)
 }
+
+/// What Copy or Cut may put on the clipboard.
+///
+/// `None` for a masked field, whatever is selected: a session-only key on the clipboard, and from
+/// there into clipboard history, is the leak the mask exists to prevent. `None` for an empty
+/// selection too, so the clipboard is not silently emptied.
+pub fn clipboard_payload(masked: bool, selection: &str) -> Option<String> {
+    if masked || selection.is_empty() {
+        None
+    } else {
+        Some(selection.to_string())
+    }
+}
+
+#[cfg(test)]
+mod clipboard_tests {
+    use super::clipboard_payload;
+
+    #[test]
+    fn a_masked_field_never_reaches_the_clipboard() {
+        assert_eq!(clipboard_payload(true, "sk-ant-session-only"), None);
+    }
+
+    #[test]
+    fn an_empty_selection_copies_nothing() {
+        assert_eq!(clipboard_payload(false, ""), None);
+    }
+
+    #[test]
+    fn an_ordinary_selection_is_copied_verbatim() {
+        assert_eq!(
+            clipboard_payload(false, "invention notes café"),
+            Some("invention notes café".to_string())
+        );
+    }
+}
