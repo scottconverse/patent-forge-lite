@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `724cbfa` |
+| Revision | `62e2a85` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 165 |
+| pass | 166 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -219,6 +219,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | A run's stages can be served by different providers: the session precomputes a stage→provider map, gives the service a resolver, and declares the plan before sharing | workspace tests + native clippy at this revision | pass — the wiring is in place; no stage-level assignment exists in the test project yet, so no run has been observed using one |
 | An `anthropic` assignment builds the hosted provider from the session key, and falls back to the configured mode when no key is set | workspace tests + native clippy at this revision | pass — the key comes from the session, never the database; no key is configured here, so no hosted run was observed |
 | A saved custom connection can serve a run: an assignment naming `conn-<id>` uses exactly that endpoint and model | workspace tests + native clippy at this revision | pass — the connection is looked up by id, its own model is the fallback; a keyed connection waits for the connection UI |
+| A provider can be named for the next run only; that run spends it and the project's assignments are untouched | workspace tests + native clippy at this revision | pass — the control is on the Models page and the start path spends the override with a plan of exactly its own snapshot |
 | A run uses a stage-level assignment | — | **blocked — harness** — a run holds one provider, so stage entries are recorded but not yet honoured |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
