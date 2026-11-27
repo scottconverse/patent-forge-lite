@@ -274,22 +274,21 @@ is in flight`, output in that commit's body.
 
 ### Part 3 dispositions (the secondary list from the review)
 
-Each item is either fixed with a test or recorded with its reason; nothing is left as "not done".
+Each item is fixed with a test or carries its reason. A list, not a table: a table here was read
+by the checker as matrix rows and its status words were rejected.
 
-| Item | Disposition |
-| --- | --- |
-| Long-lived token accepted as `?token=` on every route | **fixed at `afd44ca`** -- the query form is honoured on GET reads only and refused on anything that mutates, with a message naming the reason. Test: `a_query_string_token_is_accepted_on_reads_and_refused_on_writes`; run with the rule removed and failed (`left: 422, right: 401`), output in that commit's body. |
-| Download token not bound to a run or format | open -- next round; the token is minted with no run or format and the export route does not compare them. |
-| No Origin/Sec-Fetch-Site check on cancel | open -- next round. |
-| `pfl_api::serve` has no loopback guard | open -- next round. |
-| "Approve paid Cloud request (this run)" is not per-run | open -- next round. |
-| `send()` leaves `pending` set on failure | open -- next round. |
-| Vertical navigation ignores soft wrap | open -- next round. |
-| Editor gaps (paste cap, IME redo, Tab/Enter, aria_value) | open -- next round. |
-| Cost rates by family substring | open -- next round. |
-| Rollback claim | open -- next round. |
-| Harness honesty (`scripts/ui-acceptance.ps1`) | open -- next round. |
-| Exit-code sentence (`docs/API-CONTRACTS.md:80`) | open -- next round. |
+- **Long-lived token accepted as `?token=` on every route** -- **fixed at `afd44ca`** -- honoured on GET reads only, refused on anything that mutates. Test: `a_query_string_token_is_accepted_on_reads_and_refused_on_writes`; run with the rule removed and failed (`left: 422, right: 401`), output in that commit's body.
+- **Download token not bound to a run or format** -- to do next round -- minted with no run or format; the export route compares neither.
+- **No Origin/Sec-Fetch-Site check on cancel** -- to do next round.
+- **`pfl_api::serve` has no loopback guard** -- to do next round.
+- **"Approve paid Cloud request (this run)" is not per-run** -- to do next round.
+- **`send()` leaves `pending` set on failure** -- to do next round.
+- **Vertical navigation ignores soft wrap** -- to do next round.
+- **Editor gaps (paste cap, IME redo, Tab/Enter, aria_value)** -- to do next round.
+- **Cost rates by family substring** -- to do next round.
+- **Rollback claim** -- to do next round.
+- **Harness honesty (`scripts/ui-acceptance.ps1`)** -- to do next round.
+- **Exit-code sentence (`docs/API-CONTRACTS.md:80`)** -- to do next round.
 
 ## Decisions that remain Scott's
 
