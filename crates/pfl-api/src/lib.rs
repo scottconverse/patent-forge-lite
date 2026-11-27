@@ -594,7 +594,37 @@ pub fn router(state: Arc<ApiState>) -> Router {
 
 /// Binds the given address and serves until the returned future is dropped.
 /// Lite never claims the legacy 4320-4324 range by default.
+/// The socket a caller may bind: loopback only unless `allow_remote` says otherwise.
+///
+/// This API has a token and no TLS, so binding it to a routable address publishes it in clear text.
+/// Keeping the decision in one function gives the rule a test instead of leaving it to each caller.
+pub fn check_bind(addr: &str, allow_remote: bool) -> std::io::Result<std::net::SocketAddr> {
+    let parsed: std::net::SocketAddr = addr.parse().map_err(|error| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("invalid bind address {addr}: {error}"),
+        )
+    })?;
+    if !allow_remote && !parsed.ip().is_loopback() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "refusing to bind a non-loopback address without allow_remote",
+        ));
+    }
+    Ok(parsed)
+}
+
 pub async fn serve(addr: &str, state: Arc<ApiState>) -> std::io::Result<()> {
+    serve_with(addr, state, false).await
+}
+
+/// `serve` with the loopback guard made explicit, for a caller that really means to publish.
+pub async fn serve_with(
+    addr: &str,
+    state: Arc<ApiState>,
+    allow_remote: bool,
+) -> std::io::Result<()> {
+    check_bind(addr, allow_remote)?;
     let listener = TcpListener::bind(addr).await?;
     serve_listener(listener, state).await
 }
@@ -603,4 +633,28 @@ pub async fn serve(addr: &str, state: Arc<ApiState>) -> std::io::Result<()> {
 /// it actually bound (including an ephemeral port).
 pub async fn serve_listener(listener: TcpListener, state: Arc<ApiState>) -> std::io::Result<()> {
     axum::serve(listener, router(state)).await
+}
+
+#[cfg(test)]
+mod bind_tests {
+    use super::check_bind;
+
+    #[test]
+    fn a_non_loopback_bind_is_refused_unless_allowed() {
+        for addr in ["0.0.0.0:4330", "192.168.1.10:4330", "[::]:4330"] {
+            let error = check_bind(addr, false)
+                .expect_err(&format!("{addr} must be refused without allow_remote"));
+            assert!(
+                error.to_string().contains("non-loopback"),
+                "the refusal must say why: {error}"
+            );
+        }
+        // The same addresses are accepted when the caller says so.
+        assert!(check_bind("0.0.0.0:4330", true).is_ok());
+        // Loopback is the ordinary case and never refused.
+        assert!(check_bind("127.0.0.1:4330", false).is_ok());
+        assert!(check_bind("[::1]:4330", false).is_ok());
+        // A malformed address is its own error, not silently loopback.
+        assert!(check_bind("not-an-address", false).is_err());
+    }
 }
