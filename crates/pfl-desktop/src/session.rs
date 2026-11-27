@@ -118,6 +118,8 @@ pub enum Request {
     SetOverride {
         provider: Option<String>,
     },
+    /// Saved custom endpoints.
+    ListConnections,
     /// Which provider runs each surface for this project.
     ListAssignments {
         project: ProjectId,
@@ -196,6 +198,8 @@ pub enum Reply {
     LocalModels(Vec<String>),
     /// The project's model assignments, ordered by surface and rank.
     Assignments(Vec<ModelAssignment>),
+    /// Saved custom endpoints, which a run may address as `conn-<id>`.
+    Connections(Vec<ApiConnection>),
     /// The joined catalogue: registry, discovery and sign-in state.
     Providers(Vec<pfl_workflow::catalog::ProviderView>),
     Revisions(Vec<DocumentRevision>),
@@ -673,6 +677,10 @@ impl Actor {
                 ];
                 let providers = pfl_workflow::catalog::build(&env, &discovered, &sign_ins);
                 self.reply(Reply::Providers(providers));
+            }
+            Request::ListConnections => {
+                let rows = self.store.connections()?;
+                self.reply(Reply::Connections(rows));
             }
             Request::ListAssignments { project } => {
                 let rows = self.store.assignments(&project)?;

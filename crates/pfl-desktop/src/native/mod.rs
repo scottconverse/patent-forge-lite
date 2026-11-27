@@ -240,6 +240,8 @@ struct Desktop {
     providers: Vec<pfl_workflow::catalog::ProviderView>,
     /// Which provider runs each surface for the open project.
     assignments: Vec<pfl_domain::ModelAssignment>,
+    /// Saved custom endpoints, which a run may address as `conn-<id>`.
+    connections: Vec<pfl_domain::ApiConnection>,
     /// Honest readiness text for the runtime: a count, or why it could not be asked.
     local_status: String,
     revisions: Vec<DocumentRevision>,
@@ -381,6 +383,7 @@ impl Desktop {
             local_models: Vec::new(),
             providers: Vec::new(),
             assignments: Vec::new(),
+            connections: Vec::new(),
             local_status: "Runtime not queried yet.".into(),
             revisions: Vec::new(),
             revision_diff: None,
@@ -539,6 +542,10 @@ impl Desktop {
                 // dropped on the floor while the page is built.
                 Reply::Assignments(rows) => {
                     self.assignments = rows;
+                    cx.notify();
+                }
+                Reply::Connections(rows) => {
+                    self.connections = rows;
                     cx.notify();
                 }
                 Reply::Providers(providers) => {
@@ -2547,6 +2554,7 @@ impl Render for Desktop {
                         "Refresh",
                         |this, _, cx| {
                             this.send(Request::DiscoverProviders, cx);
+                            this.send(Request::ListConnections, cx);
                             if let Some(project) =
                                 this.state.selected_project.as_ref().map(|p| p.id.clone())
                             {
@@ -2582,6 +2590,28 @@ impl Render for Desktop {
                     })),
                 ));
                 let mut list = div().flex().flex_col().gap_2().w_full();
+                // Saved endpoints, addressed by a run as `conn-<id>`.
+                if !self.connections.is_empty() {
+                    let mut saved = div().flex().flex_col().gap_1().w_full();
+                    for connection in &self.connections {
+                        saved = saved.child(
+                            div()
+                                .flex()
+                                .flex_row()
+                                .gap_2()
+                                .text_xs()
+                                .text_color(rgb(theme::MUTED))
+                                .child(connection.name.clone())
+                                .child(connection.id.clone())
+                                .child(
+                                    div()
+                                        .text_color(rgb(theme::TEXT))
+                                        .child(connection.base_url.clone()),
+                                ),
+                        );
+                    }
+                    list = list.child(theme::panel().p_4().child(saved));
+                }
                 // What the project currently says, in one place: the page marked rows "In use"
                 // but never listed the record itself.
                 if !self.assignments.is_empty() {
