@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `7a3dedc` |
+| Revision | `c6e6546` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -243,16 +243,15 @@ This section previously read **"None. F-001 to F-077 are closed."** That was wro
 revision. An independent review of HEAD reports the following, with locations, and none of them is
 closed by this matrix:
 
-- `Resume` never calls `ensure_idle` — the guard is used at `session.rs:434, 638, 770, 849, 907, 957,
-  982`, and the `Resume` arm at `:1082` has none.
+- **Closed at `c6e6546`:** `Resume` calls `ensure_idle("resuming")`, and `WorkflowService::resume` refuses while any job is owned. Tests: `resuming_while_another_run_is_in_flight_is_refused_and_sends_nothing` (desktop) and `resuming_is_refused_while_any_run_is_in_flight` (workflow); each was run with its guard removed and failed, with the output in that commit's body. The desktop test also asserts the provider call count and the run outcome are unchanged.
 - Copy and Cut discard their handler (`crates/pfl-desktop/src/native/input.rs:461-467`).
 - `report_runs` paints body text in the paper colour (`native/mod.rs:3050+`).
 - `StartSelected` does not check the mode.
 - `history` uses a `LEFT JOIN` on `run_sequences` (`crates/pfl-storage/src/lib.rs:894, 1137`).
 - `serve` requires `--addr` (`crates/pfl-cli/src/main.rs:963`).
-- The comment on `Resume` ends mid-sentence.
+- **Closed at `c6e6546`:** the `Resume` comment is finished. A comment, not behaviour; no test applies.
 
-Partial code progress at this revision: the Resume guard (session and service), the compliance mode gate, the report-pane colour, the `serve` default and the truncated comment are implemented and gated. **None has its test yet**, so none of these entries is closed and the list below stands. They are not entered as matrix rows because they have not been triaged here; the `open defect` count
+D1 and the truncated comment are closed with tests at `c6e6546`. The compliance mode gate, the report-pane colour and the `serve` default are implemented and gated but **still owe their tests**, so those entries stay open and the list below stands. They are not entered as matrix rows because they have not been triaged here; the `open defect` count
 therefore still reads 0, and that number is not evidence that the list is empty. Until each is fixed
 or refuted at its cited line, "code complete" is not a claim this repository can make.
 
