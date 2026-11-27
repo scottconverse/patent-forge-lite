@@ -20,6 +20,16 @@ Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.For
 Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class PflInput{[DllImport("user32.dll")]public static extern void mouse_event(int flags,int dx,int dy,int data,IntPtr extra);}' -ErrorAction SilentlyContinue
 Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class PflFocus{[DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr handle);}' -ErrorAction SilentlyContinue
 
+# Seven checks called `Record` and the function defined it zero times, so the script threw at the
+# first one. It now feeds the file's own `$results` table, which is what the evidence writer reads
+# and what the closing summary counts -- a parallel array left the JSON empty.
+function Record {
+    param([string] $Label, [bool] $Ok, [string] $Detail = '')
+    $script:results[$Label] = [pscustomobject]@{ pass = [bool] $Ok; detail = $Detail }
+    $tag = if ($Ok) { 'PASS' } else { 'FAIL' }
+    Write-Host ("  {0}  {1}{2}" -f $tag, $Label, $(if ($Detail) { " $Detail" } else { '' }))
+}
+
 # Refuse to run against the non-native stub: it exits immediately, which would look
 # like an automation failure. An invalid page makes either binary exit at once.
 $probe = (& $Exe --page __probe__ 2>&1 | Out-String)

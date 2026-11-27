@@ -20,11 +20,11 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Status | Count |
 | --- | --- |
 | pass | 171 |
-| not verified | 1 |
+| not verified | 2 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
 | blocked — authorization | 4 |
-| blocked — harness | 3 |
+| blocked — harness | 2 |
 | open defect | 0 |
 
 ## Phase A — Cloud correctness and consent
@@ -225,7 +225,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | The Models page lists saved connections (name, id, endpoint), so an endpoint used as `conn-<id>` is visible | workspace tests + native clippy at this revision | pass — the panel renders from the stored rows after a refresh |
 | A connection can be added: the record is saved, listed, addressable as `conn-<id>`, carries no credential, and nothing is contacted by saving one | session tests (`tests/connections.rs`, 2 tests) | pass — saved and listed; a nameless or URL-less connection is refused and nothing is stored |
 | A provider can be assigned to the final report stage alone, from the page | workspace tests + native clippy at this revision | pass — writes `stage-final-report` rank 0 for the open project and marks the control when it is set |
-| A run uses a stage-level assignment | — | **blocked — harness** — a run holds one provider, so stage entries are recorded but not yet honoured |
+| A run uses a stage-level assignment | — | **not verified** — the resolution path and the two-provider run are proven (see the row above), but no run has been observed reading a stage-level assignment from the store: no local model is loaded here and a subscription run would spend the operator's quota |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
 | macOS bundle script: version templated from `PFL_VERSION`, `docs/evidence` excluded — macOS 27.2.1 (2026-11-25) | run on the same Mac: `bundle.sh`, recorded in `docs/evidence/macos/20261125T023619Z/` | pass — plist `0.2.0`; `Resources/docs` present, `docs/evidence` absent |
@@ -239,7 +239,23 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 ## Open defects
 
-None. F-001 to F-077 are closed; each is cited in `docs/BUILD-EVIDENCE.md`.
+This section previously read **"None. F-001 to F-077 are closed."** That was wrong at this
+revision. An independent review of HEAD reports the following, with locations, and none of them is
+closed by this matrix:
+
+- `Resume` never calls `ensure_idle` — the guard is used at `session.rs:434, 638, 770, 849, 907, 957,
+  982`, and the `Resume` arm at `:1082` has none.
+- Copy and Cut discard their handler (`crates/pfl-desktop/src/native/input.rs:461-467`).
+- `report_runs` paints body text in the paper colour (`native/mod.rs:3050+`).
+- `StartSelected` does not check the mode.
+- `history` uses a `LEFT JOIN` on `run_sequences` (`crates/pfl-storage/src/lib.rs:894, 1137`).
+- `serve` requires `--addr` (`crates/pfl-cli/src/main.rs:963`).
+- The comment on `Resume` ends mid-sentence.
+
+They are not entered as matrix rows because they have not been triaged here; the `open defect` count
+therefore still reads 0, and that number is not evidence that the list is empty. Until each is fixed
+or refuted at its cited line, "code complete" is not a claim this repository can make.
+
 The navigation defect is closed: the rail is a tab list, each item is a tab, and the UI
 harness measures it as `TabItem` with `SelectionItemPattern` (38/38).
 ## Decisions that remain Scott's
