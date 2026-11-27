@@ -504,6 +504,9 @@ impl Desktop {
                     self.pending = false;
                     self.start_key = None;
                     self.authorized_local = false;
+                    // A paid approval belongs to the run it was given for, and that run is no
+                    // longer on screen after opening another project.
+                    self.cloud_approved = false;
                 }
                 Reply::Saved(project) => {
                     // Do not replace editor content: typing may continue while save is in flight.
@@ -727,6 +730,10 @@ impl Desktop {
         let Some(project) = self.state.selected_project.clone() else {
             return;
         };
+        // Approval is for one run, and this is that run: sending it consumes the approval, so the
+        // next click cannot spend again without a new one.
+        self.cloud_approved = false;
+
         let key = self
             .start_key
             .get_or_insert_with(|| RunId::new().to_string())
@@ -1699,6 +1706,8 @@ impl Render for Desktop {
                                         .start_key
                                         .get_or_insert_with(|| RunId::new().to_string())
                                         .clone();
+                                    // Same rule as the plain start: one approval, one run.
+                                    this.cloud_approved = false;
                                     this.pending = true;
                                     this.send(
                                         Request::StartSelected {
@@ -3614,6 +3623,45 @@ mod report_colour_tests {
         assert!(
             !branch.contains("theme::TEXT"),
             "a label child went back to theme::TEXT, which is the page colour"
+        );
+    }
+}
+
+#[cfg(test)]
+mod approval_tests {
+    /// One paid approval authorizes one run.
+    ///
+    /// The three resets are asserted against this file's own source: the window state is not
+    /// reachable from a headless test, and a behavioural test would need the native event loop.
+    #[test]
+    fn one_paid_approval_authorizes_one_run() {
+        let source = include_str!("mod.rs");
+
+        let start = source
+            .find("    fn start(&mut self, cx: &mut Context<Self>) {")
+            .expect("the plain start must exist");
+        let body = &source[start..(start + 4000).min(source.len())];
+        assert!(
+            body.contains("self.cloud_approved = false;"),
+            "the plain start must consume the approval"
+        );
+
+        let compliance = source
+            .find("Request::StartSelected {")
+            .expect("the compliance start must exist");
+        let window = &source[compliance.saturating_sub(600)..(compliance + 600).min(source.len())];
+        assert!(
+            window.contains("this.cloud_approved = false;"),
+            "the compliance start must consume the approval"
+        );
+
+        let opened = source
+            .find("Reply::Opened(project, history) => {")
+            .expect("the open arm must exist");
+        let window = &source[opened..(opened + 1200).min(source.len())];
+        assert!(
+            window.contains("self.cloud_approved = false;"),
+            "opening a project must drop the approval"
         );
     }
 }
