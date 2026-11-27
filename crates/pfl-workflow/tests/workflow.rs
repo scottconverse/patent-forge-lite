@@ -825,3 +825,86 @@ async fn a_resolver_serves_every_stage_and_each_request_names_who_answered() {
         );
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn two_stages_can_be_answered_by_two_providers() {
+    struct Fixed;
+
+    #[async_trait::async_trait]
+    impl Provider for Fixed {
+        fn snapshot(&self) -> ProviderSnapshot {
+            ProviderSnapshot {
+                kind: ProviderKind::Codex,
+                model: "stage-runner".into(),
+                endpoint: None,
+            }
+        }
+        async fn generate(
+            &self,
+            _request: ProviderRequest,
+            _cancellation: CancellationToken,
+            _deltas: tokio::sync::mpsc::UnboundedSender<String>,
+        ) -> Result<ProviderResponse> {
+            Ok(ProviderResponse {
+                text: "answered by the stage runner".into(),
+                usage: Usage::default(),
+            })
+        }
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let provider = Arc::new(ReplayProvider::synthetic().with_delay(Duration::ZERO));
+    let store = Arc::new(SqliteStore::open(dir.path().join("two.db")).unwrap());
+    // Everything is answered by replay except the final report, which the resolver hands to a
+    // second provider with its own snapshot.
+    let fallback = provider.clone();
+    let resolver = Arc::new(move |stage: Stage| -> Arc<dyn Provider> {
+        if stage == Stage::FinalReport {
+            Arc::new(Fixed)
+        } else {
+            fallback.clone() as Arc<dyn Provider>
+        }
+    });
+    let mut service = WorkflowService::new_with_stage_provider(
+        store,
+        provider.clone(),
+        Handle::current(),
+        resolver,
+    );
+    Arc::get_mut(&mut service)
+        .expect("a service that was just built is not shared yet")
+        .set_provider_plan(vec![provider.snapshot(), Fixed.snapshot()]);
+
+    let project = service.create_project(intake()).await.unwrap();
+    let id = service
+        .start_workflow(
+            project.id.clone(),
+            WorkflowKind::Feasibility,
+            "two-providers".into(),
+            authorization(),
+        )
+        .await
+        .unwrap()
+        .id;
+    let saved = terminal(&service, &id).await;
+    assert_eq!(saved.outcome, RunOutcome::Completed);
+
+    for checkpoint in &saved.checkpoints {
+        let expected = if checkpoint.stage == Stage::FinalReport {
+            Fixed.snapshot()
+        } else {
+            provider.snapshot()
+        };
+        assert_eq!(
+            checkpoint.provider.as_ref(),
+            Some(&expected),
+            "stage {:?}",
+            checkpoint.stage
+        );
+    }
+    assert_eq!(
+        saved.input.provider_plan.len(),
+        2,
+        "the plan names both providers the resolver can return"
+    );
+}
