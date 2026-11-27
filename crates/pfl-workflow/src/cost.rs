@@ -67,21 +67,27 @@ pub fn estimate_run(run: &RunSnapshot, pricing: &Pricing) -> Option<Estimate> {
 /// be billed at. They are a basis for the confirmation line, not a quote: the total is
 /// unknown until the provider reports usage. An unknown model yields `None`, so the
 /// window says plainly that no rates are configured rather than inventing them.
+/// Exact model ids and the per-million rates recorded for them on 2026-11-27.
+///
+/// A family substring used to decide this, so a model released after that date inherited its
+/// predecessor's price and the confirmation line stated a figure nobody had checked. An id that is
+/// not in this table yields `None`, which the window renders as "no rates are configured".
+const RATES: &[(&str, f64, f64)] = &[
+    ("claude-opus-4-1", 15.0, 75.0),
+    ("claude-sonnet-4-5", 3.0, 15.0),
+    ("claude-sonnet-4", 3.0, 15.0),
+    ("claude-haiku-4-5", 0.8, 4.0),
+];
+
 pub fn pricing_for(model: &str) -> Option<Pricing> {
     let model = model.trim().to_ascii_lowercase();
-    let (input, output) = if model.contains("opus") {
-        (15.0, 75.0)
-    } else if model.contains("sonnet") {
-        (3.0, 15.0)
-    } else if model.contains("haiku") {
-        (0.8, 4.0)
-    } else {
-        return None;
-    };
-    Some(Pricing {
-        input_per_million: input,
-        output_per_million: output,
-    })
+    RATES
+        .iter()
+        .find(|(id, _, _)| *id == model)
+        .map(|(_, input, output)| Pricing {
+            input_per_million: *input,
+            output_per_million: *output,
+        })
 }
 
 pub fn confirmation_text(model: &str, pricing: Option<&Pricing>) -> String {
@@ -177,5 +183,32 @@ mod tests {
         let usage = UsageSummary::default();
         let estimate = estimate(&usage, &pricing()).expect("no unknowns means a real total");
         assert_eq!(estimate.amount, 0.0);
+    }
+
+    #[test]
+    fn a_model_that_is_not_listed_is_refused_rather_than_given_a_family_rate() {
+        // A later model in the same family must not inherit the older price.
+        for unknown in [
+            "claude-sonnet-4-6",
+            "claude-opus-4-2",
+            "sonnet",
+            "opus",
+            "haiku",
+        ] {
+            assert_eq!(
+                pricing_for(unknown),
+                None,
+                "{unknown} must not be priced by family"
+            );
+        }
+        // The exact ids that were recorded still price.
+        assert_eq!(
+            pricing_for("claude-sonnet-4").map(|p| p.input_per_million),
+            Some(3.0)
+        );
+        assert_eq!(
+            pricing_for("claude-opus-4-1").map(|p| p.output_per_million),
+            Some(75.0)
+        );
     }
 }
