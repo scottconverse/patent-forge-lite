@@ -808,6 +808,31 @@ impl Desktop {
             )
     }
 
+    /// The control that names a provider for the next run only.
+    fn provider_override_button(
+        &self,
+        provider: &pfl_workflow::catalog::ProviderView,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        if !provider.available {
+            return div().into_any_element();
+        }
+        let id = provider.id.clone();
+        self.ghost_button(
+            format!("override-{}", provider.id),
+            "Next run only",
+            move |this, _, cx| {
+                this.send(
+                    Request::SetOverride {
+                        provider: Some(id.clone()),
+                    },
+                    cx,
+                );
+            },
+            cx,
+        )
+        .into_any_element()
+    }
     /// The control that makes a provider the fallback when the choice fails.
     fn provider_fallback_button(
         &self,
@@ -2597,7 +2622,8 @@ impl Render for Desktop {
                                         .child(format!("{} model(s)", provider.models.len())),
                                 )
                                 .child(self.provider_choice_button(provider, cx))
-                                .child(self.provider_fallback_button(provider, cx)),
+                                .child(self.provider_fallback_button(provider, cx))
+                                .child(self.provider_override_button(provider, cx)),
                         ),
                     );
                 }

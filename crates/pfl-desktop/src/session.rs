@@ -114,6 +114,10 @@ pub enum Request {
     /// never an empty list.
     /// Ask for the whole catalogue: every provider, what it has, and whether it is usable.
     DiscoverProviders,
+    /// Name the provider for the next run only; `None` clears it. Spent by that run.
+    SetOverride {
+        provider: Option<String>,
+    },
     /// Which provider runs each surface for this project.
     ListAssignments {
         project: ProjectId,
@@ -285,6 +289,7 @@ impl ApplicationSession {
                 replay,
                 research: None,
                 cloud_key: None,
+                pending_override: None,
                 research_configured: false,
             }
             .run(),
@@ -345,6 +350,8 @@ struct Actor {
     research: Option<Arc<dyn ResearchSource>>,
     /// In-memory only, for this session. Never persisted, never logged.
     cloud_key: Option<Secret>,
+    /// A provider named for the *next run only*, spent when that run starts.
+    pending_override: Option<String>,
     /// True once a research source has been configured for this session.
     research_configured: bool,
 }
@@ -617,6 +624,9 @@ impl Actor {
                 self.rebuild_service(provider);
                 self.mode = Some(mode.clone());
                 self.reply(Reply::Configured(mode));
+            }
+            Request::SetOverride { provider } => {
+                self.pending_override = provider;
             }
             Request::DiscoverProviders => {
                 // An installed-but-stopped Ollama is started here, and only here: a server that
@@ -955,7 +965,29 @@ impl Actor {
                 // Per-stage providers are built before the run: the resolver is synchronous, but
                 // building a provider can need discovery. A stage whose provider cannot be built
                 // falls back to the workflow's.
-                if let Some(workflow) = self.assigned_provider(&project, kind).await? {
+                // A per-run override wins over the project''s assignments and is spent by this run:
+                // it never changes what the project holds.
+                if let Some(slug) = self.pending_override.take() {
+                    let row = ModelAssignment {
+                        surface: "override".into(),
+                        rank: 0,
+                        provider: slug,
+                        model: None,
+                        effort: None,
+                    };
+                    if let Some(provider) = self.provider_for_assignment(&row).await? {
+                        let mut service = WorkflowService::new_with_research(
+                            self.store.clone(),
+                            provider.clone(),
+                            tokio::runtime::Handle::current(),
+                            self.research.clone(),
+                        );
+                        std::sync::Arc::get_mut(&mut service)
+                            .expect("a service that was just built is not shared yet")
+                            .set_provider_plan(vec![provider.snapshot()]);
+                        self.service = service;
+                    }
+                } else if let Some(workflow) = self.assigned_provider(&project, kind).await? {
                     let rows = self.store.assignments(&project)?;
                     let mut by_stage: Vec<(Stage, Arc<dyn Provider>)> = Vec::new();
                     for row in rows.iter().filter(|row| row.rank == 0) {
