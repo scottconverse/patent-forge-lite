@@ -7,6 +7,7 @@
 
 use crate::registry::{self, Env, ProviderId};
 use crate::*;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 /// Why a call failed, in the terms the ladder reasons about.
@@ -443,5 +444,190 @@ mod tests {
             ..Env::default()
         };
         assert_eq!(planned_order(&some), vec![ProviderId::Claude]);
+    }
+}
+
+/// A provider that is itself a ladder.
+///
+/// `ladder::execute` was tested but no run called it: the service asks one provider for one stage.
+/// Wrapping the rungs in a provider puts the failover where a run can reach it — a stage call that
+/// fails with a quota, an unreachable server, a lapsed sign-in, a timeout, an empty answer or an
+/// unreadable one moves to the next rung, and the answering provider's snapshot is what the
+/// checkpoint then records.
+pub struct LadderProvider {
+    rungs: Vec<Arc<dyn Provider>>,
+    answered_by: std::sync::Mutex<Option<usize>>,
+}
+
+impl LadderProvider {
+    pub fn new(rungs: Vec<Arc<dyn Provider>>) -> Self {
+        Self {
+            rungs,
+            answered_by: std::sync::Mutex::new(None),
+        }
+    }
+
+    /// Which rung answered the last call, if any. `0` is the choice.
+    pub fn answered_by(&self) -> Option<usize> {
+        *self.answered_by.lock().expect("rung mutex")
+    }
+}
+
+#[async_trait]
+impl Provider for LadderProvider {
+    fn snapshot(&self) -> ProviderSnapshot {
+        self.rungs
+            .first()
+            .map(|provider| provider.snapshot())
+            .unwrap_or(ProviderSnapshot {
+                kind: ProviderKind::Replay,
+                model: "empty-ladder".into(),
+                endpoint: None,
+            })
+    }
+
+    async fn generate(
+        &self,
+        request: ProviderRequest,
+        cancellation: CancellationToken,
+        deltas: tokio::sync::mpsc::UnboundedSender<String>,
+    ) -> Result<ProviderResponse> {
+        let mut last: Option<Error> = None;
+        for (index, rung) in self.rungs.iter().enumerate() {
+            match rung
+                .generate(request.clone(), cancellation.clone(), deltas.clone())
+                .await
+            {
+                Ok(response) => {
+                    *self.answered_by.lock().expect("rung mutex") = Some(index);
+                    // The request carried the first rung's snapshot; the checkpoint is stamped from
+                    // the provider the service asks, so the answer names its own provider here.
+                    return Ok(response);
+                }
+                Err(error) => {
+                    if !classify(&error).advances() {
+                        return Err(error);
+                    }
+                    last = Some(error);
+                }
+            }
+        }
+        Err(last.unwrap_or_else(|| Error::Invalid("the ladder has no rungs".into())))
+    }
+}
+
+#[cfg(test)]
+mod ladder_provider_tests {
+    use super::*;
+
+    struct Boom(&'static str);
+    struct Good;
+
+    #[async_trait]
+    impl Provider for Boom {
+        fn snapshot(&self) -> ProviderSnapshot {
+            ProviderSnapshot {
+                kind: ProviderKind::ClaudeCode,
+                model: "boom".into(),
+                endpoint: None,
+            }
+        }
+        async fn generate(
+            &self,
+            _request: ProviderRequest,
+            _cancellation: CancellationToken,
+            _deltas: tokio::sync::mpsc::UnboundedSender<String>,
+        ) -> Result<ProviderResponse> {
+            Err(Error::Provider(self.0.into()))
+        }
+    }
+
+    #[async_trait]
+    impl Provider for Good {
+        fn snapshot(&self) -> ProviderSnapshot {
+            ProviderSnapshot {
+                kind: ProviderKind::Codex,
+                model: "good".into(),
+                endpoint: None,
+            }
+        }
+        async fn generate(
+            &self,
+            _request: ProviderRequest,
+            _cancellation: CancellationToken,
+            _deltas: tokio::sync::mpsc::UnboundedSender<String>,
+        ) -> Result<ProviderResponse> {
+            Ok(ProviderResponse {
+                text: "second".into(),
+                usage: Usage::default(),
+            })
+        }
+    }
+
+    fn request() -> ProviderRequest {
+        let input = RunInput {
+            kind: WorkflowKind::Feasibility,
+            intake: Intake::default(),
+            provider: Good.snapshot(),
+            prompts: PromptSnapshot {
+                version: "t".into(),
+                sha256: "0".repeat(64),
+            },
+            authorization: Authorization::default(),
+            upstream: Upstream::default(),
+            regeneration: None,
+            provider_plan: Vec::new(),
+        };
+        ProviderRequest {
+            run_id: RunId("run".into()),
+            attempt_id: AttemptId("attempt".into()),
+            stage: Stage::TechnicalRestatement,
+            input,
+            system_prompt: "s".into(),
+            user_prompt: "u".into(),
+            prior_outputs: Vec::new(),
+            effort: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_quota_failure_moves_to_the_next_rung() {
+        let ladder = LadderProvider::new(vec![
+            Arc::new(Boom("the server is rate-limiting; wait and try again")) as Arc<dyn Provider>,
+            Arc::new(Good),
+        ]);
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let response = ladder
+            .generate(request(), CancellationToken::new(), tx)
+            .await
+            .unwrap();
+        assert_eq!(response.text, "second");
+        assert_eq!(ladder.answered_by(), Some(1), "the second rung answered");
+    }
+
+    #[tokio::test]
+    async fn a_refusal_does_not_walk_the_ladder() {
+        let ladder = LadderProvider::new(vec![
+            Arc::new(Boom("the model declined: content policy")) as Arc<dyn Provider>,
+            Arc::new(Good),
+        ]);
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let error = ladder
+            .generate(request(), CancellationToken::new(), tx)
+            .await
+            .unwrap_err();
+        assert!(format!("{error}").contains("declined"));
+        assert_eq!(ladder.answered_by(), None, "nobody answered a refusal");
+    }
+
+    #[tokio::test]
+    async fn an_empty_ladder_is_an_error_not_a_panic() {
+        let ladder = LadderProvider::new(Vec::new());
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let error = ladder
+            .generate(request(), CancellationToken::new(), tx)
+            .await
+            .unwrap_err();
+        assert!(format!("{error}").contains("no rungs"));
     }
 }
