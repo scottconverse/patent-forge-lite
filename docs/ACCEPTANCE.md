@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `c6e6546` |
+| Revision | `98ecef5` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -244,7 +244,7 @@ revision. An independent review of HEAD reports the following, with locations, a
 closed by this matrix:
 
 - **Closed at `c6e6546`:** `Resume` calls `ensure_idle("resuming")`, and `WorkflowService::resume` refuses while any job is owned. Tests: `resuming_while_another_run_is_in_flight_is_refused_and_sends_nothing` (desktop) and `resuming_is_refused_while_any_run_is_in_flight` (workflow); each was run with its guard removed and failed, with the output in that commit's body. The desktop test also asserts the provider call count and the run outcome are unchanged.
-- Copy and Cut discard their handler (`crates/pfl-desktop/src/native/input.rs:461-467`).
+- **Closed at `98ecef5`:** Copy writes the selection and Cut writes then deletes it, both through `clipboard_payload` in `crates/pfl-desktop/src/editor.rs`, which returns `None` for a masked field or an empty selection. Tests: `editor::clipboard_tests` (masked, empty, ordinary); the masked one was run with the mask gate removed and failed (`left: Some("sk-ant-session-only")`, `right: None`), output in that commit's body.
 - `report_runs` paints body text in the paper colour (`native/mod.rs:3050+`).
 - `StartSelected` does not check the mode.
 - `history` uses a `LEFT JOIN` on `run_sequences` (`crates/pfl-storage/src/lib.rs:894, 1137`).
