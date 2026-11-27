@@ -3438,7 +3438,7 @@ fn report_runs(text: &str) -> Div {
                     .text_sm()
                     .line_height(px(24.))
                     .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(rgb(theme::TEXT))
+                    .text_color(rgb(theme::DOC_TEXT))
                     .child(runs[0].text.clone()),
             )
             .child(
@@ -3447,7 +3447,7 @@ fn report_runs(text: &str) -> Div {
                     .min_w_0()
                     .text_sm()
                     .line_height(px(24.))
-                    .text_color(rgb(theme::TEXT))
+                    .text_color(rgb(theme::DOC_TEXT))
                     .child(runs[1].text.clone()),
             );
     }

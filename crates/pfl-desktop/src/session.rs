@@ -847,6 +847,31 @@ impl Actor {
                     return Ok(());
                 }
                 self.ensure_idle("starting another run").await?;
+                // Compliance used to start on the canned adapter when no mode had been chosen:
+                // the plain Start path refuses that, and so must this one.
+                let mode = self.mode.as_ref().ok_or_else(|| {
+                    Error::Invalid(
+                        "Choose recorded replay or configure local inference first".into(),
+                    )
+                })?;
+                match mode {
+                    Mode::Replay if !authorization.synthetic_data => {
+                        return Err(Error::Invalid(
+                            "Replay requires explicitly marked synthetic data".into(),
+                        ));
+                    }
+                    Mode::Local { .. } if !authorization.local_inference => {
+                        return Err(Error::Invalid(
+                            "Authorize the local inference request before starting".into(),
+                        ));
+                    }
+                    Mode::Cloud { .. } if !authorization.paid_provider => {
+                        return Err(Error::Invalid(
+                            "Approve the paid Cloud request for this run before starting".into(),
+                        ));
+                    }
+                    _ => {}
+                }
                 for id in &self.started_runs {
                     if !self.service.run(id.clone()).await?.outcome.is_terminal() {
                         return Err(Error::Conflict(
@@ -1084,7 +1109,9 @@ impl Actor {
                 authorization,
             } => {
                 let snapshot = self.service.run(id.clone()).await?;
-                // Resume never changes the snapshotted provider, but the authorization for
+                // Resume never changes the snapshotted provider; it re-authorizes this attempt
+                // against the run's own snapshot, and the mode still has to match that run.
+                self.ensure_idle("resuming").await?;
                 if self.mode.is_none() {
                     return Err(Error::Invalid(
                         "Select the matching execution mode before resume".into(),

@@ -960,7 +960,7 @@ async fn main() {
                 "only pause-fixture accepts and requires --stage 1..6",
             ));
         }
-        if addr.is_some() != (command == "serve") {
+        if addr.is_some() && command != "serve" {
             return Err(invalid("only serve accepts --addr"));
         }
         if (endpoint.is_some() || model.is_some()) && !(command == "live" || command == "models") {

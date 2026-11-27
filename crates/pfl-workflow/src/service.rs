@@ -668,14 +668,16 @@ impl WorkflowService {
             return Err(Error::Conflict("application is shutting down".into()));
         }
         let run = self.run(id.clone()).await?;
-        if self
+        // Any active job, not only this run's: a resume that starts a second paid run while another
+        // project is mid-flight is the same double spend, and the CLI and API reach this path too.
+        let busy = !self
             .jobs
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .contains_key(&id)
-        {
+            .is_empty();
+        if busy {
             return Err(Error::Conflict(
-                "attempt is still active; cancellation must finish before replacement".into(),
+                "another run is still active; finish or cancel it before resuming".into(),
             ));
         }
         if run.outcome == RunOutcome::Completed {
