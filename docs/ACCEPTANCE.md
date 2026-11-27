@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `b6fb908` |
+| Revision | `e073809` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -285,7 +285,7 @@ by the checker as matrix rows and its status words were rejected.
 - **`send()` leaves `pending` set on failure** -- to do next round.
 - **Vertical navigation ignores soft wrap** -- to do next round.
 - **Editor gaps (paste cap, IME redo, Tab/Enter, aria_value)** -- to do next round.
-- **Cost rates by family substring** -- to do next round.
+- **Cost rates by family substring** -- **fixed at `e073809`**: the table lists exact model ids with the date the rates were recorded (2026-11-27) and returns `None` for anything else, which the window renders as "no rates are configured". Test: `cost::tests::a_model_that_is_not_listed_is_refused_rather_than_given_a_family_rate`; run with the family matching restored and failed (`left: Some(3.0/15.0), right: None` for `claude-sonnet-4-6`), output in that commit's body.
 - **Rollback claim** -- to do next round.
 - **Harness honesty (`scripts/ui-acceptance.ps1`)** -- to do next round.
 - **Exit-code sentence (`docs/API-CONTRACTS.md:80`)** -- to do next round.
