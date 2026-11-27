@@ -260,6 +260,9 @@ pub struct StartGate {
     pub has_project: bool,
     pub run_active: bool,
     pub data_declared: bool,
+    /// A mode has been chosen at all. Without one the window used to start compliance on the
+    /// canned adapter, because only the plain Start path checked it.
+    pub mode_chosen: bool,
     pub mode_is_local: bool,
     pub local_authorized: bool,
     pub mode_is_cloud: bool,
@@ -297,6 +300,9 @@ pub fn start_block(gate: &StartGate) -> Option<&'static str> {
     if !gate.data_declared {
         return Some("Declare whether this is synthetic test material or a real invention.");
     }
+    if !gate.mode_chosen {
+        return Some("Choose recorded replay or configure local inference first.");
+    }
     if gate.mode_is_local && !gate.local_authorized {
         return Some("Authorize local inference for this endpoint and model.");
     }
@@ -305,6 +311,38 @@ pub fn start_block(gate: &StartGate) -> Option<&'static str> {
     }
     None
 }
+#[cfg(test)]
+mod mode_gate_tests {
+    use super::{StartGate, start_block};
+
+    fn ready() -> StartGate {
+        StartGate {
+            pending: false,
+            dirty: false,
+            has_project: true,
+            run_active: false,
+            data_declared: true,
+            mode_chosen: true,
+            mode_is_local: false,
+            local_authorized: false,
+            mode_is_cloud: false,
+            cloud_approved: false,
+        }
+    }
+
+    #[test]
+    fn a_start_with_no_mode_is_refused_in_the_same_words_as_the_session() {
+        let mut gate = ready();
+        gate.mode_chosen = false;
+        assert_eq!(
+            start_block(&gate),
+            Some("Choose recorded replay or configure local inference first.")
+        );
+        gate.mode_chosen = true;
+        assert_eq!(start_block(&gate), None);
+    }
+}
+
 #[cfg(test)]
 mod gate_tests {
     use super::{StartGate, start_block};
@@ -316,6 +354,7 @@ mod gate_tests {
             has_project: true,
             run_active: false,
             data_declared: true,
+            mode_chosen: true,
             mode_is_local: false,
             local_authorized: false,
             mode_is_cloud: false,

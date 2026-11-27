@@ -687,6 +687,7 @@ impl Desktop {
                 )
             }),
             data_declared: self.synthetic || self.real_data,
+            mode_chosen: self.mode.is_some(),
             mode_is_local: matches!(self.mode, Some(Mode::Local { .. })),
             local_authorized: self.authorized_local,
             mode_is_cloud: matches!(self.mode, Some(Mode::Cloud { .. })),
@@ -1684,20 +1685,16 @@ impl Render for Desktop {
                                 "start-selected-compliance",
                                 "Start compliance with selected revisions",
                                 move |this, _, cx| {
+                                    // The same gate the plain Start uses, so both refuse for the
+                                    // same reasons in the same words.
+                                    if this.gate_blocks(cx) {
+                                        return;
+                                    }
                                     let Some(project) =
                                         this.state.selected_project.as_ref().map(|p| p.id.clone())
                                     else {
-                                        this.state.notice =
-                                            Some("Open a project before starting a run.".into());
                                         return;
                                     };
-                                    if !this.synthetic && !this.real_data {
-                                        this.state.notice = Some(
-                                            "Declare the data in Execution setup before starting."
-                                                .into(),
-                                        );
-                                        return;
-                                    }
                                     let key = this
                                         .start_key
                                         .get_or_insert_with(|| RunId::new().to_string())

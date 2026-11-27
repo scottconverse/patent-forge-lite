@@ -1031,3 +1031,48 @@ fn resuming_while_another_run_is_in_flight_is_refused_and_sends_nothing() {
     wait_store(|| store.run(&a_run.id).unwrap().outcome.is_terminal());
     stop(&session);
 }
+
+#[test]
+fn compliance_start_without_a_mode_is_refused_and_creates_no_run() {
+    let store = Arc::new(SqliteStore::in_memory().unwrap());
+    let provider = Arc::new(ControlledReplay::new(false));
+    let session =
+        ApplicationSession::with_replay_provider(store.clone(), provider.clone()).unwrap();
+    let project = create(&session);
+    let before = store.history(&project.id).unwrap().len();
+
+    session
+        .request(Request::StartSelected {
+            project: project.id.clone(),
+            kind: WorkflowKind::Compliance,
+            idempotency_key: "no-mode".into(),
+            authorization: Authorization {
+                synthetic_data: true,
+                ..Default::default()
+            },
+            claims_revision: None,
+            specification_revision: None,
+        })
+        .unwrap();
+
+    match until_any(&session, |r| matches!(r, Reply::Error(_) | Reply::Run(_))) {
+        Reply::Error(error) => assert!(
+            error
+                .to_string()
+                .contains("Choose recorded replay or configure local inference first"),
+            "unexpected refusal: {error}"
+        ),
+        other => panic!("compliance started without a mode: {other:?}"),
+    }
+    assert_eq!(
+        store.history(&project.id).unwrap().len(),
+        before,
+        "a refused start must not create a run"
+    );
+    assert_eq!(
+        provider.calls.load(Ordering::SeqCst),
+        0,
+        "a refused start must not send a provider request"
+    );
+    stop(&session);
+}
