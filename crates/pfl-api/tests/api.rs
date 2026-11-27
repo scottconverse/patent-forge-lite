@@ -584,3 +584,66 @@ async fn a_download_token_opens_only_the_run_and_format_it_names() {
         "a token for one run must not open another"
     );
 }
+
+/// A page on another origin must not be able to drive a mutating route, even with a token.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_foreign_origin_cannot_reach_a_mutating_route() {
+    let (base, _state) = base_url(Some("secret-token")).await;
+    let client = reqwest::Client::new();
+    let url = format!("{base}/api/runs/whatever/cancel");
+
+    let foreign = client
+        .post(&url)
+        .bearer_auth("secret-token")
+        .header("Origin", "https://evil.example")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(foreign.status(), 403, "a foreign Origin must be refused");
+    let body: serde_json::Value = foreign.json().await.unwrap();
+    assert_eq!(
+        body["code"], "cross_origin",
+        "the refusal must name itself: {body}"
+    );
+
+    let cross_site = client
+        .post(&url)
+        .bearer_auth("secret-token")
+        .header("Sec-Fetch-Site", "cross-site")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        cross_site.status(),
+        403,
+        "a cross-site fetch hint must be refused"
+    );
+
+    // A client that sends no origin at all - curl, the CLI - is not refused by this rule.
+    let absent = client
+        .post(&url)
+        .bearer_auth("secret-token")
+        .send()
+        .await
+        .unwrap();
+    assert_ne!(
+        absent.status(),
+        403,
+        "a request without an Origin must not be refused by it"
+    );
+
+    // The server's own origin is allowed through to the handler.
+    let own_host = base.trim_start_matches("http://");
+    let same = client
+        .post(&url)
+        .bearer_auth("secret-token")
+        .header("Origin", format!("http://{own_host}"))
+        .send()
+        .await
+        .unwrap();
+    assert_ne!(
+        same.status(),
+        403,
+        "the server's own origin must not be refused"
+    );
+}

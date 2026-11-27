@@ -117,6 +117,37 @@ impl ApiState {
     }
 }
 
+/// True when an `Origin` header names this server.
+///
+/// The API answers a browser page on the same origin; a page elsewhere must not be able to drive a
+/// mutating route even if it somehow holds a token, which is what `Origin` distinguishes.
+fn origin_allowed(headers: &HeaderMap, origin: &str) -> bool {
+    let host = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    if host.is_empty() {
+        return false;
+    }
+    let authority = origin
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(origin)
+        .trim_end_matches('/');
+    authority == host
+}
+
+fn forbidden(message: &str) -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        Json(serde_json::json!({
+            "message": message,
+            "code": "cross_origin",
+        })),
+    )
+        .into_response()
+}
+
 fn unauthorized(message: &str) -> Response {
     (
         StatusCode::UNAUTHORIZED,
@@ -177,6 +208,11 @@ async fn guard(
     if let Some(bearer) = &bearer
         && timing_safe_equal(bearer, &token)
     {
+        if request.method() != Method::GET
+            && let Some(refusal) = cross_origin_refusal(&headers)
+        {
+            return refusal;
+        }
         return next.run(request).await;
     }
     // A one-time download token is honoured on the download route only: a leaked link must
@@ -218,6 +254,11 @@ async fn guard(
             timing_safe_equal(candidate, &token)
         };
         if accepted {
+            if request.method() != Method::GET
+                && let Some(refusal) = cross_origin_refusal(&headers)
+            {
+                return refusal;
+            }
             return next.run(request).await;
         }
     }
@@ -225,6 +266,32 @@ async fn guard(
         return unauthorized("Authentication required. Set Authorization: Bearer <token> header.");
     }
     unauthorized("Invalid authentication token.")
+}
+
+/// Refuses a mutating request that carries a foreign `Origin` or a cross-site fetch hint.
+///
+/// A browser sends both; a command-line client sends neither. Accepting "same-origin" and "none" is
+/// deliberate: "none" is a direct navigation, not a cross-site fetch.
+fn cross_origin_refusal(headers: &HeaderMap) -> Option<Response> {
+    if let Some(origin) = headers
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok())
+        && !origin_allowed(headers, origin)
+    {
+        return Some(forbidden(
+            "Cross-origin request refused: this API answers its own origin only.",
+        ));
+    }
+    if let Some(site) = headers
+        .get("sec-fetch-site")
+        .and_then(|value| value.to_str().ok())
+        && !matches!(site, "same-origin" | "none")
+    {
+        return Some(forbidden(
+            "Cross-site request refused: this API answers its own origin only.",
+        ));
+    }
+    None
 }
 
 #[derive(Serialize)]
