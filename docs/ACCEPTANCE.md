@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 169 |
+| pass | 170 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -198,6 +198,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | Local servers are discovered with what each has loaded: LM Studio `state`, Ollama `/api/ps`, and a plain OpenAI server honestly reports unknown | unit (`local_discovery`, 6 tests) + live probe on this machine | pass — LM Studio 15 models, Ollama 36, none loaded; a dead address is absent, not an error |
 | "Use whatever is loaded" is the lowest loaded non-embedding model; nothing loaded picks nothing | unit (`local_discovery`) | pass — deterministic choice, embeddings excluded, idle models never chosen |
 | Automatic tries rungs in order and advances only on quota, unavailable, lapsed sign-in, timeout, no output or unreadable answer; a refusal or unrecognised failure stops and is shown | unit (`ladder`, 6 tests) | pass — the quota-then-success path records `skipped: claude / quota`, a refusal is not retried elsewhere, an unbuildable rung is recorded |
+| The ladder can answer as a single provider, so a failing stage moves to the next rung without the service knowing about ladders | unit (`ladder_provider_tests`, 3 tests) | pass — a quota failure returns the second rung's text and records it answered; a refusal does not walk the ladder; an empty ladder is an error |
 | A run records what it asked for, what answered, the effort and which rungs were skipped and why | unit (`ladder`, receipt fields) | pass — `requested`, `actual`, `effort`, `skipped[{rung, reason}]` |
 | One catalogue joins the registry, the discovered servers and the CLI sign-in states; every provider appears once with a reason when it cannot be used | unit (`catalog`, 5 tests) + live `pfl-cli models` on this machine | pass — claude/codex signed in, gemini installed not signed in, LM Studio 15 models, Ollama 36, llama.cpp silent |
 | The Models page renders every provider with its availability and reason, and refreshes on demand | installed, driven on this machine; screenshot `docs/evidence/models/20261126T1130Z/` | pass — 8 rows: Claude/Codex available, Gemini not signed in, Anthropic/OpenAI not configured, LM Studio 15, Ollama 36, llama.cpp silent |
