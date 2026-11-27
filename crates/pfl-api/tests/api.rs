@@ -129,6 +129,7 @@ async fn bearer_auth_and_download_tokens_match_legacy_semantics() {
     let token: serde_json::Value = client
         .post(format!("{base}/api/health/download-token"))
         .bearer_auth("secret-token")
+        .json(&json!({ "run_id": "synthetic-run", "format": "markdown" }))
         .send()
         .await
         .unwrap()
@@ -321,6 +322,7 @@ async fn download_tokens_are_random_and_limited_to_the_download_route() {
     let client = reqwest::Client::new();
     let first: serde_json::Value = client
         .post(format!("{base}/api/health/download-token"))
+        .json(&json!({ "run_id": "synthetic-run", "format": "markdown" }))
         .send()
         .await
         .unwrap()
@@ -329,6 +331,7 @@ async fn download_tokens_are_random_and_limited_to_the_download_route() {
         .unwrap();
     let second: serde_json::Value = client
         .post(format!("{base}/api/health/download-token"))
+        .json(&json!({ "run_id": "synthetic-run", "format": "markdown" }))
         .send()
         .await
         .unwrap()
@@ -473,5 +476,111 @@ async fn a_query_string_token_is_accepted_on_reads_and_refused_on_writes() {
             .unwrap_or_default()
             .contains("query string"),
         "the refusal must name the reason: {body}"
+    );
+}
+
+/// A download token names one run and one format, and opens nothing else.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_download_token_opens_only_the_run_and_format_it_names() {
+    let (base, _state) = base_url(Some("secret-token")).await;
+    let client = reqwest::Client::new();
+
+    let project: serde_json::Value = client
+        .post(format!("{base}/api/projects"))
+        .bearer_auth("secret-token")
+        .json(&json!({ "intake": intake() }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let project_id = project["id"].as_str().unwrap().to_string();
+    let run: serde_json::Value = client
+        .post(format!("{base}/api/runs"))
+        .bearer_auth("secret-token")
+        .json(&json!({
+            "projectId": project_id,
+            "idempotencyKey": "token-binding",
+            "authorization": authorization()
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let run_id = run["id"].as_str().unwrap().to_string();
+    // `wait_completed` polls without credentials, which this token-protected server refuses.
+    for _ in 0..600 {
+        let polled: serde_json::Value = client
+            .get(format!("{base}/api/runs/{run_id}"))
+            .bearer_auth("secret-token")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let outcome = polled["outcome"].as_str().unwrap_or_default();
+        if matches!(outcome, "completed" | "failed" | "cancelled") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    async fn mint(client: &reqwest::Client, base: &str, run: &str, format: &str) -> String {
+        let body: serde_json::Value = client
+            .post(format!("{base}/api/health/download-token"))
+            .bearer_auth("secret-token")
+            .json(&json!({ "run_id": run, "format": format }))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        body["token"].as_str().unwrap().to_string()
+    }
+
+    // The token it names works.
+    let good = mint(&client, &base, &run_id, "markdown").await;
+    let ok = client
+        .get(format!(
+            "{base}/api/runs/{run_id}/export?format=markdown&token={good}"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ok.status(), 200, "the named run and format must open");
+
+    // The same run, a different format: refused.
+    let format_only = mint(&client, &base, &run_id, "markdown").await;
+    let wrong_format = client
+        .get(format!(
+            "{base}/api/runs/{run_id}/export?format=html&token={format_only}"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        wrong_format.status(),
+        401,
+        "a token for markdown must not open html"
+    );
+
+    // A different run, the same format: refused.
+    let run_only = mint(&client, &base, &run_id, "markdown").await;
+    let wrong_run = client
+        .get(format!(
+            "{base}/api/runs/another-run/export?format=markdown&token={run_only}"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        wrong_run.status(),
+        401,
+        "a token for one run must not open another"
     );
 }

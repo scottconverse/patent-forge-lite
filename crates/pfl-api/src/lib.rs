@@ -48,10 +48,17 @@ fn timing_safe_equal(a: &str, b: &str) -> bool {
     diff == 0
 }
 
+/// A one-time download token and the export it may open.
+struct DownloadToken {
+    expiry: u64,
+    run_id: String,
+    format: String,
+}
+
 pub struct ApiState {
     pub service: Arc<WorkflowService>,
     token: Option<String>,
-    download_tokens: Mutex<HashMap<String, u64>>,
+    download_tokens: Mutex<HashMap<String, DownloadToken>>,
 }
 
 impl ApiState {
@@ -64,7 +71,10 @@ impl ApiState {
     }
 
     /// Single-use token valid for five minutes, pruning expired entries.
-    pub fn generate_download_token(&self) -> String {
+    ///
+    /// It is bound to the run and the format it was minted for: a token for one run's markdown must
+    /// not open another run's export, nor the same run as HTML.
+    pub fn generate_download_token(&self, run_id: &str, format: &str) -> String {
         // Random, not derived from the clock or the allocator's address: a token that can be
         // guessed is a token that can be used.
         let token = uuid::Uuid::new_v4().simple().to_string();
@@ -73,20 +83,29 @@ impl ApiState {
             .download_tokens
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        tokens.retain(|_, exp| *exp > now_ms());
-        tokens.insert(token.clone(), expiry);
+        tokens.retain(|_, entry| entry.expiry > now_ms());
+        tokens.insert(
+            token.clone(),
+            DownloadToken {
+                expiry,
+                run_id: run_id.to_string(),
+                format: format.to_string(),
+            },
+        );
         token
     }
 
-    /// Consumes a one-time token, or accepts the long-lived token unchanged.
-    fn accept_query_token(&self, candidate: &str) -> bool {
+    /// Consumes a one-time token for this run and format, or accepts the long-lived token unchanged.
+    fn accept_download_token(&self, candidate: &str, run_id: &str, format: &str) -> bool {
         {
             let mut tokens = self
                 .download_tokens
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
-            if let Some(expiry) = tokens.remove(candidate)
-                && expiry > now_ms()
+            if let Some(entry) = tokens.remove(candidate)
+                && entry.expiry > now_ms()
+                && entry.run_id == run_id
+                && entry.format == format
             {
                 return true;
             }
@@ -175,9 +194,26 @@ async fn guard(
         // A token in the query string is honoured on GET reads only. A URL is copied into
         // history, logs and Referer headers, so it must not be able to start a run, cancel one or
         // change a project; the header form has none of those leak paths.
-        let download_route = request.uri().path().ends_with("/export");
+        let path = request.uri().path();
+        let download_route = path.ends_with("/export");
         let accepted = if download_route {
-            state.accept_query_token(candidate)
+            // `/api/runs/{id}/export?format=...`: the token must name both, or a leaked link for
+            // one run would open any other.
+            let run_id = path
+                .strip_prefix("/api/runs/")
+                .and_then(|rest| rest.strip_suffix("/export"))
+                .unwrap_or_default();
+            let format = request
+                .uri()
+                .query()
+                .and_then(|query| {
+                    query.split('&').find_map(|pair| {
+                        let (key, value) = pair.split_once('=')?;
+                        (key == "format").then(|| value.to_string())
+                    })
+                })
+                .unwrap_or_else(|| "markdown".into());
+            state.accept_download_token(candidate, run_id, &format)
         } else {
             timing_safe_equal(candidate, &token)
         };
@@ -230,8 +266,23 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
-async fn download_token(State(state): State<Arc<ApiState>>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "token": state.generate_download_token() }))
+#[derive(Deserialize)]
+struct DownloadTokenRequest {
+    run_id: String,
+    format: String,
+}
+
+async fn download_token(
+    State(state): State<Arc<ApiState>>,
+    Json(body): Json<DownloadTokenRequest>,
+) -> std::result::Result<Json<serde_json::Value>, StatusCode> {
+    if body.run_id.trim().is_empty() || body.format.trim().is_empty() {
+        // A token that names nothing opens nothing; refusing is better than minting an unbound one.
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    Ok(Json(serde_json::json!({
+        "token": state.generate_download_token(&body.run_id, &body.format),
+    })))
 }
 
 type ApiResult<T> = std::result::Result<Json<T>, ApiError>;
