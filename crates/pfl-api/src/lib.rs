@@ -8,6 +8,7 @@
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
+    http::Method,
     http::{HeaderMap, StatusCode, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -163,6 +164,17 @@ async fn guard(
     // not be able to start runs or change projects. The long-lived configured token keeps
     // its legacy meaning everywhere.
     if let Some(candidate) = &query_token {
+        // A token in the query string is honoured on GET reads only. A URL is copied into
+        // history, logs and Referer headers, so it must not be able to start a run, cancel one or
+        // change a project; the header form has none of those leak paths.
+        if request.method() != Method::GET {
+            return unauthorized(
+                "A token in the query string cannot authorize this request. Send Authorization: Bearer <token> instead.",
+            );
+        }
+        // A token in the query string is honoured on GET reads only. A URL is copied into
+        // history, logs and Referer headers, so it must not be able to start a run, cancel one or
+        // change a project; the header form has none of those leak paths.
         let download_route = request.uri().path().ends_with("/export");
         let accepted = if download_route {
             state.accept_query_token(candidate)

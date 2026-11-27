@@ -444,3 +444,34 @@ async fn intake_cancel_and_resume_are_accepted_over_http() {
     let completed = wait_completed(&client, &base, &run_id).await;
     assert_eq!(completed["outcome"], "completed");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_query_string_token_is_accepted_on_reads_and_refused_on_writes() {
+    let (base, _state) = base_url(Some("query-token")).await;
+    let client = reqwest::Client::new();
+
+    // A read with the token in the query string works: that is the download-link shape.
+    let read = client
+        .get(format!("{base}/api/projects?token=query-token"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(read.status(), reqwest::StatusCode::OK);
+
+    // The same token in the query string must not be able to change anything.
+    let write = client
+        .post(format!("{base}/api/projects?token=query-token"))
+        .json(&intake())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(write.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let body: serde_json::Value = write.json().await.unwrap();
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("query string"),
+        "the refusal must name the reason: {body}"
+    );
+}
