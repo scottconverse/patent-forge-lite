@@ -9,6 +9,12 @@ struct Revision {
     head: usize,
 }
 
+/// The most characters one insertion may add.
+///
+/// A paste of a whole log file into a field is a mistake, not an edit; without a bound it makes the
+/// layout and every redo snapshot expensive at once. The cut is made on a grapheme boundary.
+pub const MAX_INSERT_CHARS: usize = 100_000;
+
 #[derive(Clone, Debug)]
 pub struct TextBuffer {
     current: Revision,
@@ -161,6 +167,15 @@ impl TextBuffer {
         self.move_to(offset, extend);
     }
 
+    /// Truncates an insertion at a grapheme boundary.
+    fn capped(&self, text: &str) -> String {
+        if text.len() <= MAX_INSERT_CHARS {
+            text.to_string()
+        } else {
+            text.graphemes(true).take(MAX_INSERT_CHARS).collect()
+        }
+    }
+
     fn remember(&mut self) {
         // Bound edit history without imposing a document-length limit.
         if self.undo.len() == 200 {
@@ -198,10 +213,15 @@ impl TextBuffer {
             .map(|r| self.from_utf16(r))
             .or_else(|| self.marked.clone())
             .unwrap_or_else(|| self.selection());
+        // An empty replacement of an empty range changes nothing; remembering it would clear the
+        // redo stack for no reason, which is what an IME cancel used to do.
+        if self.marked.is_none() && range.is_empty() && text.is_empty() {
+            return;
+        }
         if self.marked.is_none() {
             self.remember();
         }
-        let text = self.normalize(text);
+        let text = self.capped(&self.normalize(text));
         self.replace_bytes(range, &text);
         self.marked = None;
     }
@@ -345,7 +365,8 @@ pub fn clipboard_payload(masked: bool, selection: &str) -> Option<String> {
 
 #[cfg(test)]
 mod clipboard_tests {
-    use super::clipboard_payload;
+    use super::*;
+    use unicode_segmentation::UnicodeSegmentation;
 
     #[test]
     fn a_masked_field_never_reaches_the_clipboard() {
@@ -362,6 +383,33 @@ mod clipboard_tests {
         assert_eq!(
             clipboard_payload(false, "invention notes café"),
             Some("invention notes café".to_string())
+        );
+    }
+
+    #[test]
+    fn a_paste_is_capped_at_a_grapheme_boundary() {
+        let mut buffer = TextBuffer::new("", true);
+        buffer.replace_utf16(None, &"é".repeat(MAX_INSERT_CHARS + 5_000));
+        assert_eq!(
+            buffer.text().graphemes(true).count(),
+            MAX_INSERT_CHARS,
+            "a huge paste is truncated, not accepted whole"
+        );
+    }
+
+    #[test]
+    fn an_empty_replacement_keeps_the_redo_stack() {
+        let mut buffer = TextBuffer::new("", true);
+        buffer.replace_utf16(None, "hello");
+        buffer.undo();
+        assert_eq!(buffer.text(), "");
+        // An IME cancel with nothing to replace must not count as an edit.
+        buffer.replace_utf16(None, "");
+        buffer.redo();
+        assert_eq!(
+            buffer.text(),
+            "hello",
+            "redo must survive an empty replacement"
         );
     }
 }
