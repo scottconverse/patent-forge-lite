@@ -290,6 +290,14 @@ by the checker as matrix rows and its status words were rejected.
 - **Harness honesty (`scripts/ui-acceptance.ps1`)** -- fixed: the header now says that SendKeys is used for controls with no pattern and that those steps need focus, and the check that followed a force-kill no longer calls it a clean exit.
 - **Exit-code sentence (`docs/API-CONTRACTS.md:80`)** -- fixed: it now states both, 3 (desktop) and 1 (CLI), and adds that the desktop uses 1 for other failures and 2 from a non-native build.
 
+### Closure record for the seven defects
+
+Each closure above was verified twice: the test was run with its fix removed and failed (command and output
+in the commit body), and then run again with the fix in place and passed. The suite stood at 380 passing tests
+with 0 failing and 2 ignored when the last defect closed (`b6c31f3`), the checker passed 13/13, and CI was green
+on windows-latest, macos-15 and ubuntu-24.04 at run 46078046563. The Part 3 list above is complete: ten items
+fixed with tests, two recorded with their reasons.
+
 ## Decisions that remain Scott's
 
 1. **Version — decided: 0.2.1.** The crates, the installer's `AppVersion`, the manifest and
