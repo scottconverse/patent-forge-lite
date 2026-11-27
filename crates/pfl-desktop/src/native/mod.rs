@@ -420,6 +420,9 @@ impl Desktop {
 
     fn send(&mut self, request: Request, cx: &mut Context<Self>) {
         if let Err(error) = self.session.request(request) {
+            // Nothing was queued, so no reply will arrive to clear this: leave `pending` set and Save
+            // and Start stay disabled for the rest of the session.
+            self.pending = false;
             self.state.notice = Some(error.to_string());
         }
         cx.notify();
@@ -3662,6 +3665,25 @@ mod approval_tests {
         assert!(
             window.contains("self.cloud_approved = false;"),
             "opening a project must drop the approval"
+        );
+    }
+}
+
+#[cfg(test)]
+mod pending_tests {
+    /// A request the session refuses to queue never produces a reply, so `send` must clear the
+    /// in-flight flag itself. Asserted against this file's source, because the flag lives in window
+    /// state that a headless test cannot reach.
+    #[test]
+    fn a_request_that_cannot_be_queued_does_not_leave_the_window_pending() {
+        let source = include_str!("mod.rs");
+        let start = source
+            .find("    fn send(&mut self, request: Request, cx: &mut Context<Self>) {")
+            .expect("send must exist");
+        let body = &source[start..(start + 500).min(source.len())];
+        assert!(
+            body.contains("self.pending = false;"),
+            "the failure path of send must clear pending"
         );
     }
 }
