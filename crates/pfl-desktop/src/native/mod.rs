@@ -2582,6 +2582,28 @@ impl Render for Desktop {
                     })),
                 ));
                 let mut list = div().flex().flex_col().gap_2().w_full();
+                // What the project currently says, in one place: the page marked rows "In use"
+                // but never listed the record itself.
+                if !self.assignments.is_empty() {
+                    let mut chosen = div().flex().flex_col().gap_1().w_full();
+                    for row in &self.assignments {
+                        chosen = chosen.child(
+                            div()
+                                .flex()
+                                .flex_row()
+                                .gap_2()
+                                .text_xs()
+                                .text_color(rgb(theme::MUTED))
+                                .child(format!("{} · rank {}", row.surface, row.rank))
+                                .child(
+                                    div()
+                                        .text_color(rgb(theme::TEXT))
+                                        .child(row.provider.clone()),
+                                ),
+                        );
+                    }
+                    list = list.child(theme::panel().p_4().child(chosen));
+                }
                 if self.providers.is_empty() {
                     list = list.child(
                         theme::panel().p_4().child(
