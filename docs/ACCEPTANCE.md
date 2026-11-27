@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `91ef396` |
+| Revision | `2785d55` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -19,7 +19,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Status | Count |
 | --- | --- |
-| pass | 167 |
+| pass | 168 |
 | not verified | 1 |
 | blocked — hardware | 0 |
 | blocked — key | 1 |
@@ -221,6 +221,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 | A saved custom connection can serve a run: an assignment naming `conn-<id>` uses exactly that endpoint and model | workspace tests + native clippy at this revision | pass — the connection is looked up by id, its own model is the fallback; a keyed connection waits for the connection UI |
 | A provider can be named for the next run only; that run spends it and the project's assignments are untouched | workspace tests + native clippy at this revision | pass — the control is on the Models page and the start path spends the override with a plan of exactly its own snapshot |
 | The Models page lists the project's assignments (surface, rank, provider) as a record, not only as an "In use" marker | workspace tests + native clippy at this revision | pass — the list renders from the stored rows after a refresh |
+| The Models page lists saved connections (name, id, endpoint), so an endpoint used as `conn-<id>` is visible | workspace tests + native clippy at this revision | pass — the panel renders from the stored rows after a refresh |
 | A run uses a stage-level assignment | — | **blocked — harness** — a run holds one provider, so stage entries are recorded but not yet honoured |
 | Any OpenAI-compatible server works as a provider — LM Studio, llama.cpp, vLLM, Ollama's own `/v1` — detected from the endpoint instead of assuming Ollama | live probe + unit (`openai_frames`, 11 tests) | pass — streamed answers from both servers here; frames, key header, error shapes, catalogue and cancellation pinned against a loopback stand-in |
 | Whole test suite on Apple silicon hardware — measured **before** the host upgrade, macOS 26.5.2 (2026-11-24), re-run on 27.2.1 | run over SSH on a real Mac mini; transcript `docs/evidence/macos/20261125T023619Z/` | pass — 246 passed, 0 failed, exit 0 on both OS versions |
