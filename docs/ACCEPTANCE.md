@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `3d42a57` |
+| Revision | `7a3dedc` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -252,7 +252,7 @@ closed by this matrix:
 - `serve` requires `--addr` (`crates/pfl-cli/src/main.rs:963`).
 - The comment on `Resume` ends mid-sentence.
 
-They are not entered as matrix rows because they have not been triaged here; the `open defect` count
+Partial code progress at this revision: the Resume guard (session and service), the compliance mode gate, the report-pane colour, the `serve` default and the truncated comment are implemented and gated. **None has its test yet**, so none of these entries is closed and the list below stands. They are not entered as matrix rows because they have not been triaged here; the `open defect` count
 therefore still reads 0, and that number is not evidence that the list is empty. Until each is fixed
 or refuted at its cited line, "code complete" is not a claim this repository can make.
 
