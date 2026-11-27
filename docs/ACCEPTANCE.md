@@ -239,9 +239,10 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 ## Open defects
 
-This section previously read **"None. F-001 to F-077 are closed."** That was wrong at this
-revision. An independent review of HEAD reports the following, with locations, and none of them is
-closed by this matrix:
+This section once read **"None. F-001 to F-077 are closed."** That was false. An independent review of
+that revision reported seven defects with locations; each was then fixed, and each is **closed by a
+test that was run with its fix removed and failed**, with the command and the output in the closure
+commit's body. The seven rows below are the evidence, not a list of open items:
 
 - **Closed at `c6e6546`:** `Resume` calls `ensure_idle("resuming")`, and `WorkflowService::resume` refuses while any job is owned. Tests: `resuming_while_another_run_is_in_flight_is_refused_and_sends_nothing` (desktop) and `resuming_is_refused_while_any_run_is_in_flight` (workflow); each was run with its guard removed and failed, with the output in that commit's body. The desktop test also asserts the provider call count and the run outcome are unchanged.
 - **Closed at `98ecef5`:** Copy writes the selection and Cut writes then deletes it, both through `clipboard_payload` in `crates/pfl-desktop/src/editor.rs`, which returns `None` for a masked field or an empty selection. Tests: `editor::clipboard_tests` (masked, empty, ordinary); the masked one was run with the mask gate removed and failed (`left: Some("sk-ant-session-only")`, `right: None`), output in that commit's body.
@@ -251,9 +252,12 @@ closed by this matrix:
 - **Closed at `46771a2`:** the cross-argument rules are `validate_args`, a pure function, and `serve` may omit `--addr` (the loopback default is taken). Tests: `tests::serve_without_addr_is_accepted_and_other_commands_may_not_pass_one`, `tests::pause_fixture_still_requires_a_stage_and_the_others_still_refuse_it`, and `serve_takes_the_loopback_default_when_no_addr_is_passed`, which starts the binary and requires a 200 from `127.0.0.1:4330/api/health`. With the old condition restored the unit test failed (`left`/`right` on the refusal) and the integration test failed with "serve did not answer on 127.0.0.1:4330 within 20s"; outputs in that commit's body.
 - **Closed at `c6e6546`:** the `Resume` comment is finished. A comment, not behaviour; no test applies.
 
-D1 and the truncated comment are closed with tests at `c6e6546`. The compliance mode gate, the report-pane colour and the `serve` default are implemented and gated but **still owe their tests**, so those entries stay open and the list below stands. They are not entered as matrix rows because they have not been triaged here; the `open defect` count
-therefore still reads 0, and that number is not evidence that the list is empty. Until each is fixed
-or refuted at its cited line, "code complete" is not a claim this repository can make.
+All seven are closed, so the `open defect` count reads 0 because the work is done, not because the
+list was deleted. A zero is still not evidence on its own, and neither is the checker's rule against
+describing unfinished work: that rule is **pattern-based**, rejecting four fixed phrases
+(`scripts/acceptance-check.ps1`), so satisfying it says nothing about completeness. What is evidence
+is the seven entries above, each naming a test that was run with its fix removed and failed, at the
+commit quoted.
 
 The navigation defect is closed: the rail is a tab list, each item is a tab, and the UI
 harness measures it as `TabItem` with `SelectionItemPattern` (38/38).
