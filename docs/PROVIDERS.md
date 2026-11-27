@@ -76,3 +76,10 @@ for a run is one the server already reports as loaded.
 - `crates/pfl-workflow/src/ladder.rs` — 6 tests, including quota-then-success with a receipt.
 - `crates/pfl-storage/tests/assignments.rs` — assignments, connections, login rows.
 - `docs/evidence/models/20261126T1130Z/` — the page as it ran on this machine.
+- `crates/pfl-workflow/tests/login_manager.rs` — 5 tests: URL then finish, redacted failure, cancel,
+  one attempt per provider, a late URL.
+- `crates/pfl-workflow/src/ollama_supervision.rs` — 5 tests: a running server is never spawned, a
+  spawn that never serves is a failure, one that comes up is reported started.
+- `crates/pfl-domain/tests/checkpoint_provider.rs` — 2 tests: the provider field round-trips, and an
+  older checkpoint without it still reads.
+- `crates/pfl-desktop/tests/` — session state tests, including checkpoint ordering.
