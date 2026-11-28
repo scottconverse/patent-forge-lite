@@ -1,6 +1,6 @@
 # PatentForge Lite — User Manual
 
-Version 0.2.0 candidate · Windows, macOS, Linux (the crates still declare 0.1.0; see `docs/RELEASE-MANIFEST.md`)
+Version 0.2.1 (candidate; the published release is v0.1.0) · Windows, macOS, Linux. The version in `Cargo.toml`, the installer and `docs/RELEASE-MANIFEST.md` is 0.2.1.
 
 This manual covers everything from installing the application to exporting a finished draft. If
 you only read one section, read [Your first analysis](#your-first-analysis).
@@ -9,8 +9,9 @@ you only read one section, read [Your first analysis](#your-first-analysis).
 
 ## Contents
 
+0. [New here? The ten-minute path](#0-new-here-the-ten-minute-path)
 1. [What this application is](#1-what-this-application-is)
-2. [Installing](#2-installing)
+2. [Set-up: install and what "ready" means](#2-set-up-install-and-what-ready-means)
 3. [The first launch](#3-the-first-launch)
 4. [Projects and invention intake](#4-projects-and-invention-intake)
 5. [Choosing how analysis runs](#5-choosing-how-analysis-runs)
@@ -21,9 +22,45 @@ you only read one section, read [Your first analysis](#your-first-analysis).
 10. [Keyboard shortcuts](#10-keyboard-shortcuts)
 11. [Your data: backup, reset, uninstall](#11-your-data-backup-reset-uninstall)
 12. [Troubleshooting](#12-troubleshooting)
-13. [Command line and API](#13-command-line-and-api)
+13. [For technical users: command line and API](#13-for-technical-users-command-line-and-api)
 14. [Privacy and safety](#14-privacy-and-safety)
 15. [Known limits](#15-known-limits)
+16. [Architecture, for technical readers](#16-architecture-for-technical-readers)
+
+---
+
+## 0. New here? The ten-minute path
+
+You need no account, no key and no model to watch the product work end to end. Recorded replay is a
+canned provider: the four analyses run for real, against stored responses, and nothing leaves the
+machine.
+
+```mermaid
+flowchart LR
+    A[Install<br/>§2] --> B[First launch<br/>workspace created]
+    B --> C[Create a project<br/>and fill the intake<br/>§4]
+    C --> D[Choose Recorded replay<br/>§5]
+    D --> E[Start the feasibility analysis<br/>§6]
+    E --> F[Read, keep, export the report<br/>§7]
+    F --> G{Want real output?}
+    G -->|yes| H[Point it at a local model<br/>§5, LM Studio or Ollama]
+    G -->|no| I[Try claims, compliance<br/>and the application]
+```
+
+1. **Install** — §2. On Windows run the installer; on macOS drag the app out of the image and
+   right-click → Open the first time.
+2. **Launch it once.** The first launch creates your workspace and tells you where it is.
+3. **Create a project** and fill in the intake — title, description, technical field. The optional
+   context fields make the output better but are not required.
+4. **Choose Recorded replay** in Execution mode, then mark the data as synthetic. Replay refuses
+   real-invention data on purpose.
+5. **Start the analysis** and watch the six stages. Cancel any time; an interrupted run can be
+   resumed from its last saved stage.
+6. **Read the report** in the reader, switch to Source if you want the raw Markdown, and export it
+   as Markdown, HTML or Word.
+
+If something refuses and the reason is not obvious, §12 lists every refusal message this build
+produces and what it means.
 
 ---
 
@@ -62,7 +99,30 @@ when it starts, so a later edit never quietly changes a saved result.
 
 ---
 
-## 2. Installing
+## 2. Set-up: install and what "ready" means
+
+```mermaid
+flowchart TD
+    S[Installer or archive] --> W[Workspace directory<br/>created on first launch]
+    W --> D[SQLite database<br/>one file per workspace]
+    D --> R{What will you run?}
+    R -->|Recorded replay| OK[Ready: no model needed]
+    R -->|Local model| L[LM Studio or Ollama<br/>must be running on loopback]
+    R -->|Cloud| K[Model name plus a paid<br/>approval per run]
+    L --> T[Pick the endpoint and model<br/>in Execution setup]
+    K --> T
+    T --> OK
+```
+
+You are ready when all four of these are true:
+
+- [ ] the application launches and shows the workspace path in Setup;
+- [ ] a project opens and its intake saves;
+- [ ] the mode you intend to use is selected, and its prerequisite is satisfied — nothing for
+      replay, a reachable loopback server for local, a model name and a paid approval for Cloud;
+- [ ] the data declaration (synthetic or real) is set, because every start refuses without it.
+
+The rest of this section is the platform-specific install detail.
 
 ### Windows (x64)
 
@@ -445,7 +505,30 @@ you can report.
 
 ---
 
-## 13. Command line and API
+## 13. For technical users: command line and API
+
+```mermaid
+flowchart LR
+    subgraph CLI[pfl-cli]
+      C1[models]
+      C2[run / resume / cancel]
+      C3[inspect / export]
+    end
+    subgraph API[HTTP, opt-in]
+      A1[GET reads]
+      A2[POST mutating]
+      A3[download tokens]
+    end
+    CLI --> SVC[Application service]
+    API --> SVC
+    SVC --> WF[Workflow runner]
+    WF --> DB[(SQLite workspace)]
+    SVC --> EXP[Markdown / HTML / Word]
+```
+
+Everything the window can do, the CLI can do headlessly, and the HTTP surface exposes the same
+application service behind an opt-in token. Two rules bite in practice: a token in the query string
+authorises **reads only**, and a mutating request carrying a foreign `Origin` is refused.
 
 `pfl-cli` **is not included in the Windows installer** — build it from source:
 
@@ -538,3 +621,92 @@ JSON array. A failed search is an error, never an empty result.
 - There is no tray-resident background mode: closing the window closes the application, and a second launch is refused (exit code 3) because only one instance may write to the workspace.
 - Real PatentForge data migration is **not enabled**: the importer is proven on a synthetic fixture only, and importing a real database needs explicit authorization. The preview, credential redaction and re-runnability are implemented and tested.
 - A single user profile per machine; there is no multi-user or team mode.
+
+---
+
+## 16. Architecture, for technical readers
+
+The application is a Rust workspace: a domain crate that both the desktop and the CLI link, a
+workflow runner that owns jobs, storage over SQLite, provider adapters, and a GPUI desktop.
+
+```mermaid
+flowchart TB
+    subgraph Surfaces
+      UI[GPUI desktop<br/>pfl-desktop]
+      CLI[pfl-cli]
+      HTTP[pfl-api]
+    end
+    subgraph Core
+      SVC[Application service<br/>commands, events, authorization]
+      WF[Workflow runner<br/>jobs, checkpoints, resume]
+      PROV[Provider adapters<br/>replay, local, subscription CLIs, HTTP]
+      RES[Research adapters<br/>opt-in prior art]
+    end
+    subgraph Data
+      DB[(SQLite workspace)]
+      EXP[Exporters<br/>Markdown, HTML, Word]
+    end
+    UI --> SVC
+    CLI --> SVC
+    HTTP --> SVC
+    SVC --> WF
+    WF --> PROV
+    WF --> RES
+    WF --> DB
+    SVC --> EXP
+    DB --> EXP
+```
+
+A run is an immutable input plus a sequence of checkpoints. The runner writes a checkpoint per
+stage, so an interruption costs the unfinished stage and not the run.
+
+```mermaid
+sequenceDiagram
+    participant U as Operator
+    participant S as Application service
+    participant R as Runner
+    participant P as Provider
+    participant D as SQLite
+    U->>S: Start (project, workflow, authorization)
+    S->>S: gate: mode, data declaration, paid approval
+    S->>R: create run (immutable input)
+    loop each of the six stages
+        R->>P: generate (stage, upstream)
+        P-->>R: text + usage
+        R->>D: checkpoint (text, provider, sequence)
+    end
+    R->>D: terminal outcome + report
+    S-->>U: events, then the snapshot
+```
+
+Storage keeps `runs` five columns wide so a build from before the provider work can still read and
+insert rows; the event counter lives in `run_sequences` beside it.
+
+```mermaid
+erDiagram
+    projects ||--o{ runs : "has"
+    runs ||--o{ events : "appends"
+    runs ||--|| run_sequences : "counter"
+    runs ||--o{ document_revisions : "exports"
+    projects ||--o{ intake_revisions : "edits"
+    runs {
+      text id PK
+      text project_id FK
+      int version
+      text idempotency_key
+      text payload
+    }
+    run_sequences {
+      text run_id PK
+      int last_sequence
+    }
+    events {
+      text run_id FK
+      int sequence PK
+      text payload
+    }
+```
+
+Nothing in the desktop layer executes a provider: the session actor owns a long-lived Tokio runtime
+and the real runner, and the view layer only sends requests and renders replies. That separation is
+why the headless tests can cover the run path without a window.

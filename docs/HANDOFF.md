@@ -73,9 +73,9 @@ providers the request log as well.
 
 ## Decisions that are Scott's
 
-Next release version (installer says 0.2.0, crates say 0.1.0), signing, publication, the
-PatentsView key, migration authorization, macOS/Linux hardware, and whether to keep or prune
-the `impl/*` branches.
+The next release version is settled at 0.2.1 (crates, installer and manifest agree). Signing,
+publication, the PatentsView key, migration authorization, macOS/Linux hardware, and whether to
+keep or prune the `impl/*` branches are still Scott's.
 
 ## Running the installed proofs
 

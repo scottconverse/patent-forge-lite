@@ -81,5 +81,5 @@ measurement that has not been made.
 - **The audit's escalation step was never taken**: it recommended an audit-team pass, and that
   skill is not installed on this machine. The second full review was done by an external reviewer
   instead.
-- **Version strings disagree**: the crates declare 0.1.0 while the candidate is published as
-  0.2.0 in the manifest and installer. Choosing one is Scott's call.
+- **Version strings agree**: the crates, the installer and the manifest all declare 0.2.1, and the
+  only published release is v0.1.0. The skew that used to be recorded here is closed.

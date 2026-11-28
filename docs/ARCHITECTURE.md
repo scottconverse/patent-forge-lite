@@ -21,6 +21,37 @@ Rust owns persistence, workflow execution, provider policy, research, editing, e
 
 The coordinator/integration owner controls shared contracts, workspace manifests, lockfile, Git operations and resource-heavy builds. Workers own disjoint modules. The desktop's portable `editor` and `state` modules contain no provider execution; its application-session actor owns a long-lived Tokio runtime and uses the real `WorkflowService`. Navigation changes presentation, not runner ownership.
 
+## Diagrams
+
+System context: what sits outside the process and what stays inside it.
+
+```mermaid
+flowchart LR
+    Operator[Operator] --> Desktop[GPUI desktop]
+    Operator --> CLI[pfl-cli]
+    Other[Another program or script] --> API[HTTP API, opt-in]
+    Desktop --> Workspace[(SQLite workspace on disk)]
+    CLI --> Workspace
+    API --> Workspace
+    Desktop -.optional.-> Local[LM Studio / Ollama on loopback]
+    Desktop -.opt-in, paid.-> Cloud[Cloud provider]
+    Desktop -.opt-in.-> Research[Prior-art research]
+```
+
+Component boundaries, in the order a request travels.
+
+```mermaid
+flowchart TB
+    View[View layer<br/>GPUI, no provider execution] --> Session[Session actor<br/>long-lived Tokio runtime]
+    Session --> Service[Application service]
+    Service --> Runner[Workflow runner]
+    Runner --> Providers[Provider adapters]
+    Runner --> Research[Research adapters]
+    Runner --> Store[Storage]
+    Service --> Exports[Exporters]
+    Store --> Db[(SQLite)]
+```
+
 ## Commands, events and recovery
 
 The domain contract identifies project, run, version, attempt and stage. Snapshot invention input, prompt version, provider/model and research policy for each new run. Intake includes all nine legacy optional context fields, not only title/description; collapsed optional controls must preserve their values. Use secret references, not credential material.

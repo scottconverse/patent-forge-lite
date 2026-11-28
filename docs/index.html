@@ -295,11 +295,146 @@ open "Patent Forge Lite.app"</pre>
   </div>
 </section>
 
+<section id="start">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>New here? Ten minutes, no account and no model</h2>
+      <p>Recorded replay is a canned provider: the four analyses run for real against stored responses and nothing
+         leaves the machine. It is the fastest way to see what the product does before pointing it at a model.</p>
+    </div>
+    <pre class="mermaid">
+flowchart LR
+    A[Install] --> B[First launch<br/>workspace created]
+    B --> C[Create a project<br/>and fill the intake]
+    C --> D[Choose Recorded replay]
+    D --> E[Start the feasibility analysis]
+    E --> F[Read and export the report]
+    F --> G{Want real output?}
+    G -->|yes| H[Point it at a local model]
+    G -->|no| I[Try claims, compliance<br/>and the application]
+    </pre>
+    <ol style="margin-top:22px">
+      <li><strong>Install</strong> for your platform, below.</li>
+      <li><strong>Launch once</strong> — the first launch creates the workspace and tells you where it is.</li>
+      <li><strong>Create a project</strong> and fill the intake: title, description, technical field. The nine optional
+          context fields improve the output but are not required.</li>
+      <li><strong>Choose Recorded replay</strong> and mark the data synthetic. Replay refuses real-invention data on purpose.</li>
+      <li><strong>Start</strong>, watch six stages, and <strong>read</strong> the report. Cancel any time; an interrupted run
+          resumes from its last saved stage.</li>
+    </ol>
+    <p><a class="btn btn-ghost" href="https://github.com/scottconverse/patent-forge-lite/blob/main/docs/USER-MANUAL.md#0-new-here-the-ten-minute-path">The ten-minute path in the manual</a></p>
+  </div>
+</section>
+
+<section id="setup">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Set-up: what "ready" means</h2>
+      <p>Installing is the short part. These four checks are what distinguishes a working setup from one that will
+         refuse at the first click.</p>
+    </div>
+    <pre class="mermaid">
+flowchart TD
+    S[Installer or archive] --> W[Workspace directory<br/>created on first launch]
+    W --> D[SQLite database<br/>one file per workspace]
+    D --> R{What will you run?}
+    R -->|Recorded replay| OK[Ready: no model needed]
+    R -->|Local model| L[LM Studio or Ollama<br/>running on loopback]
+    R -->|Cloud| K[Model name plus a paid<br/>approval for each run]
+    L --> T[Pick endpoint and model<br/>in Execution setup]
+    K --> T
+    T --> OK
+    </pre>
+    <ul style="margin-top:22px">
+      <li>the application launches and shows the workspace path;</li>
+      <li>a project opens and its intake saves;</li>
+      <li>the mode you intend to use is selected and its prerequisite is satisfied — nothing for replay, a reachable
+          loopback server for local, a model name and a paid approval for Cloud;</li>
+      <li>the data declaration is set, because every start refuses without it.</li>
+    </ul>
+    <p><a class="btn btn-ghost" href="https://github.com/scottconverse/patent-forge-lite/blob/main/docs/USER-MANUAL.md#2-set-up-install-and-what-ready-means">Set-up in the manual</a></p>
+  </div>
+</section>
+
+<section id="technical">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>For technical users</h2>
+      <p>Everything the window can do, the CLI can do headlessly, and an opt-in HTTP surface exposes the same
+         application service. Two rules bite in practice: a token in the query string authorises reads only, and a
+         mutating request carrying a foreign Origin is refused.</p>
+    </div>
+    <pre class="mermaid">
+flowchart LR
+    subgraph CLI[pfl-cli]
+      C1[models]
+      C2[run / resume / cancel]
+      C3[inspect / export]
+    end
+    subgraph API[HTTP, opt-in]
+      A1[GET reads]
+      A2[POST mutating]
+      A3[download tokens]
+    end
+    CLI --> SVC[Application service]
+    API --> SVC
+    SVC --> WF[Workflow runner]
+    WF --> DB[(SQLite workspace)]
+    SVC --> EXP[Markdown / HTML / Word]
+    </pre>
+    <p><a class="btn btn-ghost" href="https://github.com/scottconverse/patent-forge-lite/blob/main/docs/USER-MANUAL.md#13-for-technical-users-command-line-and-api">CLI and API in the manual</a>
+       <a class="btn btn-ghost" href="https://github.com/scottconverse/patent-forge-lite/blob/main/docs/API-CONTRACTS.md">API contracts</a></p>
+  </div>
+</section>
+
+<section id="architecture">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Architecture</h2>
+      <p>A Rust workspace: a domain crate both surfaces link, a runner that owns jobs, SQLite storage, provider
+         adapters, and a GPUI desktop that executes no provider itself.</p>
+    </div>
+    <pre class="mermaid">
+flowchart TB
+    subgraph Surfaces
+      UI[GPUI desktop]
+      CLIp[pfl-cli]
+      HTTPp[pfl-api]
+    end
+    subgraph Core
+      SVC[Application service]
+      WF[Workflow runner]
+      PROV[Provider adapters]
+      RES[Research adapters]
+    end
+    subgraph Data
+      DB[(SQLite workspace)]
+      EXP[Exporters]
+    end
+    UI --> SVC
+    CLIp --> SVC
+    HTTPp --> SVC
+    SVC --> WF
+    WF --> PROV
+    WF --> RES
+    WF --> DB
+    SVC --> EXP
+    DB --> EXP
+    </pre>
+    <p>A run is an immutable input plus a checkpoint per stage, so an interruption costs the unfinished stage and not
+       the run. Storage keeps <code>runs</code> five columns wide so a build from before the provider work can still
+       read and insert rows, with the event counter in <code>run_sequences</code> beside it.</p>
+    <p><a class="btn btn-ghost" href="https://github.com/scottconverse/patent-forge-lite/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+       <a class="btn btn-ghost" href="https://github.com/scottconverse/patent-forge-lite/blob/main/docs/USER-MANUAL.md#16-architecture-for-technical-readers">Diagrams in the manual</a></p>
+  </div>
+</section>
+
 <section id="status">
   <div class="wrap">
     <div class="section-head">
       <h2>Status, honestly</h2>
-      <p>v0.1.0 is the published release. The repository also carries a 0.2.0 candidate whose installer is unsigned; its hash is in the release manifest. This page separates what has been proven from what has not.</p>
+      <p>v0.1.0 is the published release. The repository also carries a 0.2.1 candidate: its installer is built, unsigned
+      and unpublished, its hash is in the release manifest, and nothing in this page should be read as claiming 0.2.1 shipped. This page separates what has been proven from what has not.</p>
     </div>
     <table>
       <thead><tr><th>Area</th><th>State</th></tr></thead>
@@ -338,5 +473,11 @@ open "Patent Forge Lite.app"</pre>
   </div>
 </footer>
 
+<script type="module">
+  // The diagrams above are ordinary text until this loads: a reader offline, or with scripting off,
+  // still sees the shape of each flow. The CDN is the only external request this page makes.
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'strict' });
+</script>
 </body>
 </html>

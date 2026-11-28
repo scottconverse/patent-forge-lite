@@ -6,6 +6,10 @@ draft — keeping every stage, every prompt and every report on your own machine
 
 Rust core · GPUI desktop · Windows, macOS and Linux · no browser, no account, no legacy services.
 
+**Version 0.2.1** is the candidate in this repository: `Cargo.toml`, the installer and
+`docs/RELEASE-MANIFEST.md` all say 0.2.1, and it is **unpublished and unsigned**. The only published
+release is **v0.1.0**.
+
 ---
 
 ## What it does
@@ -24,6 +28,24 @@ snapshots the exact upstream text it read. Re-running feasibility later never ch
 run you already have.
 
 Everything ends in a saved report you can export as **Markdown, HTML or Word (.docx)**.
+
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+    UI[GPUI desktop] --> SVC[Application service]
+    CLI[pfl-cli] --> SVC
+    API[HTTP API, opt-in] --> SVC
+    SVC --> RUN[Workflow runner]
+    RUN --> PROV[Providers<br/>replay, local, subscription CLIs, HTTP]
+    RUN --> DB[(SQLite workspace)]
+    SVC --> EXP[Markdown, HTML, Word]
+```
+
+The runner owns jobs and writes a checkpoint per stage, so an interrupted run resumes where it
+stopped. Providers are chosen per project and can be overridden per run; see
+[docs/PROVIDERS.md](docs/PROVIDERS.md) for what each kind means and
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the boundaries.
 
 ## What it looks like
 
@@ -51,7 +73,7 @@ Barlow type. Reports open as a document — not raw markdown.
 install, no administrator rights. Uninstalling does **not** delete your projects.
 
 The published v0.1.0 installer is Authenticode-signed with Azure Trusted Signing (publisher
-**Scott Converse**), and the pipeline fails closed if the signature does not verify. The 0.2.0
+**Scott Converse**), and the pipeline fails closed if the signature does not verify. The 0.2.1
 candidate in this repository is **unsigned**: its hash is recorded in
 [`docs/RELEASE-MANIFEST.md`](docs/RELEASE-MANIFEST.md), and SmartScreen will report an unknown
 publisher for it.
@@ -153,8 +175,9 @@ report rendering and shortcuts. `scripts/preflight.ps1` verifies a build before 
 | Core, four workflows, storage, exports, CLI, API | Implemented and tested |
 | Windows desktop | Built, launched, driven by hand and by automation |
 | macOS / Linux desktop | **Compile + test green in CI**; no installed or interactive acceptance yet |
-| Windows installer | Built, installed, uninstalled and verified — **signed with Azure Trusted Signing** |
-| macOS / Linux packages | Built and published **unsigned** |
+| Windows installer, v0.1.0 (published) | Built, installed, uninstalled and verified — **signed with Azure Trusted Signing** |
+| macOS / Linux packages, v0.1.0 | Built and published **unsigned** |
+| Windows installer, 0.2.1 (candidate) | Built and verified locally — **unsigned, unpublished** |
 | Live local inference | Verified on one model (`phi4-mini`), all four workflows |
 | Live Cloud inference | Fail-closed; verified against a mock only |
 | Live prior-art research | USPTO PatentsView with a per-run opt-in; verified against a loopback stand-in, no live query yet |
@@ -172,6 +195,18 @@ Licensing: see [LICENSE](LICENSE) for the source, [LICENSE-PROMPTS](LICENSE-PROM
 prompt text (upstream prompts are CC-BY-SA 4.0), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 for Barlow (SIL OFL) and the GPUI dependency. Product disclaimers are reproduced in
 [LEGAL_NOTICE.md](LEGAL_NOTICE.md).
+
+## The manual
+
+[docs/USER-MANUAL.md](docs/USER-MANUAL.md) is the full manual, written in four parts:
+
+| Part | Section | What is there |
+| --- | --- | --- |
+| New user | [§0](docs/USER-MANUAL.md#0-new-here-the-ten-minute-path) | the ten-minute path through a real analysis with no model |
+| Set-up | [§2](docs/USER-MANUAL.md#2-set-up-install-and-what-ready-means) | install per platform, and the four checks that mean "ready" |
+| Day to day | [§4–§12](docs/USER-MANUAL.md#4-projects-and-invention-intake) | intake, execution mode, runs, reports, revisions, exports, backups, every refusal message |
+| Technical user | [§13](docs/USER-MANUAL.md#13-for-technical-users-command-line-and-api) | CLI and HTTP API, including the token and origin rules |
+| Architecture | [§16](docs/USER-MANUAL.md#16-architecture-for-technical-readers) | diagrams and the run lifecycle |
 
 ## Documents
 

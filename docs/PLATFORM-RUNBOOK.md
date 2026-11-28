@@ -27,7 +27,8 @@ bash packaging/macos/bundle.sh
 on the app, and Gatekeeper will refuse a downloaded unsigned copy from another machine.
 
 Done on the Mac mini, with output in `docs/evidence/macos/20261125T023619Z/transcript.txt`: the
-release build, `bundle.sh`, `CFBundleShortVersionString` (`0.2.0`), absence of
+release build, `bundle.sh`, `CFBundleShortVersionString` (`0.2.0` at the time; the template now
+defaults to 0.2.1), absence of
 `Resources/docs/evidence`, ad-hoc signing status, the SHA-256 of the zipped bundle, a launch that
 created its profile (schema v1, `run_sequences`, zero rows) and quit cleanly, and a second launch
 over an existing workspace (1 project, 4 runs) that left the counts unchanged.
