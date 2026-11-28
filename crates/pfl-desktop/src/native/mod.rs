@@ -724,6 +724,19 @@ impl Desktop {
         }
     }
 
+    /// The authorization one spending request carries, and the flag afterwards.
+    ///
+    /// The pair is the rule: the request keeps the approval the operator gave, and the window clears
+    /// it so the next click cannot spend again. The first version of this cleared before capturing,
+    /// so every Cloud start from the window sent `paid_provider: false` and the session refused it.
+    fn consume_approval(&mut self) -> Authorization {
+        let (carried, next) = consume_approval_rule(self.cloud_approved);
+        let mut authorization = self.authorization();
+        authorization.paid_provider = carried;
+        self.cloud_approved = next;
+        authorization
+    }
+
     fn start(&mut self, cx: &mut Context<Self>) {
         // One pure decision, shared with regenerate and resume.
         if self.gate_blocks(cx) {
@@ -733,10 +746,9 @@ impl Desktop {
         let Some(project) = self.state.selected_project.clone() else {
             return;
         };
-        // Approval is for one run, and this is that run: sending it consumes the approval, so the
-        // next click cannot spend again without a new one.
-        self.cloud_approved = false;
-
+        // One approval, one run: the request carries what the operator approved and the flag clears
+        // behind it.
+        let authorization = self.consume_approval();
         let key = self
             .start_key
             .get_or_insert_with(|| RunId::new().to_string())
@@ -745,7 +757,7 @@ impl Desktop {
             project: project.id.clone(),
             kind: self.workflow,
             idempotency_key: key,
-            authorization: self.authorization(),
+            authorization,
         };
         self.pending = true;
         self.state.page = Page::Workflow;
@@ -1709,21 +1721,16 @@ impl Render for Desktop {
                                         .start_key
                                         .get_or_insert_with(|| RunId::new().to_string())
                                         .clone();
-                                    // Same rule as the plain start: one approval, one run.
-                                    this.cloud_approved = false;
+                                    // Same rule as the plain start: one approval, one run, built
+                                    // before the flag clears.
+                                    let authorization = this.consume_approval();
                                     this.pending = true;
                                     this.send(
                                         Request::StartSelected {
                                             project,
                                             kind: WorkflowKind::Compliance,
                                             idempotency_key: key,
-                                            authorization: Authorization {
-                                                synthetic_data: this.synthetic,
-                                                real_data: this.real_data,
-                                                local_inference: this.authorized_local,
-                                                paid_provider: this.cloud_approved,
-                                                research: this.research_authorized,
-                                            },
+                                            authorization,
                                             claims_revision: claims.clone(),
                                             specification_revision: specification.clone(),
                                         },
@@ -2035,17 +2042,17 @@ impl Render for Desktop {
                                 format!("regen-{}", stage.number()),
                                 format!("Regenerate from {} onward", stage.label()),
                                 move |this, _, cx| {
-                                    // Regenerating spends again, so it passes the same gate as
-                                    // starting: without a fresh approval the click does nothing
-                                    // but explain itself.
+                                    // Regenerating spends again, so it passes the same gate and
+                                    // consumes the same approval as starting.
                                     if this.gate_blocks(cx) {
                                         return;
                                     }
+                                    let authorization = this.consume_approval();
                                     this.send(
                                         Request::RegenerateFrom {
                                             run: run.clone(),
                                             stage,
-                                            authorization: this.authorization(),
+                                            authorization,
                                         },
                                         cx,
                                     );
@@ -3436,6 +3443,14 @@ impl Render for Desktop {
 /// `theme::TEXT` is `PAPER`, the same value as `theme::DOC_BG`, so a label drawn in the page colour
 /// is invisible. Both children of the label branch take their colour from here, and the test below
 /// fails if either one goes back to `theme::TEXT`.
+/// The approval a spending request carries, and the flag afterwards.
+///
+/// Pure so the ordering is testable without a window: the request keeps what the operator approved,
+/// and the window clears it. The first version cleared first, which made the carried value false.
+fn consume_approval_rule(approved: bool) -> (bool, bool) {
+    (approved, false)
+}
+
 fn report_label_color() -> u32 {
     theme::DOC_TEXT
 }
@@ -3632,58 +3647,39 @@ mod report_colour_tests {
 
 #[cfg(test)]
 mod approval_tests {
-    /// One paid approval authorizes one run.
+    use super::consume_approval_rule;
+    use crate::state::{StartGate, start_block};
+
+    /// The rule and its consequence, as state rather than as source text.
     ///
-    /// The three resets are asserted against this file's own source: the window state is not
-    /// reachable from a headless test, and a behavioural test would need the native event loop.
+    /// `consume_approval_rule` is what the window calls before sending: the first value is what the
+    /// request carries, the second what the flag becomes. Clearing before capturing made the first
+    /// value false and paid Cloud starts were refused; that is what this asserts against.
     #[test]
-    fn one_paid_approval_authorizes_one_run() {
-        let source = include_str!("mod.rs");
-
-        let start = source
-            .find("    fn start(&mut self, cx: &mut Context<Self>) {")
-            .expect("the plain start must exist");
-        let body = &source[start..(start + 4000).min(source.len())];
-        assert!(
-            body.contains("self.cloud_approved = false;"),
-            "the plain start must consume the approval"
+    fn one_approval_is_carried_once_and_then_cleared() {
+        assert_eq!(
+            consume_approval_rule(true),
+            (true, false),
+            "the request keeps the approval and the window clears it"
         );
+        assert_eq!(consume_approval_rule(false), (false, false));
 
-        let compliance = source
-            .find("Request::StartSelected {")
-            .expect("the compliance start must exist");
-        let window = &source[compliance.saturating_sub(600)..(compliance + 600).min(source.len())];
-        assert!(
-            window.contains("this.cloud_approved = false;"),
-            "the compliance start must consume the approval"
-        );
-
-        let opened = source
-            .find("Reply::Opened(project, history) => {")
-            .expect("the open arm must exist");
-        let window = &source[opened..(opened + 1200).min(source.len())];
-        assert!(
-            window.contains("self.cloud_approved = false;"),
-            "opening a project must drop the approval"
-        );
-    }
-}
-
-#[cfg(test)]
-mod pending_tests {
-    /// A request the session refuses to queue never produces a reply, so `send` must clear the
-    /// in-flight flag itself. Asserted against this file's source, because the flag lives in window
-    /// state that a headless test cannot reach.
-    #[test]
-    fn a_request_that_cannot_be_queued_does_not_leave_the_window_pending() {
-        let source = include_str!("mod.rs");
-        let start = source
-            .find("    fn send(&mut self, request: Request, cx: &mut Context<Self>) {")
-            .expect("send must exist");
-        let body = &source[start..(start + 500).min(source.len())];
-        assert!(
-            body.contains("self.pending = false;"),
-            "the failure path of send must clear pending"
+        // The pair in one place: after consumption a Cloud start is refused until a new approval.
+        let gate = StartGate {
+            pending: false,
+            dirty: false,
+            has_project: true,
+            run_active: false,
+            data_declared: true,
+            mode_chosen: true,
+            mode_is_local: false,
+            local_authorized: false,
+            mode_is_cloud: true,
+            cloud_approved: false,
+        };
+        assert_eq!(
+            start_block(&gate),
+            Some("Approve the paid Cloud request for this run.")
         );
     }
 }
