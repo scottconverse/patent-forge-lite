@@ -11,7 +11,7 @@ Anything installed writes its JSON and, where relevant, its request log into
 
 | Field | Value |
 | --- | --- |
-| Revision | `b6c31f3` |
+| Revision | `c9d0f09` |
 | Candidate version | 0.2.1 — declared in `Cargo.toml` and named by the installer, so there is one version, not an override |
 | Published release | v0.1.0 only; this revision is **unpublished and unsigned** |
 
@@ -281,7 +281,7 @@ by the checker as matrix rows and its status words were rejected.
 - **Download token not bound to a run or format** -- **fixed at `65e6c5c`**: the token is stored and checked as (run_id, format, expiry), the mint endpoint refuses without both names, and the export route compares what it names. Test: `a_download_token_opens_only_the_run_and_format_it_names`; run with the binding removed and failed (`left: 200, right: 401`, "a token for markdown must not open html"), output in that commit's body.
 - **No Origin/Sec-Fetch-Site check on cancel** -- **fixed at `ad5ef2e`**: a mutating request is refused when `Origin` names another host or `Sec-Fetch-Site` says cross-site/same-site; no Origin, `same-origin` and `none` are allowed, so the CLI and a direct navigation still work. Test: `a_foreign_origin_cannot_reach_a_mutating_route`; run with the check removed and failed (`left: 404, right: 403`), output in that commit's body.
 - **`pfl_api::serve` has no loopback guard** -- **fixed at `b6fb908`**: `check_bind` refuses a non-loopback address unless `allow_remote` is passed, and `serve` is `serve_with(..., false)`. Test: `bind_tests::a_non_loopback_bind_is_refused_unless_allowed`; run with the guard removed and failed ("0.0.0.0:4330 must be refused without allow_remote"), output in that commit's body. The CLI keeps its different rule -- remote allowed when `PFL_API_TOKEN` is set -- unchanged and recorded here as a decision.
-- **"Approve paid Cloud request (this run)" is not per-run** -- **fixed at `80f93be`**: both start paths consume the approval and opening a project drops it, so one approval authorizes one run. Test: `native::approval_tests::one_paid_approval_authorizes_one_run`; run with the plain-start reset removed and failed ("the plain start must consume the approval"), output in that commit's body. The assertion is source-level, like D3: it catches a deleted reset, not one placed where it never runs.
+- **"Approve paid Cloud request (this run)" is not per-run** -- **closed at `c9d0f09`**, after being false from `80f93be` until then: that commit cleared the approval before building the request, so every Cloud start from the window carried `paid_provider: false` and was refused, and `Regenerate` never consumed the approval at all. All three spending paths now go through `consume_approval`, which captures then clears. Test: `native::approval_tests::one_approval_is_carried_once_and_then_cleared`, a state test that replaces the source scan which passed while the behaviour was broken; run with the ordering bug restored and failed (`left: (false, false)`, `right: (true, false)`), output in that commit's body. Intended consequence: the cost confirmation panel disappears as a paid run begins, because it is a pre-run disclosure.
 - **`send()` leaves `pending` set on failure** -- **fixed at `37aaf78`**: the failure path clears `pending`, matching what the `Reply::Error` arm already did when a reply does arrive. Test: `native::pending_tests::a_request_that_cannot_be_queued_does_not_leave_the_window_pending`; run with the clear removed and failed ("the failure path of send must clear pending"), output in that commit's body. Source-level, like D3.
 - **Vertical navigation ignores soft wrap** -- recorded, not fixed. `vertical` moves by logical line, and moving by display line needs the renderer's wrap width, which the input computes at paint time and does not keep in a form a headless test can drive. A pure wrap model of my own invention would move the cursor by a rule the screen may not follow -- a quieter version of the same bug -- so it is left as it is rather than guessed at.
 - **Editor gaps (paste cap, IME redo, Tab/Enter, aria_value)** -- **partly fixed at `bb708d6`**: an insertion is capped at `MAX_INSERT_CHARS` on a grapheme boundary, and an empty replacement of an empty range no longer clears the redo stack. Tests: `editor::clipboard_tests::a_paste_is_capped_at_a_grapheme_boundary` and `an_empty_replacement_keeps_the_redo_stack`; both were run with their fix removed and failed (`105000` vs `100000`; `""` vs `"hello"`), outputs in that commit's body. **Recorded, not done:** the Tab/Enter asymmetry and exposing `aria_value` both need the accessibility layer, which this session cannot drive.
@@ -292,11 +292,20 @@ by the checker as matrix rows and its status words were rejected.
 
 ### Closure record for the seven defects
 
-Each closure above was verified twice: the test was run with its fix removed and failed (command and output
-in the commit body), and then run again with the fix in place and passed. The suite stood at 380 passing tests
-with 0 failing and 2 ignored when the last defect closed (`b6c31f3`), the checker passed 13/13, and CI was green
-on windows-latest, macos-15 and ubuntu-24.04 at run 46078046563. The Part 3 list above is complete: ten items
+Each closure above was verified twice: the test was run with its fix removed and failed (command and output in the
+commit body), and then run again with the fix in place and passed. **Strength differs and the record says which:** D1, D2,
+D5 and D6 rest on behaviour-level tests; D3 asserts a value and also scans the source; D4 has a state test for
+`start_block` plus a session test, with the button wiring read from the diff; D7 is prose. The suite stood at 380 passing tests
+with 0 failing and 2 ignored when the last defect closed (`b6c31f3`), the checker passed 13/13, and CI was green at run 46078046563 -- which is
+the chore commit `e790a05`, not `b6c31f3` itself; the code that run tested is `b6c31f3`. The Part 3 list above is complete: ten items
 fixed with tests, two recorded with their reasons.
+
+> **Where this record was wrong, 2026-11-27.** The approval work landed at `80f93be` and was reported as fixed. It was not:
+> the flag was cleared before the request was built, so paid Cloud starts from the window were refused with
+> `paid_provider: false` from that commit until `c9d0f09`, and `Regenerate` never consumed the approval at all. No test in that
+> batch could see it, because the test was a source scan -- the same hazard its own commit message had described. An
+> independent review found it by reading the order of three statements. The scan was deleted and replaced by a state test;
+> the record for that item now says what went wrong rather than only that it is closed.
 
 ## Decisions that remain Scott's
 
